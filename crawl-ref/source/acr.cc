@@ -2277,7 +2277,8 @@ void process_command( command_type cmd )
     }
 
     case CMD_CAST_SPELL:
-        if (you.attribute[ATTR_TRANSFORMATION] == TRAN_BAT)
+        if (you.attribute[ATTR_TRANSFORMATION] == TRAN_BAT
+            || you.attribute[ATTR_TRANSFORMATION] == TRAN_PIG)
         {
            canned_msg(MSG_PRESENT_FORM);
            break;
@@ -4643,7 +4644,7 @@ static void _compile_time_asserts()
     COMPILE_CHECK(SP_VAMPIRE == 33              , c3);
     COMPILE_CHECK(SPELL_BOLT_OF_MAGMA == 19     , c4);
     COMPILE_CHECK(SPELL_POISON_ARROW == 94      , c5);
-    COMPILE_CHECK(NUM_SPELLS == 229             , c6);
+    COMPILE_CHECK(NUM_SPELLS == 230             , c6);
 
     //jmf: NEW ASSERTS: we ought to do a *lot* of these
     COMPILE_CHECK(NUM_JOBS < JOB_UNKNOWN        , c7);

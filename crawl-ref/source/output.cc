@@ -2451,6 +2451,9 @@ std::string _status_mut_abilities()
         case TRAN_AIR:
             text += "\nYou are a cloud of diffuse gas.";
             break;
+        case TRAN_PIG:
+            text += "\nYou are a filthy swine.";
+            break;
         }
         if ((you.species != SP_VAMPIRE
                 || you.attribute[ATTR_TRANSFORMATION] != TRAN_BAT)

@@ -756,6 +756,8 @@ static const char *transform_name()
         return "serpent";
     case TRAN_AIR:
         return "air";
+    case TRAN_PIG:
+        return "pig";
     default:
         return "";
     }

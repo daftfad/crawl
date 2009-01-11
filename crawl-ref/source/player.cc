@@ -489,6 +489,8 @@ bool is_player_same_species(const int mon, bool transform)
             return (mons_genus(mon) == MONS_WOLF_SPIDER);
         case TRAN_DRAGON:
             return (mons_genus(mon) == MONS_DRAGON); // Includes all drakes.
+        case TRAN_PIG:
+            return (mons_genus(mon) == MONS_HOG);
         default:
             break; // Check real (non-transformed) form.
         }
@@ -712,8 +714,8 @@ bool you_tran_can_wear(int eq, bool check_mutation)
     if (transform == TRAN_NONE || transform == TRAN_LICH)
         return (true);
 
-    // Bats cannot wear anything except amulets.
-    if (transform == TRAN_BAT && eq != EQ_AMULET)
+    // Bats and pigs cannot wear anything except amulets.
+    if ((transform == TRAN_BAT || transform == TRAN_PIG) && eq != EQ_AMULET)
         return (false);
 
     // Everyone else can wear jewellery, at least.
@@ -1932,6 +1934,8 @@ int player_movement_speed(void)
             mv = 8;
         else if (you.attribute[ATTR_TRANSFORMATION] == TRAN_BAT)
             mv = 5; // but allowed minimum is six
+        else if (you.attribute[ATTR_TRANSFORMATION] == TRAN_PIG)
+            mv = 7;
 
         // armour
         if (player_equip_ego_type( EQ_BOOTS, SPARM_RUNNING ))
@@ -3959,6 +3963,9 @@ void display_char_status()
             break;
         case TRAN_AIR:
             text += "You are a cloud of diffuse gas.";
+            break;
+        case TRAN_PIG:
+            text += "You are a filthy swine.";
             break;
         }
         mpr(text.c_str());
@@ -6204,6 +6211,8 @@ std::string player::shout_verb() const
         return "hiss";
     case TRAN_BAT:
         return "squeak";
+    case TRAN_PIG:
+        return "squeal";
     case TRAN_AIR:
         return "__NONE";
     default: // depends on SCREAM mutation

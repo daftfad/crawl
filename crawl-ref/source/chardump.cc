@@ -257,6 +257,9 @@ static void _sdump_transform(dump_params &par)
         case TRAN_AIR:
             text += "You " + verb + " a cloud of diffuse gas.";
             break;
+        case TRAN_PIG:
+            text += "You " + verb + " a filthy swine.";
+            break;
         }
 
         text += "\n\n";

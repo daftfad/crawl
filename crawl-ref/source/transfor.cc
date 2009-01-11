@@ -47,6 +47,7 @@ static void _init_equipment_removal(std::set<equipment_type> &rem_stuff,
         break;
 
     case TRAN_BAT:
+    case TRAN_PIG:
         // Bats can't wear rings, either. This means that the only equipment
         // the player may keep wearing upon transformation is an amulet.
         rem_stuff.insert(EQ_LEFT_RING);
@@ -397,6 +398,8 @@ size_type player::transform_size(int psize) const
     case TRAN_SPIDER:
     case TRAN_BAT:
         return SIZE_TINY;
+    case TRAN_PIG:
+        return SIZE_SMALL;
     case TRAN_ICE_BEAST:
         return SIZE_LARGE;
     case TRAN_DRAGON:
@@ -441,7 +444,10 @@ bool transform(int pow, transformation_type which_trans, bool quiet)
     {
         if (you.duration[DUR_TRANSFORMATION] < 100)
         {
-            mpr("You extend your transformation's duration.");
+            if (which_trans==TRAN_PIG)
+                mpr("You feel you'll be a pig longer.");
+            else
+                mpr("You extend your transformation's duration.");
             you.duration[DUR_TRANSFORMATION] += random2(pow);
 
             if (you.duration[DUR_TRANSFORMATION] > 100)
@@ -451,7 +457,7 @@ bool transform(int pow, transformation_type which_trans, bool quiet)
         }
         else
         {
-            if (!quiet)
+            if (!quiet && which_trans!=TRAN_PIG)
                 mpr("You cannot extend your transformation any further!");
             return (false);
         }
@@ -808,6 +814,31 @@ bool transform(int pow, transformation_type which_trans, bool quiet)
         _transformation_expiration_warning();
         return (true);
 
+    case TRAN_PIG:
+        // Cursed equipment doesn't protect from this.
+
+        // Check in case we'll auto-remove stat boosting equipment.
+        if (check_transformation_stat_loss(rem_stuff, quiet))
+        {   // would have died due to stat loss
+            mpr("A dreadful feeling locks you in place!");
+            if (you.duration[DUR_PARALYSIS]<10)
+                you.duration[DUR_PARALYSIS]=10;
+            return (false);
+        }
+
+        mpr("You have been turned into a pig!");
+
+        remove_equipment(rem_stuff);
+
+        you.attribute[ATTR_TRANSFORMATION] = TRAN_PIG;
+        you.duration[DUR_TRANSFORMATION] = pow;
+
+        you.symbol = 'h';
+        you.colour = RED;
+
+        _transformation_expiration_warning();
+        return (true);
+
     case TRAN_NONE:
     case NUM_TRANSFORMATIONS:
         break;
@@ -928,6 +959,10 @@ void untransform(void)
         modify_stat(STAT_STRENGTH, -13, true,
                     "losing the Serpent of Hell transformation");
         hp_downscale = 17;
+        break;
+
+    case TRAN_PIG:
+        mpr( "Your transformation has ended.", MSGCH_DURATION );
         break;
 
     default:

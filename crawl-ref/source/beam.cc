@@ -55,6 +55,7 @@ REVISION("$Rev$");
 #include "state.h"
 #include "stuff.h"
 #include "terrain.h"
+#include "transfor.h"
 #include "traps.h"
 #include "tutorial.h"
 #include "view.h"
@@ -3715,6 +3716,15 @@ void bolt::affect_player_enchantment()
         obvious_effect = true;
         break;
 
+    case BEAM_PORKALATOR:
+        if (!transform(ench_power, TRAN_PIG, true))
+        {
+            mpr("You feel like a pig.");
+            break;
+        }
+        obvious_effect = true;
+        break;
+
     default:
         // _All_ enchantments should be enumerated here!
         mpr("Software bugs nibble your toes!");
@@ -4457,6 +4467,8 @@ void bolt::affect_monster(monsters* mon)
     int beam_hit = hit;
     if (mon->invisible() && !this->can_see_invis)
         beam_hit /= 2;
+    if (mon->type == MONS_KIRKE)  // deflect missiles
+        beam_hit = random2(beam_hit * 2) / 3;
 
     // FIXME We're randomising mon->evasion, which is further
     // randomised inside test_beam_hit. This is so we stay close to the 4.0
@@ -4614,6 +4626,13 @@ bool _ench_flavour_affects_monster(beam_type flavour, const monsters* mon)
         rc = !mon->has_ench(ENCH_SLEEP_WARY)      // slept recently
              && mons_holiness(mon) == MH_NATURAL  // no unnatural
              && mons_res_cold(mon) <= 0;          // can't be hibernated
+        break;
+
+    case BEAM_PORKALATOR:
+        rc = (mons_holiness(mon) == MH_NATURAL
+              && mon->type != MONS_HOG) ||
+             (mons_holiness(mon) == MH_DEMONIC
+              && mon->type != MONS_HELL_HOG);
         break;
 
     default:
@@ -4942,6 +4961,12 @@ mon_resist_type bolt::apply_enchantment_to_monster(monsters* mon)
             if (simple_monster_message(mon, " is charmed."))
                 obvious_effect = true;
         }
+        return (MON_AFFECTED);
+
+    case BEAM_PORKALATOR:
+        if (monster_polymorph(mon, (mons_holiness(mon)==MH_DEMONIC)?
+                                            MONS_HELL_HOG : MONS_HOG))
+            obvious_effect = true;
         return (MON_AFFECTED);
 
     default:
@@ -5635,6 +5660,7 @@ std::string beam_type_name(beam_type type)
     case BEAM_PETRIFY: return("petrify");
     case BEAM_BACKLIGHT: return("backlight");
     case BEAM_SLEEP: return("sleep");
+    case BEAM_PORKALATOR: return("porkalator");
     case BEAM_POTION_BLACK_SMOKE: return("black smoke");
     case BEAM_POTION_GREY_SMOKE: return("grey smoke");
     case BEAM_POTION_BLUE_SMOKE: return("blue smoke");

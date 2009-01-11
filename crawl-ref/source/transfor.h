@@ -27,6 +27,7 @@ enum transformation_type
     TRAN_SERPENT_OF_HELL,
     TRAN_AIR,
     TRAN_BAT,
+    TRAN_PIG,                          //   10
     NUM_TRANSFORMATIONS                // must remain last member {dlb}
 };
 
