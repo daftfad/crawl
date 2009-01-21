@@ -1610,7 +1610,7 @@ const int spec_skills[ NUM_SPECIES ][40] =
      170,                       // SK_AIR_MAGIC
      60,                        // SK_EARTH_MAGIC
      130,                       // SK_POISON_MAGIC
-     (80 * 75) / 100,          // SK_INVOCATIONS
+     (80 * 75) / 100,           // SK_INVOCATIONS
      (60 * 75) / 100,           // SK_EVOCATIONS
     },
 
