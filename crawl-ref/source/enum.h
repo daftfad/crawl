@@ -45,7 +45,8 @@ enum ability_type
     ABIL_EVOKE_MAPPING,                //   30
     ABIL_EVOKE_TELEPORTATION,
     ABIL_EVOKE_BLINK,                  //   32
-    // 33 - 50 unused
+    ABIL_RECHARGING,
+    // 34 - 50 unused
     ABIL_EVOKE_TURN_INVISIBLE = 51,    //   51
     ABIL_EVOKE_TURN_VISIBLE,
     ABIL_EVOKE_LEVITATE,

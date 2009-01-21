@@ -2888,6 +2888,7 @@ void give_basic_mutations(species_type speci)
         you.mutation[MUT_NEGATIVE_ENERGY_RESISTANCE] = 3;
         break;
     case SP_GNOME:
+    case SP_DEEP_DWARF:
         you.mutation[MUT_MAPPING] = 2;
         break;
     case SP_GHOUL:
