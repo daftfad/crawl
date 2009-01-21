@@ -1279,6 +1279,9 @@ bool undead_cannot_memorise(spell_type spell, char being)
         break;
     }
 
+    if (you.species == SP_DEEP_DWARF)
+        return spell==SPELL_REGENERATION;
+
     return (false);
 }
 
