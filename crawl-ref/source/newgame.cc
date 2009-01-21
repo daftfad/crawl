@@ -128,7 +128,8 @@ static species_type old_species_order[] = {
     SP_DEMIGOD,       SP_SPRIGGAN,
     SP_MINOTAUR,      SP_DEMONSPAWN,
     SP_GHOUL,         SP_KENKU,
-    SP_MERFOLK,       SP_VAMPIRE
+    SP_MERFOLK,       SP_VAMPIRE,
+    SP_DEEP_DWARF
 };
 
 // Fantasy staples and humanoid creatures come first, then dimunitive and
@@ -143,6 +144,8 @@ static species_type new_species_order[] = {
     // small species
     SP_HALFLING,    SP_GNOME,
     SP_KOBOLD,      SP_SPRIGGAN,
+    // significantly different body properties
+    SP_DEEP_DWARF,
     // significantly different body type than human
     SP_NAGA,        SP_CENTAUR,
     SP_OGRE,        SP_TROLL,
@@ -231,7 +234,7 @@ static const char * Species_Abbrev_List[ NUM_SPECIES ] =
       "HO", "Ko", "Mu", "Na", "Gn", "Og", "Tr",
       // the draconians
       "Dr", "Dr", "Dr", "Dr", "Dr", "Dr", "Dr", "Dr", "Dr", "Dr",
-      "Ce", "DG", "Sp", "Mi", "DS", "Gh", "Ke", "Mf", "Vp",
+      "Ce", "DG", "Sp", "Mi", "DS", "Gh", "Ke", "Mf", "Vp", "DD",
       // placeholders
       "El", "HD", "OM" };
 
@@ -1356,6 +1359,7 @@ static char_choice_restriction _class_allowed(species_type speci,
         case SP_RED_DRACONIAN:
         case SP_MUMMY:
         case SP_VAMPIRE:
+        case SP_DEEP_DWARF:
             return (CC_RESTRICTED);
         default:
             return (CC_UNRESTRICTED);
@@ -1375,6 +1379,7 @@ static char_choice_restriction _class_allowed(species_type speci,
         case SP_CENTAUR:
         case SP_RED_DRACONIAN:
         case SP_MUMMY:
+        case SP_DEEP_DWARF:
             return (CC_RESTRICTED);
         default:
             return (CC_UNRESTRICTED);
@@ -1400,6 +1405,7 @@ static char_choice_restriction _class_allowed(species_type speci,
         case SP_DEMIGOD:
         case SP_DEMONSPAWN:
         case SP_MUMMY:
+        case SP_DEEP_DWARF:
             return (CC_RESTRICTED);
         default:
             return (CC_UNRESTRICTED);
@@ -1449,6 +1455,7 @@ static char_choice_restriction _class_allowed(species_type speci,
         case SP_NAGA:
         case SP_TROLL:
         case SP_KENKU:
+        case SP_DEEP_DWARF:
             return (CC_RESTRICTED);
         default:
             return (CC_UNRESTRICTED);
@@ -1471,6 +1478,7 @@ static char_choice_restriction _class_allowed(species_type speci,
         case SP_KENKU:
         case SP_GHOUL:
         case SP_VAMPIRE:
+        case SP_DEEP_DWARF:
             return (CC_RESTRICTED);
         default:
             return (CC_UNRESTRICTED);
@@ -1500,6 +1508,7 @@ static char_choice_restriction _class_allowed(species_type speci,
         case SP_NAGA:
         case SP_KENKU:
         case SP_GHOUL:
+        case SP_DEEP_DWARF:
             return (CC_RESTRICTED);
         default:
             return (CC_UNRESTRICTED);
@@ -1544,6 +1553,7 @@ static char_choice_restriction _class_allowed(species_type speci,
         case SP_MUMMY:
         case SP_GHOUL:
         case SP_VAMPIRE:
+        case SP_DEEP_DWARF:
             return (CC_RESTRICTED);
         default:
             return (CC_UNRESTRICTED);
@@ -1570,6 +1580,7 @@ static char_choice_restriction _class_allowed(species_type speci,
         case SP_MUMMY:
         case SP_GHOUL:
         case SP_VAMPIRE:
+        case SP_DEEP_DWARF:
             return (CC_RESTRICTED);
         default:
             return (CC_UNRESTRICTED);
@@ -1590,6 +1601,7 @@ static char_choice_restriction _class_allowed(species_type speci,
         case SP_OGRE:
         case SP_MINOTAUR:
         case SP_GHOUL:
+        case SP_DEEP_DWARF:
             return (CC_RESTRICTED);
         default:
             return (CC_UNRESTRICTED);
@@ -1608,6 +1620,7 @@ static char_choice_restriction _class_allowed(species_type speci,
         case SP_MINOTAUR:
         case SP_GHOUL:
         case SP_VAMPIRE:
+        case SP_DEEP_DWARF:
             return (CC_RESTRICTED);
         default:
             return (CC_UNRESTRICTED);
@@ -1628,6 +1641,7 @@ static char_choice_restriction _class_allowed(species_type speci,
         case SP_RED_DRACONIAN:
         case SP_GHOUL:
         case SP_MUMMY:
+        case SP_DEEP_DWARF:
             return (CC_RESTRICTED);
         default:
             return (CC_UNRESTRICTED);
@@ -1651,6 +1665,7 @@ static char_choice_restriction _class_allowed(species_type speci,
         case SP_DEMIGOD:
         case SP_DEMONSPAWN:
         case SP_GHOUL:
+        case SP_DEEP_DWARF:
             return (CC_RESTRICTED);
         default:
             return (CC_UNRESTRICTED);
@@ -1698,6 +1713,7 @@ static char_choice_restriction _class_allowed(species_type speci,
         case SP_MUMMY:
         case SP_GHOUL:
         case SP_VAMPIRE:
+        case SP_DEEP_DWARF:
             return (CC_RESTRICTED);
         default:
             return (CC_UNRESTRICTED);
@@ -1724,6 +1740,7 @@ static char_choice_restriction _class_allowed(species_type speci,
         case SP_MUMMY:
         case SP_GHOUL:
         case SP_VAMPIRE:
+        case SP_DEEP_DWARF:
             return (CC_RESTRICTED);
         default:
             return (CC_UNRESTRICTED);
@@ -1741,6 +1758,7 @@ static char_choice_restriction _class_allowed(species_type speci,
         case SP_MINOTAUR:
         case SP_GHOUL:
         case SP_VAMPIRE:
+        case SP_DEEP_DWARF:
             return (CC_RESTRICTED);
         default:
             return (CC_UNRESTRICTED);
@@ -1759,6 +1777,7 @@ static char_choice_restriction _class_allowed(species_type speci,
         case SP_MINOTAUR:
         case SP_GHOUL:
         case SP_VAMPIRE:
+        case SP_DEEP_DWARF:
             return (CC_RESTRICTED);
         default:
             return (CC_UNRESTRICTED);
@@ -1777,6 +1796,7 @@ static char_choice_restriction _class_allowed(species_type speci,
         case SP_MUMMY:
         case SP_GHOUL:
         case SP_VAMPIRE:
+        case SP_DEEP_DWARF:
             return (CC_RESTRICTED);
         default:
             return (CC_UNRESTRICTED);
@@ -1799,6 +1819,7 @@ static char_choice_restriction _class_allowed(species_type speci,
         case SP_RED_DRACONIAN:
         case SP_GHOUL:
         case SP_VAMPIRE:
+        case SP_DEEP_DWARF:
             return (CC_RESTRICTED);
         default:
             return (CC_UNRESTRICTED);
@@ -1818,6 +1839,7 @@ static char_choice_restriction _class_allowed(species_type speci,
         case SP_MINOTAUR:
         case SP_GHOUL:
         case SP_VAMPIRE:
+        case SP_DEEP_DWARF:
             return (CC_RESTRICTED);
         default:
             return (CC_UNRESTRICTED);
@@ -1837,6 +1859,7 @@ static char_choice_restriction _class_allowed(species_type speci,
         case SP_MUMMY:
         case SP_GHOUL:
         case SP_VAMPIRE:
+        case SP_DEEP_DWARF:
             return (CC_RESTRICTED);
         default:
             return (CC_UNRESTRICTED);
@@ -1858,6 +1881,7 @@ static char_choice_restriction _class_allowed(species_type speci,
         case SP_TROLL:
         case SP_MINOTAUR:
         case SP_RED_DRACONIAN:
+        case SP_DEEP_DWARF:
             return (CC_RESTRICTED);
         default:
             return (CC_UNRESTRICTED);
@@ -2256,6 +2280,7 @@ static char_choice_restriction _weapon_restriction(weapon_type wpn)
         case SP_DEMIGOD:
         case SP_DEMONSPAWN:
         case SP_VAMPIRE:
+        case SP_DEEP_DWARF:
             return (CC_UNRESTRICTED);
 
         default:
@@ -2566,6 +2591,7 @@ static char_choice_restriction  _religion_restriction(god_type god)
         case SP_MUMMY:
         case SP_GHOUL:
         case SP_VAMPIRE:
+        case SP_DEEP_DWARF:
             return (CC_UNRESTRICTED);
         default:
             if (player_genus(GENPC_DRACONIAN))
@@ -2659,6 +2685,7 @@ static bool _necromancy_okay()
     case SP_KENKU:
     case SP_MUMMY:
     case SP_VAMPIRE:
+    case SP_DEEP_DWARF:
         return (true);
 
     default:
@@ -2724,6 +2751,7 @@ static void _species_stat_init(species_type which_species)
     case SP_SLUDGE_ELF:         sb =  6; ib =  7; db =  7;      break;  // 20
 
     case SP_MOUNTAIN_DWARF:     sb =  9; ib =  4; db =  5;      break;  // 18
+    case SP_DEEP_DWARF:         sb =  9; ib =  6; db =  6;      break;  // 21
 
     case SP_TROLL:              sb = 13; ib =  2; db =  3;      break;  // 18
     case SP_OGRE:               sb = 10; ib =  5; db =  3;      break;  // 18
@@ -2903,6 +2931,11 @@ static void _give_basic_knowledge(job_type which_job)
     {
         set_ident_type( OBJ_POTIONS, POT_BLOOD, ID_KNOWN_TYPE );
         set_ident_type( OBJ_POTIONS, POT_BLOOD_COAGULATED, ID_KNOWN_TYPE );
+    }
+    else if (you.species == SP_DEEP_DWARF)
+    {
+        set_ident_type( OBJ_POTIONS, POT_HEALING, ID_KNOWN_TYPE );
+        set_ident_type( OBJ_POTIONS, POT_HEAL_WOUNDS, ID_KNOWN_TYPE );
     }
 
     switch (which_job)

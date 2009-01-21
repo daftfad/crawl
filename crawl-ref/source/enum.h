@@ -2624,6 +2624,7 @@ enum species_type
     SP_KENKU,
     SP_MERFOLK,
     SP_VAMPIRE,
+    SP_DEEP_DWARF,
     SP_ELF,                            // (placeholder)
     SP_HILL_DWARF,                     // (placeholder)
     SP_OGRE_MAGE,                      // (placeholder)

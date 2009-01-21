@@ -451,6 +451,7 @@ bool player_genus(genus_type which_genus, species_type species)
         return (which_genus == GENPC_ELVEN);
 
     case SP_MOUNTAIN_DWARF:
+    case SP_DEEP_DWARF:
         return (which_genus == GENPC_DWARVEN);
 
     case SP_OGRE:
@@ -1251,6 +1252,7 @@ int player_res_magic(void)
         break;
     case SP_PURPLE_DRACONIAN:
     case SP_GNOME:
+    case SP_DEEP_DWARF:
         rm = you.experience_level * 6;
         break;
     case SP_SPRIGGAN:
@@ -3154,6 +3156,14 @@ void level_change(bool skip_attribute_increase)
                     modify_stat(STAT_STRENGTH, 1, false, "level gain");
                 break;
 
+            case SP_DEEP_DWARF:
+                hp_adjust++;
+
+                if (!(you.experience_level % 4))
+                    modify_stat(coinflip()? STAT_STRENGTH : STAT_INTELLIGENCE,
+                            1, false, "level gain");
+                break;
+
             case SP_HALFLING:
                 if (!(you.experience_level % 5))
                     modify_stat(STAT_DEXTERITY, 1, false, "level gain");
@@ -4323,6 +4333,7 @@ std::string species_name(species_type speci, int level, bool genus, bool adj)
             switch (speci)
             {
             case SP_MOUNTAIN_DWARF: res = "Mountain Dwarf";            break;
+            case SP_DEEP_DWARF:     res = "Deep Dwarf";                break;
             default:                res = "Dwarf";                     break;
             }
         }
