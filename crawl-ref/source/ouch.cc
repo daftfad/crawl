@@ -858,6 +858,17 @@ void ouch(int dam, int death_source, kill_method_type death_type,
 
     if (dam != INSTANT_DEATH)     // that is, a "death" caused by hp loss {dlb}
     {
+        if (you.species == SP_DEEP_DWARF)
+        {
+            // Deep Dwarves get to shave _any_ hp loss
+            int shave= 3 + random2(random2(1+you.experience_level/3));
+#ifdef DEBUG_DIAGNOSTICS
+            mprf(MSGCH_DIAGNOSTICS, "HP shaved: %d.", shave);
+#endif
+            if ((dam-=shave)<=0)
+                return;
+        }
+
         if (dam >= you.hp)
         {
             if (harm_protection_type hpt = god_protects_from_harm(you.religion))
