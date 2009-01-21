@@ -1028,6 +1028,11 @@ int player_teleport(bool calc_unid)
 
 int player_regen(void)
 {
+    // Deep Dwarves don't heal except for Trog's Hand and other sources
+    // of god-given regeneration (can't use the spell).
+    if (you.species == SP_DEEP_DWARF)
+        return you.duration[DUR_REGENERATION] ? 100 : 0;
+
     int rr = you.hp_max / 3;
 
     if (rr > 20)
