@@ -4032,7 +4032,8 @@ void display_char_status()
         mpr("You are praying.");
 
     if (you.disease && !you.duration[DUR_REGENERATION]
-        && (you.species != SP_VAMPIRE || you.hunger_state != HS_STARVING))
+        && (you.species != SP_VAMPIRE || you.hunger_state != HS_STARVING)
+        || you.species == SP_DEEP_DWARF)
     {
         mpr("You do not heal.");
     }

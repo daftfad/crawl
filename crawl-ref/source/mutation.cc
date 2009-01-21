@@ -1237,6 +1237,12 @@ formatted_string describe_mutations()
         }
         break;
 
+    case SP_DEEP_DWARF:
+        result += "You do not heal." EOL;
+        result += "You are resistant to damage." EOL;
+        have_any = true;
+        break;
+
     default:
         break;
     }                           //end switch - innate abilities
