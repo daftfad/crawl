@@ -5683,8 +5683,17 @@ bool _give_items_skills()
     // Deep Dwarves get healing potions and wand of healing(3).
     if (you.species == SP_DEEP_DWARF)
     {
-        _newgame_make_item(-1, EQ_NONE, OBJ_POTIONS, POT_HEALING, -1, 2);
-        _newgame_make_item(-1, EQ_NONE, OBJ_POTIONS, POT_HEAL_WOUNDS, -1, 2);
+        // some classes may already have potions, add to that stack in that case
+        _newgame_make_item(-1, EQ_NONE, OBJ_POTIONS, POT_HEALING, -1, 0);
+        for (int i = 0; i < ENDOFPACK; i++)
+            if (is_valid_item(you.inv[i]) && you.inv[i].base_type == OBJ_POTIONS
+                    && you.inv[i].sub_type == POT_HEALING)
+                you.inv[i].quantity+=2;
+        _newgame_make_item(-1, EQ_NONE, OBJ_POTIONS, POT_HEAL_WOUNDS, -1, 0);
+        for (int i = 0; i < ENDOFPACK; i++)
+            if (is_valid_item(you.inv[i]) && you.inv[i].base_type == OBJ_POTIONS
+                    && you.inv[i].sub_type == POT_HEAL_WOUNDS)
+                you.inv[i].quantity+=2;
         _newgame_make_item(-1, EQ_NONE, OBJ_WANDS, WAND_HEALING, -1, 1, 3);
     }
 
