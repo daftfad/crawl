@@ -2963,9 +2963,10 @@ static void _decrement_durations()
             slow_player(dur);
         }
 
-        make_hungry(700, true);
-
+        // 1KB: no berserk healing, offsetting that by halving the hunger
+        make_hungry(350, true);
         you.hunger = std::max(50, you.hunger);
+        you.hp = (you.hp+1)*2/3;
 
         calc_hp();
 
