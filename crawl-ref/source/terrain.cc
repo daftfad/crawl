@@ -165,17 +165,17 @@ command_type grid_stair_direction(dungeon_feature_type grid)
     }
 }
 
-bool grid_is_opaque( dungeon_feature_type grid )
+bool grid_is_opaque(dungeon_feature_type grid)
 {
     return (grid < DNGN_MINSEE);
 }
 
-bool grid_is_solid( dungeon_feature_type grid )
+bool grid_is_solid(dungeon_feature_type grid)
 {
     return (grid < DNGN_MINMOVE);
 }
 
-bool grid_is_solid( int x, int y )
+bool grid_is_solid(int x, int y)
 {
     return (grid_is_solid(grd[x][y]));
 }
@@ -208,30 +208,34 @@ bool grid_is_trap(dungeon_feature_type grid, bool undiscovered_too)
 
 bool grid_is_water(dungeon_feature_type grid)
 {
-    return (grid == DNGN_SHALLOW_WATER || grid == DNGN_DEEP_WATER);
+    return (grid == DNGN_SHALLOW_WATER
+            || grid == DNGN_DEEP_WATER
+            || grid == DNGN_WATER_RESERVED);
 }
 
-bool grid_is_watery( dungeon_feature_type grid )
+bool grid_is_watery(dungeon_feature_type grid)
 {
     return (grid_is_water(grid) || grid == DNGN_FOUNTAIN_BLUE);
 }
 
-bool grid_destroys_items( dungeon_feature_type grid )
+bool grid_destroys_items(dungeon_feature_type grid)
 {
     return (grid == DNGN_LAVA || grid == DNGN_DEEP_WATER);
 }
 
-// Returns 0 if grid is not an altar, else it returns the GOD_* type.
-god_type grid_altar_god( dungeon_feature_type grid )
+// Returns GOD_NO_GOD if grid is not an altar, otherwise returns the
+// GOD_* type.
+god_type grid_altar_god(dungeon_feature_type grid)
 {
     if (grid >= DNGN_ALTAR_FIRST_GOD && grid <= DNGN_ALTAR_LAST_GOD)
-        return (static_cast<god_type>( grid - DNGN_ALTAR_FIRST_GOD + 1 ));
+        return (static_cast<god_type>(grid - DNGN_ALTAR_FIRST_GOD + 1));
 
     return (GOD_NO_GOD);
 }
 
-// Returns DNGN_FLOOR for non-gods, otherwise returns the altar for the god.
-dungeon_feature_type altar_for_god( god_type god )
+// Returns DNGN_FLOOR for non-gods, otherwise returns the altar for the
+// god.
+dungeon_feature_type altar_for_god(god_type god)
 {
     if (god == GOD_NO_GOD || god >= NUM_GODS)
         return (DNGN_FLOOR);  // Yeah, lame. Tell me about it.
@@ -1058,7 +1062,7 @@ std::string grid_preposition(dungeon_feature_type grid, bool active,
             else
                 return "inside";
         }
-        else if (!airborne && grid >= DNGN_LAVA && grid <= DNGN_WATER_STUCK)
+        else if (!airborne && (grid == DNGN_LAVA || grid == DNGN_DEEP_WATER))
         {
             if (active)
                 return "around";

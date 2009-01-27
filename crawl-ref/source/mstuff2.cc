@@ -22,6 +22,7 @@ REVISION("$Rev$");
 #include "beam.h"
 #include "database.h"
 #include "debug.h"
+#include "delay.h"
 #include "effects.h"
 #include "item_use.h"
 #include "itemname.h"
@@ -1065,20 +1066,16 @@ bool monster_random_space(const monsters *monster, coord_def& target,
     int tries = 0;
     while (tries++ < 1000)
     {
-
         if (crawl_state.arena)
         {
             const coord_def &ul = crawl_view.glos1; // Upper left
             const coord_def &lr = crawl_view.glos2; // Lower right
 
-            target.x = ul.x + random2(lr.x - ul.x);
-            target.y = ul.y + random2(lr.y - ul.y);
+            target = coord_def(random_range(ul.x, lr.x - 1),
+                               random_range(ul.y, lr.y - 1));
         }
         else
-        {
-            target.x = 10 + random2(GXM - 20);
-            target.y = 10 + random2(GYM - 20);
-        }
+            target = random_in_bounds();
 
         // Don't land on top of another monster.
         if (mgrd(target) != NON_MONSTER || target == you.pos())
@@ -1163,8 +1160,14 @@ void monster_teleport(monsters *monster, bool instan, bool silent)
         if (was_seen)
             simple_monster_message(monster, " reappears nearby!");
         else
-            simple_monster_message(monster, " appears out of thin air!",
-                                   MSGCH_PLAIN, 0, DESC_CAP_A);
+        {
+            // Even if it doesn't interrupt an activity (the player isn't
+            // delayed, the monster isn't hostile) we still want to give
+            // a message.
+            activity_interrupt_data ai(monster, "thin air");
+            if (!interrupt_activity(AI_SEE_MONSTER, ai))
+                simple_monster_message(monster, " appears out of thin air!");
+        }
     }
 
     if (player_monster_visible(monster) && now_visible)
@@ -1436,10 +1439,7 @@ bool mons_throw(struct monsters *monster, struct bolt &pbolt, int hand_used)
     msg += ((projected == LRET_LAUNCHED) ? " shoots " : " throws ");
 
     if (!pbolt.name.empty() && projected == LRET_LAUNCHED)
-    {
-        msg += "a ";
-        msg += pbolt.name;
-    }
+        msg += article_a(pbolt.name);
     else
     {
         // build shoot message
@@ -2012,10 +2012,12 @@ bolt mons_spells( monsters *mons, spell_type spell_cast, int power )
         beam.is_beam    = true;
         break;
 
-    case SPELL_MEPHITIC_CLOUD:          // swamp drake
+    case SPELL_MEPHITIC_CLOUD:          // swamp drake, player ghost
         beam.name     = "foul vapour";
         beam.damage   = dice_def( 3, 2 + power / 25 );
         beam.colour   = GREEN;
+        // FIXME: Players don't get the poison effect, only monsters
+        // do. This should be changed (probably by changing monsters).
         beam.flavour  = BEAM_POISON;
         beam.hit      = 14 + power / 30;
         beam.is_beam  = true;

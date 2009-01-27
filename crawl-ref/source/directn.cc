@@ -684,11 +684,11 @@ static void _fill_monster_list(bool full_info)
 
     // Get the unique entries.
     mlist.clear();
-    int start = 0, end = 1;
-    while (start < (int) temp.size())
+    unsigned int start = 0, end = 1;
+    while (start < temp.size())
     {
         mlist.push_back(temp[start]);
-        for (end = start + 1; end < (int) temp.size(); ++end)
+        for (end = start + 1; end < temp.size(); ++end)
         {
             if (monster_pane_info::less_than(temp[start], temp[end],
                                              full_info))
@@ -2254,11 +2254,12 @@ std::vector<dungeon_feature_type> features_by_desc(const base_pattern &pattern)
 
 void describe_floor()
 {
-    const int grid = grd(you.pos());
+    dungeon_feature_type grid = grd(you.pos());
 
     std::string prefix = "There is ";
     std::string feat;
     std::string suffix = " here.";
+
     switch (grid)
     {
     case DNGN_FLOOR:
@@ -2281,12 +2282,9 @@ void describe_floor()
     msg_channel_type channel = MSGCH_EXAMINE;
 
     // Water is not terribly important if you don't mind it.
-    if ((grd(you.pos()) == DNGN_DEEP_WATER
-            || grd(you.pos()) == DNGN_SHALLOW_WATER)
-        && player_likes_water())
-    {
+    if (grid_is_water(grid) && player_likes_water())
         channel = MSGCH_EXAMINE_FILTER;
-    }
+
     mpr((prefix + feat + suffix).c_str(), channel);
     if (grid == DNGN_ENTER_LABYRINTH && you.is_undead != US_UNDEAD)
         mpr("Beware, for starvation awaits!", MSGCH_EXAMINE);
@@ -3247,11 +3245,11 @@ static void _describe_cell(const coord_def& where, bool in_range)
         msg_channel_type channel = MSGCH_EXAMINE;
         if (feat == DNGN_FLOOR
             || feat == DNGN_FLOOR_SPECIAL
-            || feat == DNGN_SHALLOW_WATER
-            || feat == DNGN_DEEP_WATER)
+            || grid_is_water(feat))
         {
             channel = MSGCH_EXAMINE_FILTER;
         }
+
         mpr(feature_desc.c_str(), channel);
     }
 #endif

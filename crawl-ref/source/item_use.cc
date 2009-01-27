@@ -4693,22 +4693,19 @@ static void _vulnerability_scroll()
     // Go over all creatures in LOS.
     for (radius_iterator ri(you.pos(), LOS_RADIUS); ri; ++ri)
     {
-        const unsigned short targ_monst = env.mgrid(*ri);
-        if (targ_monst != NON_MONSTER)
+        if (monsters* mon = monster_at(*ri))
         {
             // Dispel all magical enchantments.
-            monsters& mon = menv[targ_monst];
             for (unsigned int i = 0; i < ARRAYSZ(lost_enchantments); ++i)
-                mon.del_ench(lost_enchantments[i], true, true);
+                mon->del_ench(lost_enchantments[i], true, true);
 
             // If relevant, monsters have their MR halved.
-            if (!mons_immune_magic(&mon))
-                mon.add_ench(lowered_mr);
+            if (!mons_immune_magic(mon))
+                mon->add_ench(lowered_mr);
 
             // Annoying but not enough to turn friendlies against you.
-            // XXX: This will turn allies of int >= I_NORMAL hostile.
-            //      Not intended?
-            behaviour_event(&mon, ME_ANNOY, MHITYOU);
+            if (!mons_wont_attack(mon))
+                behaviour_event(mon, ME_ANNOY, MHITYOU);
         }
     }
 
@@ -5385,7 +5382,7 @@ void tile_item_use(int idx)
             // intentional fall-through for Vampires
         case OBJ_FOOD:
             if (check_warning_inscriptions(item, OPER_EAT))
-                eat_food(false, idx);
+                eat_food(idx);
             return;
 
         case OBJ_BOOKS:

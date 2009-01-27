@@ -160,7 +160,7 @@ static species_type new_species_order[] = {
 
 static species_type _random_draconian_species()
 {
-    const int num_drac = SP_PALE_DRACONIAN - SP_RED_DRACONIAN;
+    const int num_drac = SP_PALE_DRACONIAN - SP_RED_DRACONIAN + 1;
     return static_cast<species_type>(SP_RED_DRACONIAN + random2(num_drac));
 }
 
@@ -907,29 +907,40 @@ static void _racialise_starting_equipment()
 // skill levels.
 static void _reassess_starting_skills()
 {
-    for (int i = 0; i < NUM_SKILLS; i++)
+    for (int i = 0; i < NUM_SKILLS; ++i)
     {
-        if (!you.skills[i])
+        if (you.skills[i] == 0
+            && (you.species != SP_VAMPIRE || i != SK_UNARMED_COMBAT))
+        {
             continue;
+        }
 
         // Grant the amount of skill points required for a human.
-        const int points = skill_exp_needed( you.skills[i] );
-        you.skill_points[i] = (points * species_skills(i, SP_HUMAN))/100 + 1;
+        const int points = skill_exp_needed(you.skills[i]);
+        you.skill_points[i] = (points * species_skills(i, SP_HUMAN)) / 100 + 1;
 
         // Find out what level that earns this character.
-        const int sp_diff = species_skills( i, you.species );
+        const int sp_diff = species_skills(i, you.species);
         you.skills[i] = 0;
 
-        for (int lvl = 1; lvl <= 8; lvl++)
+        for (int lvl = 1; lvl <= 8; ++lvl)
         {
-            if (you.skill_points[i] > (skill_exp_needed(lvl) * sp_diff)/100)
+            if (you.skill_points[i] > (skill_exp_needed(lvl) * sp_diff) / 100)
                 you.skills[i] = lvl;
             else
                 break;
         }
 
+        // Vampires should always have Unarmed Combat skill.
+        if (you.species == SP_VAMPIRE && i == SK_UNARMED_COMBAT
+            && you.skills[i] < 2)
+        {
+            you.skill_points[i] = (skill_exp_needed(2) * sp_diff) / 100;
+            you.skills[i] = 2;
+        }
+
         // Spellcasters should always have Spellcasting skill.
-        if (i == SK_SPELLCASTING && you.skills[i] == 0)
+        if (i == SK_SPELLCASTING && you.skills[i] < 1)
         {
             you.skill_points[i] = (skill_exp_needed(1) * sp_diff) / 100;
             you.skills[i] = 1;
@@ -1085,7 +1096,7 @@ static void _apply_job_colour(item_def &item)
 {
     if (!Options.classic_item_colours)
         return;
-    
+
     if (item.base_type != OBJ_ARMOUR)
         return;
 
@@ -5677,9 +5688,6 @@ bool _give_items_skills()
         break;
     }
 
-    // Vampires always start with unarmed combat skill.
-    if (you.species == SP_VAMPIRE && you.skills[SK_UNARMED_COMBAT] < 2)
-        you.skills[SK_UNARMED_COMBAT] = 2;
     // Deep Dwarves get healing potions and wand of healing(3).
     if (you.species == SP_DEEP_DWARF)
     {

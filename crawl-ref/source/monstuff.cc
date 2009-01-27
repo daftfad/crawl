@@ -78,6 +78,9 @@ static bool _is_trap_safe(const monsters *monster, const coord_def& where,
 static bool _monster_move(monsters *monster);
 static spell_type _map_wand_to_mspell(int wand_type);
 
+static bool _try_pathfind(monsters *mon, const dungeon_feature_type can_move,
+                          bool potentially_blocking);
+
 // [dshaligram] Doesn't need to be extern.
 static coord_def mmov;
 
@@ -87,6 +90,10 @@ static const coord_def mon_compass[8] = {
 };
 
 static bool immobile_monster[MAX_MONSTERS];
+
+// A probably needless optimization: convert the C string "just seen" to
+// a C++ string just once, instead of twice every time a monster moves.
+static const std::string _just_seen("just seen");
 
 #define FAR_AWAY    1000000         // used in monster_move()
 
@@ -565,14 +572,15 @@ static bool _is_pet_kill(killer_type killer, int i)
             && (me.who == KC_YOU || me.who == KC_FRIENDLY));
 }
 
-// Elyvilon will occasionally (5% chance) protect the life of
-// one of your allies.
-static bool _ely_protects_ally(monsters *monster)
+// Elyvilon will occasionally (5% chance) protect the life of one of
+// your allies.
+static bool _ely_protect_ally(monsters *monster)
 {
-    ASSERT(you.religion == GOD_ELYVILON);
+    if (you.religion != GOD_ELYVILON)
+        return (false);
 
     if (mons_holiness(monster) != MH_NATURAL
-         && mons_holiness(monster) != MH_HOLY
+            && mons_holiness(monster) != MH_HOLY
         || !mons_friendly(monster)
         || !mons_near(monster)
         || !player_monster_visible(monster) // for simplicity
@@ -582,10 +590,11 @@ static bool _ely_protects_ally(monsters *monster)
     }
 
     monster->hit_points = 1;
-    snprintf(info, INFO_SIZE, " protects %s%s from harm!%s",
-             mons_is_unique(monster->type) ? "" : "your ",
-             monster->name(DESC_PLAIN).c_str(),
-             coinflip() ? "" : "  You feel responsible.");
+
+    snprintf(info, INFO_SIZE, " protects %s from harm!%s",
+             monster->name(DESC_NOCAP_THE).c_str(),
+             coinflip() ? "" : " You feel responsible.");
+
     simple_god_message(info);
     lose_piety(1);
 
@@ -594,9 +603,11 @@ static bool _ely_protects_ally(monsters *monster)
 
 // Elyvilon retribution effect: Heal hostile monsters that were about to
 // be killed by you or one of your friends.
-static bool _ely_heals_monster(monsters *monster, killer_type killer, int i)
+static bool _ely_heal_monster(monsters *monster, killer_type killer, int i)
 {
-    ASSERT(you.religion != GOD_ELYVILON);
+    if (you.religion == GOD_ELYVILON)
+        return (false);
+
     god_type god = GOD_ELYVILON;
 
     if (!you.penance[god] || !god_hates_your_god(god))
@@ -643,6 +654,66 @@ static bool _ely_heals_monster(monsters *monster, killer_type killer, int i)
     return (true);
 }
 
+static bool _yred_enslave_soul(monsters *monster, killer_type killer)
+{
+    if (you.religion == GOD_YREDELEMNUL && mons_enslaved_body_and_soul(monster)
+        && mons_near(monster) && killer != KILL_RESET
+        && killer != KILL_DISMISSED)
+    {
+        yred_make_enslaved_soul(monster, player_under_penance());
+        return (true);
+    }
+
+    return (false);
+}
+
+static bool _beogh_forcibly_convert_orc(monsters *monster, killer_type killer,
+                                        int i)
+{
+    if (you.religion == GOD_BEOGH
+        && mons_species(monster->type) == MONS_ORC
+        && !mons_is_summoned(monster) && !mons_is_shapeshifter(monster)
+        && !player_under_penance() && you.piety >= piety_breakpoint(2)
+        && mons_near(monster))
+    {
+        bool convert = false;
+
+        if (YOU_KILL(killer))
+            convert = true;
+        else if (MON_KILL(killer) && !invalid_monster_index(i))
+        {
+            monsters *mon = &menv[i];
+            if (is_follower(mon) && !one_chance_in(3))
+                convert = true;
+        }
+
+        // Orcs may convert to Beogh under threat of death, either from
+        // you or, less often, your followers.  In both cases, the
+        // checks are made against your stats.  You're the potential
+        // messiah, after all.
+        if (convert)
+        {
+#ifdef DEBUG_DIAGNOSTICS
+            mprf(MSGCH_DIAGNOSTICS, "Death convert attempt on %s, HD: %d, "
+                 "your xl: %d",
+                 monster->name(DESC_PLAIN).c_str(),
+                 monster->hit_dice,
+                 you.experience_level);
+#endif
+            if (random2(you.piety) >= piety_breakpoint(0)
+                && random2(you.experience_level) >= random2(monster->hit_dice)
+                // Bias beaten-up-conversion towards the stronger orcs.
+                && random2(monster->hit_dice) > 2)
+            {
+                beogh_convert_orc(monster, true, MON_KILL(killer));
+                return (true);
+            }
+        }
+    }
+
+    return (false);
+}
+
 static bool _monster_avoided_death(monsters *monster, killer_type killer, int i)
 {
     if (monster->hit_points < -25
@@ -653,62 +724,19 @@ static bool _monster_avoided_death(monsters *monster, killer_type killer, int i)
         return (false);
     }
 
-    // Elyvilon specials
-    if (you.religion == GOD_ELYVILON && _ely_protects_ally(monster))
+    // Elyvilon specials.
+    if (_ely_protect_ally(monster))
+        return (true);
+    if (_ely_heal_monster(monster, killer, i))
         return (true);
 
-    if (you.religion != GOD_ELYVILON && _ely_heals_monster(monster, killer, i))
+    // Yredelemnul special.
+    if (_yred_enslave_soul(monster, killer))
         return (true);
 
-    // Beogh special
-    bool convert = false;
-
-    if (you.religion == GOD_BEOGH
-        && mons_species(monster->type) == MONS_ORC
-        && !mons_is_summoned(monster) && !mons_is_shapeshifter(monster)
-        && !player_under_penance() && you.piety >= piety_breakpoint(2)
-        && mons_near(monster))
-    {
-        if (YOU_KILL(killer))
-            convert = true;
-        else if (MON_KILL(killer) && !invalid_monster_index(i))
-        {
-            monsters *mon = &menv[i];
-            if (is_follower(mon) && !one_chance_in(3))
-                convert = true;
-        }
-    }
-
-    // Orcs may convert to Beogh under threat of death, either from you
-    // or, less often, your followers.  In both cases, the checks are
-    // made against your stats.  You're the potential messiah, after all.
-    if (convert)
-    {
-#ifdef DEBUG_DIAGNOSTICS
-        mprf(MSGCH_DIAGNOSTICS, "Death convert attempt on %s, HD: %d, "
-             "your xl: %d",
-             monster->name(DESC_PLAIN).c_str(),
-             monster->hit_dice,
-             you.experience_level);
-#endif
-        if (random2(you.piety) >= piety_breakpoint(0)
-            && random2(you.experience_level) >= random2(monster->hit_dice)
-            // Bias beaten-up-conversion towards the stronger orcs.
-            && random2(monster->hit_dice) > 2)
-        {
-            beogh_convert_orc(monster, true, MON_KILL(killer));
-            return (true);
-        }
-    }
-
-    // Yredelemnul special
-    if (you.religion == GOD_YREDELEMNUL && mons_enslaved_body_and_soul(monster)
-        && mons_near(monster) && killer != KILL_RESET
-        && killer != KILL_DISMISSED)
-    {
-        yred_make_enslaved_soul(monster, player_under_penance());
+    // Beogh special.
+    if (_beogh_forcibly_convert_orc(monster, killer, i))
         return (true);
-    }
 
     return (false);
 }
@@ -856,7 +884,7 @@ static void _mummy_curse(monsters* monster, killer_type killer, int index)
     else
     {
         // Mummies committing suicide don't cause a death curse.
-        if (index == static_cast<int>(monster_index(monster)))
+        if (index == monster->mindex())
            return;
         target = &menv[index];
     }
@@ -1606,7 +1634,7 @@ int monster_die(monsters *monster, killer_type killer,
 
         // Now that Boris is dead, he's a valid target for monster
         // creation again. -- bwr
-        you.unique_creatures[ monster->type ] = false;
+        you.unique_creatures[monster->type] = false;
     }
     else if (!mons_is_summoned(monster))
     {
@@ -2543,6 +2571,17 @@ void behaviour_event(monsters *mon, int event, int src,
                 break;
 
             mon->target = src_pos;
+
+            // XXX: Should this be done in _handle_behaviour()?
+            if (src == MHITYOU && src_pos == you.pos()
+                && !see_grid(mon->pos()))
+            {
+                const dungeon_feature_type can_move =
+                    (mons_amphibious(mon)) ? DNGN_DEEP_WATER
+                                           : DNGN_SHALLOW_WATER;
+
+                _try_pathfind(mon, can_move, true);
+            }
         }
         break;
 
@@ -3592,10 +3631,7 @@ static void _check_wander_target(monsters *mon, bool isPacified = false,
         // wandering monsters at least appear to have some sort of
         // attention span.  -- bwr
         if (need_target)
-        {
-            mon->target.set(10 + random2(X_BOUND_2 - 10),
-                            10 + random2(Y_BOUND_2 - 10));
-        }
+            mon->target = random_in_bounds();
     }
 }
 
@@ -3726,8 +3762,7 @@ static void _handle_behaviour(monsters *mon)
     // Check for confusion -- early out.
     if (mon->has_ench(ENCH_CONFUSION))
     {
-        mon->target.set( 10 + random2(X_BOUND_2 - 10),
-                         10 + random2(Y_BOUND_2 - 10) );
+        mon->target = random_in_bounds();
         return;
     }
 
@@ -4024,8 +4059,7 @@ static void _handle_behaviour(monsters *mon)
                 // Sometimes, your friends will wander a bit.
                 if (isFriendly && one_chance_in(8))
                 {
-                    mon->target.set(10 + random2(X_BOUND_2 - 10),
-                                    10 + random2(Y_BOUND_2 - 10));
+                    mon->target = random_in_bounds();
                     mon->foe = MHITNOT;
                     new_beh  = BEH_WANDER;
                 }
@@ -4080,9 +4114,8 @@ static void _handle_behaviour(monsters *mon)
                     {
                         mon->travel_target = MTRAV_NONE;
                         patrolling = false;
-                        mon->patrol_point = coord_def(0, 0);
-                        mon->target.set(10 + random2(X_BOUND_2 - 10),
-                                        10 + random2(Y_BOUND_2 - 10));
+                        mon->patrol_point.reset();
+                        mon->target = random_in_bounds();
                     }
                 }
 
@@ -4194,7 +4227,7 @@ static void _handle_behaviour(monsters *mon)
         if (mon->behaviour == BEH_FLEE)
         {
             // Monster is safe, so stay put.
-            mon->target.set(mon->pos().x, mon->pos().y);
+            mon->target = mon->pos();
             mon->foe = MHITNOT;
         }
     }
@@ -4287,9 +4320,9 @@ monsters *choose_random_monster_on_level(int weight,
 {
     monsters *chosen = NULL;
 
-    // A radius_iterator with radius == max(GXM,GYM) will sweep the whole
-    // level.
-    radius_iterator ri(you.pos(), near_by ? 9 : std::max(GXM,GYM),
+    // A radius_iterator with radius == max(GXM, GYM) will sweep the
+    // whole level.
+    radius_iterator ri(you.pos(), near_by ? 9 : std::max(GXM, GYM),
                        true, in_sight);
 
     for ( ; ri; ++ri )
@@ -4510,8 +4543,9 @@ static void _handle_movement(monsters *monster)
              && monster->target == env.sanctuary_pos)
     {
         // Once outside there's a chance they'll regain their courage.
-        // Nonliving and berserking monsters always stop imediately,
-        // since they're only being forced out rather than actually scared.
+        // Nonliving and berserking monsters always stop immediately,
+        // since they're only being forced out rather than actually
+        // scared.
         if (monster->holiness() == MH_NONLIVING
             || monster->has_ench(ENCH_BERSERK)
             || random2(5) > 2)
@@ -4520,10 +4554,11 @@ static void _handle_movement(monsters *monster)
         }
     }
 
-    // some calculations
+    // Some calculations.
     if (mons_class_flag(monster->type, M_BURROWS) && monster->foe == MHITYOU)
     {
-        // Boring beetles always move in a straight line in your direction.
+        // Boring beetles always move in a straight line in your
+        // direction.
         delta = you.pos() - monster->pos();
     }
     else
@@ -4537,8 +4572,8 @@ static void _handle_movement(monsters *monster)
                 mons_has_ranged_attack(monster)
                 || mons_has_ranged_spell(monster);
 
-            // Smiters are happy if they have clear visibility through glass,
-            // but other monsters must go around.
+            // Smiters are happy if they have clear visibility through
+            // glass, but other monsters must go around.
             const bool glass_ok = mons_has_smite_attack(monster);
 
             // Monsters in the arena are smarter than the norm and
@@ -4565,8 +4600,8 @@ static void _handle_movement(monsters *monster)
         mmov *= -1;
     }
 
-    // Don't allow monsters to enter a sanctuary
-    // or attack you inside a sanctuary even if you're right next to them.
+    // Don't allow monsters to enter a sanctuary or attack you inside a
+    // sanctuary, even if you're right next to them.
     if (is_sanctuary(monster->pos() + mmov)
         && (!is_sanctuary(monster->pos())
             || monster->pos() + mmov == you.pos()))
@@ -4574,11 +4609,11 @@ static void _handle_movement(monsters *monster)
         mmov.reset();
     }
 
-    // Bounds check: don't let fleeing monsters try to run off the map.
+    // Bounds check: don't let fleeing monsters try to run off the grid.
     const coord_def s = monster->target + mmov;
-    if (s.x < 0 || s.x >= GXM)
+    if (!in_bounds_x(s.x))
         mmov.x = 0;
-    if (s.y < 0 || s.y >= GYM)
+    if (!in_bounds_y(s.y))
         mmov.y = 0;
 
     // Now quit if we can't move.
@@ -4588,8 +4623,9 @@ static void _handle_movement(monsters *monster)
     if (delta.rdist() > 3)
     {
         // Reproduced here is some semi-legacy code that makes monsters
-        // move somewhat randomly along oblique paths.  It is an exceedingly
-        // good idea, given crawl's unique line of sight properties.
+        // move somewhat randomly along oblique paths.  It is an
+        // exceedingly good idea, given crawl's unique line of sight
+        // properties.
         //
         // Added a check so that oblique movement paths aren't used when
         // close to the target square. -- bwr
@@ -4612,7 +4648,7 @@ static void _handle_movement(monsters *monster)
             const int targ_x = monster->pos().x + count_x - 1;
             const int targ_y = monster->pos().y + count_y - 1;
 
-            // Bounds check - don't consider moving out of grid!
+            // Bounds check: don't consider moving out of grid!
             if (!in_bounds(targ_x, targ_y))
             {
                 good_move[count_x][count_y] = false;
@@ -4679,11 +4715,13 @@ static void _handle_movement(monsters *monster)
         }
     }
 
-    // If the monster is moving in your direction, whether to attack or protect
-    // you, or towards a monster it intends to attack, check whether we first
-    // need to take a step to the side to make sure the reinforcement can
-    // follow through.
-    // First, check whether the monster is smart enough to even consider this.
+    // If the monster is moving in your direction, whether to attack or
+    // protect you, or towards a monster it intends to attack, check
+    // whether we first need to take a step to the side to make sure the
+    // reinforcement can follow through.
+
+    // First, check whether the monster is smart enough to even consider
+    // this.
     if ((newpos == you.pos()
          || mgrd(newpos) != NON_MONSTER && monster->foe == mgrd(newpos))
         && mons_intel(monster) >= I_ANIMAL
@@ -4692,11 +4730,14 @@ static void _handle_movement(monsters *monster)
     {
         // If the monster is moving parallel to the x or y axis, check
         // whether
+        //
         // a) the neighbouring grids are blocked
         // b) there are other unblocked grids adjacent to the target
         // c) there's at least one allied monster waiting behind us.
-        // (For really smart monsters, also check whether there's a monster
-        //  farther back in the corridor that has some kind of ranged attack.)
+        //
+        // (For really smart monsters, also check whether there's a
+        // monster farther back in the corridor that has some kind of
+        // ranged attack.)
         if (mmov.y == 0)
         {
             if (!good_move[1][0] && !good_move[1][2]
@@ -4767,23 +4808,24 @@ static void _handle_movement(monsters *monster)
     if (mmov.origin())
         return;
 
-    // Try to stay in sight of the player if we're moving toward's him/her,
-    // in order to avoid the monster coming into view, shouting, and then
-    // taking a step in a path to the player which temporarily takes it out of
-    // view, which can lead to the player getting "comes into view" and
-    // shout messages with no monster in view.
+    // Try to stay in sight of the player if we're moving towards
+    // him/her, in order to avoid the monster coming into view,
+    // shouting, and then taking a step in a path to the player which
+    // temporarily takes it out of view, which can lead to the player
+    // getting "comes into view" and shout messages with no monster in
+    // view.
 
     // Doesn't matter for arena mode.
     if (crawl_state.arena)
         return;
 
     // Did we just come into view?
-    if (monster->seen_context != "just seen")
+    if (monster->seen_context != _just_seen)
         return;
 
     monster->seen_context.clear();
 
-    // If the player can't see us it doesn't matter.
+    // If the player can't see us, it doesn't matter.
     if (!(monster->flags & MF_WAS_IN_VIEW))
         return;
 
@@ -4792,14 +4834,18 @@ static void _handle_movement(monsters *monster)
 
     // We're not moving towards the player.
     if (grid_distance(you.pos(), old_pos + mmov) >= old_dist)
+    {
+        // Give a message if we move back out of view.
+        monster->seen_context = _just_seen;
         return;
+    }
 
     // We're already staying in the player's LOS.
     if (see_grid(old_pos + mmov))
         return;
 
-    // Try to find a move that brings us closer to the player while keeping us
-    // in view.
+    // Try to find a move that brings us closer to the player while
+    // keeping us in view.
     int matches = 0;
     for (int i = 0; i < 3; i++)
         for (int j = 0; j < 3; j++)
@@ -4820,6 +4866,11 @@ static void _handle_movement(monsters *monster)
                 break;
             }
         }
+
+    // The only way to get closer to the player is to step out of view;
+    // give a message so they player isn't confused about its being
+    // announced as coming into view but not being seen.
+    monster->seen_context = _just_seen;
 }
 
 static void _make_mons_stop_fleeing(monsters *mon)
@@ -5001,8 +5052,8 @@ static void _handle_nearby_ability(monsters *monster)
         ;
     }
     else if ((mons_class_flag(monster->type, M_SPEAKS)
-              || !monster->mname.empty())
-             && one_chance_in(MON_SPEAK_CHANCE))
+                    || !monster->mname.empty())
+                && one_chance_in(MON_SPEAK_CHANCE))
     {
         mons_speaks(monster);
     }
@@ -6997,7 +7048,7 @@ static void _handle_monster_move(int i, monsters *monster)
             continue;
         }
 
-        // Harpyes may eat food/corpses on the ground.
+        // Harpies may eat food/corpses on the ground.
         if (monster->type == MONS_HARPY && !mons_is_fleeing(monster)
             && (mons_wont_attack(monster)
                 || (monster->pos() - you.pos()).rdist() > 1)
@@ -7103,12 +7154,11 @@ static void _handle_monster_move(int i, monsters *monster)
                     mmov.reset();
 
                 // Bounds check: don't let confused monsters try to run
-                // off the map.
+                // off the grid.
                 const coord_def s = monster->pos() + mmov;
-                if (s.x < 0 || s.x >= GXM)
+                if (!in_bounds_x(s.x))
                     mmov.x = 0;
-
-                if (s.y < 0 || s.y >= GYM)
+                if (!in_bounds_y(s.y))
                     mmov.y = 0;
 
                 if (!monster->can_pass_through(monster->pos() + mmov))
@@ -7231,8 +7281,7 @@ static void _handle_monster_move(int i, monsters *monster)
                     if (mons_is_batty(monster))
                     {
                         monster->behaviour = BEH_WANDER;
-                        monster->target.set(10 + random2(X_BOUND_2 - 10),
-                                            10 + random2(Y_BOUND_2 - 10));
+                        monster->target = random_in_bounds();
                         // monster->speed_increment -= monster->speed;
                     }
 
@@ -7259,8 +7308,7 @@ static void _handle_monster_move(int i, monsters *monster)
                     if (mons_is_batty(monster))
                     {
                         monster->behaviour = BEH_WANDER;
-                        monster->target.set(10 + random2(X_BOUND_2 - 10),
-                                            10 + random2(Y_BOUND_2 - 10));
+                        monster->target = random_in_bounds();
                     }
                     DEBUG_ENERGY_USE("monster_attack()");
                 }
@@ -7582,7 +7630,7 @@ static bool _monster_swaps_places( monsters *mon, const coord_def& delta )
 
     if (mons_is_sleeping(m2))
     {
-        if (one_chance_in(2))
+        if (coinflip())
         {
 #ifdef DEBUG_DIAGNOSTICS
             mprf(MSGCH_DIAGNOSTICS,
@@ -7616,7 +7664,6 @@ static bool _monster_swaps_places( monsters *mon, const coord_def& delta )
     mon->apply_location_effects(c);
     m2->check_redraw(c);
     m2->apply_location_effects(n);
-
 
     // The seen context no longer applies if the monster is moving normally.
     mon->seen_context.clear();
@@ -7652,6 +7699,12 @@ static bool _do_move_monster(monsters *monster, const coord_def& delta)
         return (true);
     }
 
+    // The monster gave a "comes into view" message and then immediately
+    // moved back out of view, leaing the player nothing to see, so give
+    // this message to avoid confusion.
+    if (monster->seen_context == _just_seen && !see_grid(f))
+        simple_monster_message(monster, " moves out of view.");
+
     // The seen context no longer applies if the monster is moving normally.
     monster->seen_context.clear();
 
@@ -7675,50 +7728,50 @@ static bool _do_move_monster(monsters *monster, const coord_def& delta)
     return (true);
 }
 
-void mons_check_pool(monsters *mons, const coord_def &oldpos,
+void mons_check_pool(monsters *monster, const coord_def &oldpos,
                      killer_type killer, int killnum)
 {
     // Levitating/flying monsters don't make contact with the terrain.
-    if (mons->airborne())
+    if (monster->airborne())
         return;
 
-    dungeon_feature_type grid = grd(mons->pos());
+    dungeon_feature_type grid = grd(monster->pos());
     if ((grid == DNGN_LAVA || grid == DNGN_DEEP_WATER)
-        && !monster_habitable_grid(mons, grid))
+        && !monster_habitable_grid(monster, grid))
     {
-        const bool message = mons_near(mons);
+        const bool message = mons_near(monster);
 
-        // Don't worry about invisibility - you should be able to see if
+        // Don't worry about invisibility.  You should be able to see if
         // something has fallen into the lava.
-        if (message && (oldpos == mons->pos() || grd(oldpos) != grid))
+        if (message && (oldpos == monster->pos() || grd(oldpos) != grid))
         {
             mprf("%s falls into the %s!",
-                 mons->name(DESC_CAP_THE).c_str(),
-                 (grid == DNGN_LAVA ? "lava" : "water"));
+                 monster->name(DESC_CAP_THE).c_str(),
+                 grid == DNGN_LAVA ? "lava" : "water");
         }
 
-        if (grid == DNGN_LAVA && mons_res_fire(mons) >= 2)
+        if (grid == DNGN_LAVA && mons_res_fire(monster) >= 2)
             grid = DNGN_DEEP_WATER;
 
-        // Even fire resistant monsters perish in lava, but inanimate monsters
-        // can survive deep water.
-        if (grid == DNGN_LAVA || mons->can_drown())
+        // Even fire resistant monsters perish in lava, but inanimate
+        // monsters can survive deep water.
+        if (grid == DNGN_LAVA || monster->can_drown())
         {
             if (message)
             {
                 if (grid == DNGN_LAVA)
                 {
-                    simple_monster_message(mons, " is incinerated.",
+                    simple_monster_message(monster, " is incinerated.",
                                            MSGCH_MONSTER_DAMAGE, MDAM_DEAD);
                 }
-                else if (mons_genus(mons->type) == MONS_MUMMY)
+                else if (mons_genus(monster->type) == MONS_MUMMY)
                 {
-                    simple_monster_message(mons, " falls apart.",
+                    simple_monster_message(monster, " falls apart.",
                                            MSGCH_MONSTER_DAMAGE, MDAM_DEAD);
                 }
                 else
                 {
-                    simple_monster_message(mons, " drowns.",
+                    simple_monster_message(monster, " drowns.",
                                            MSGCH_MONSTER_DAMAGE, MDAM_DEAD);
                 }
             }
@@ -7727,15 +7780,18 @@ void mons_check_pool(monsters *mons, const coord_def &oldpos,
             {
                 // Self-kill.
                 killer  = KILL_MON;
-                killnum = monster_index(mons);
+                killnum = monster_index(monster);
             }
 
-            monster_die(mons, killer, killnum, true);
+            // Yredelemnul special, redux: It's the only one that can
+            // work on drowned monsters.
+            if (!_yred_enslave_soul(monster, killer))
+                monster_die(monster, killer, killnum, true);
         }
     }
 }
 
-// Randomize potential damage.
+// Randomise potential damage.
 static int _estimated_trap_damage(trap_type trap)
 {
     switch (trap)
@@ -7941,17 +7997,20 @@ static bool _mon_can_move_to_pos(const monsters *monster,
                                  const coord_def& delta, bool just_check)
 {
     const coord_def targ = monster->pos() + delta;
-    // Bounds check - don't consider moving out of grid!
-    if (!inside_level_bounds(targ))
+
+    // Bounds check: don't consider moving out of grid!
+    if (!in_bounds(targ))
         return (false);
 
-    // Non-friendly and non-good neutral monsters won't enter sanctuaries.
+    // Non-friendly and non-good neutral monsters won't enter
+    // sanctuaries.
     if (!mons_wont_attack(monster)
         && is_sanctuary(targ)
         && !is_sanctuary(monster->pos()))
     {
         return (false);
     }
+
     // Inside a sanctuary don't attack anything!
     if (is_sanctuary(monster->pos())
         && (targ == you.pos() || mgrd(targ) != NON_MONSTER))
@@ -7987,12 +8046,11 @@ static bool _mon_can_move_to_pos(const monsters *monster,
             return (false);
     }
     else if (!monster->can_pass_through_feat(target_grid)
-             || no_water && target_grid >= DNGN_DEEP_WATER
-                && target_grid <= DNGN_WATER_STUCK)
+             || no_water && grid_is_water(target_grid))
     {
         return (false);
     }
-    else if (!_habitat_okay( monster, target_grid ))
+    else if (!_habitat_okay(monster, target_grid))
     {
         // If the monster somehow ended up in this habitat (and is
         // not dead by now), give it a chance to get out again.
@@ -8018,7 +8076,7 @@ static bool _mon_can_move_to_pos(const monsters *monster,
         return (false);
     }
 
-    // Fire elementals avoid water and cold
+    // Fire elementals avoid water and cold.
     if (monster->type == MONS_FIRE_ELEMENTAL
         && (grid_is_watery(target_grid)
             || targ_cloud_type == CLOUD_COLD))
@@ -8098,7 +8156,7 @@ static bool _monster_move(monsters *monster)
 
     if (monster->type == MONS_TRAPDOOR_SPIDER)
     {
-        if(mons_is_submerged(monster))
+        if (mons_is_submerged(monster))
            return (false);
 
         // Trapdoor spiders hide if they can't see their target.
@@ -8171,7 +8229,7 @@ static bool _monster_move(monsters *monster)
             const int targ_x = monster->pos().x + count_x - 1;
             const int targ_y = monster->pos().y + count_y - 1;
 
-            // Bounds check - don't consider moving out of grid!
+            // Bounds check: don't consider moving out of grid!
             if (!in_bounds(targ_x, targ_y))
             {
                 good_move[count_x][count_y] = false;

@@ -625,10 +625,11 @@ bool maybe_coagulate_blood_potions_inv(item_def &blood)
 
     // Else, create new stack in inventory.
     int freeslot = find_free_slot(blood);
-    if (freeslot >= 0 && freeslot < ENDOFPACK
-        && !is_valid_item(you.inv[freeslot]))
+    if (freeslot >= 0 && freeslot < ENDOFPACK)
     {
         item_def &item   = you.inv[freeslot];
+        item.clear();
+
         item.link        = freeslot;
         item.slot        = index_to_letter(item.link);
         item.base_type   = OBJ_POTIONS;
@@ -637,8 +638,7 @@ bool maybe_coagulate_blood_potions_inv(item_def &blood)
         item.plus        = 0;
         item.plus2       = 0;
         item.special     = 0;
-        item.flags       = 0;
-        item.inscription = "";
+        item.flags       = (ISFLAG_KNOW_TYPE & ISFLAG_BEEN_IN_INV);
         item.pos.set(-1, -1);
         item_colour(item);
 
@@ -720,7 +720,7 @@ bool maybe_coagulate_blood_potions_inv(item_def &blood)
     mitm[o].plus      = 0;
     mitm[o].plus2     = 0;
     mitm[o].special   = 0;
-    mitm[o].flags     = ~(ISFLAG_THROWN | ISFLAG_DROPPED);
+    mitm[o].flags     = (ISFLAG_KNOW_TYPE & ISFLAG_BEEN_IN_INV);
     item_colour(mitm[o]);
 
     CrawlHashTable &props_new = mitm[o].props;
@@ -1113,8 +1113,10 @@ void bleed_onto_floor(const coord_def& where, int montype,
                       int damage, bool spatter, bool smell_alert)
 {
     ASSERT(in_bounds(where));
+
     if (montype == -1 && !you.can_bleed())
         return;
+
     if (montype != -1)
     {
         monsters m;
@@ -1166,20 +1168,20 @@ void generate_random_blood_spatter_on_level()
 
     int min_prob = 1;
     int max_prob = 4;
+
     if (max_cluster < 10)
         max_prob--;
     else if (max_cluster > 12)
         min_prob++;
 
-    for (int i = 0; i < max_cluster; i++)
+    for (int i = 0; i < max_cluster; ++i)
     {
-        coord_def c;
-        c.x = 10 + random2(GXM - 10);
-        c.y = 10 + random2(GYM - 10);
+        coord_def c = random_in_bounds();
         startprob = min_prob + random2(max_prob);
 
         if (allow_bleeding_on_square(c))
             env.map(c).property |= FPROP_BLOODY;
+
         _spatter_neighbours(c, startprob);
     }
 }

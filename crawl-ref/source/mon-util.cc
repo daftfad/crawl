@@ -1235,7 +1235,6 @@ int mons_res_elec(const monsters *mon)
 bool mons_res_asphyx(const monsters *mon)
 {
     const mon_holy_type holiness = mons_holiness(mon);
-
     return (mons_is_unholy(mon)
             || holiness == MH_NONLIVING
             || holiness == MH_PLANT
@@ -1491,6 +1490,9 @@ flight_type mons_class_flies(int mc)
 
 flight_type mons_flies(const monsters *mon)
 {
+    if (mons_enslaved_twisted_soul(mon))
+        return (FL_LEVITATE);
+
     if (mon->type == MONS_PANDEMONIUM_DEMON && mon->ghost->fly)
         return (mon->ghost->fly);
 
@@ -1724,7 +1726,7 @@ int exper_value(const monsters *monster)
         x_val = 15000;
 
     return (x_val);
-}                               // end exper_value()
+}
 
 void mons_load_spells( monsters *mon, mon_spellbook_type book )
 {
@@ -1934,7 +1936,7 @@ void define_monster(monsters &mons)
     // Reset monster enchantments.
     mons.enchantments.clear();
     mons.ench_countdown = 0;
-}                               // end define_monster()
+}
 
 static const char *drac_colour_names[] = {
     "black", "mottled", "yellow", "green", "purple",
@@ -1966,11 +1968,13 @@ monster_type draconian_colour_by_name(const std::string &name)
 static std::string _str_monam(const monsters& mon, description_level_type desc,
                               bool force_seen)
 {
-    if (desc == DESC_NONE)
-        return ("");
+    if (mon.type == -1)
+        return ("DEAD MONSTER");
+    else if (invalid_monster_class(mon.type) && mon.type != MONS_PROGRAM_BUG)
+        return make_stringf("INVALID MONSTER (#%d)", mon.type);
 
     const bool arena_submerged = crawl_state.arena && !force_seen
-                              && mons_is_submerged(&mon);
+                                     && mons_is_submerged(&mon);
 
     // Handle non-visible case first.
     if (!force_seen && !player_monster_visible(&mon)
@@ -2114,16 +2118,9 @@ static std::string _str_monam(const monsters& mon, description_level_type desc,
 
         if (mon.number < 11)
         {
-            result += (mon.number ==  1) ? "one"   :
-                      (mon.number ==  2) ? "two"   :
-                      (mon.number ==  3) ? "three" :
-                      (mon.number ==  4) ? "four"  :
-                      (mon.number ==  5) ? "five"  :
-                      (mon.number ==  6) ? "six"   :
-                      (mon.number ==  7) ? "seven" :
-                      (mon.number ==  8) ? "eight" :
-                      (mon.number ==  9) ? "nine"
-                                         : "ten";
+            const char* cardinals[] = {"one", "two", "three", "four", "five",
+                                       "six", "seven", "eight", "nine", "ten"};
+            result += cardinals[mon.number - 1];
         }
         else
         {
@@ -2139,8 +2136,13 @@ static std::string _str_monam(const monsters& mon, description_level_type desc,
     else if (nametype == MONS_LERNAEAN_HYDRA)
         result += "Lernaean hydra";
     else
+    {
         // Add the base name.
-        result += get_monster_data(nametype)->name;
+        if (invalid_monster_class(nametype) && nametype != MONS_PROGRAM_BUG)
+            result += make_stringf("INVALID MONSTER (#%d)", nametype);
+        else
+            result += get_monster_data(nametype)->name;
+    }
 
     // Add suffixes.
     switch (mon.type)
@@ -3243,7 +3245,7 @@ const char *mons_pronoun(monster_type mon_type, pronoun_type variant,
     if (!visible)
         gender = GENDER_NEUTER;
 
-    switch(variant)
+    switch (variant)
     {
         case PRONOUN_CAP:
             return ((gender == 0) ? "It" :
@@ -3538,8 +3540,8 @@ bool monsters::floundering() const
 {
     const dungeon_feature_type grid = grd(pos());
     return (grid_is_water(grid)
-            // Can't use monster_habitable_grid because that'll return true
-            // for non-water monsters in shallow water.
+            // Can't use monster_habitable_grid() because that'll return
+            // true for non-water monsters in shallow water.
             && mons_primary_habitat(this) != HT_WATER
             && !mons_amphibious(this)
             && !mons_flies(this)
@@ -3578,14 +3580,26 @@ bool monsters::is_habitable_feat(dungeon_feature_type actual_grid) const
 
 bool monsters::can_drown() const
 {
-    // Mummies can fall apart in water; ghouls, vampires, and demons can
-    // drown in water/lava.
-    // Other undead just "sink like a rock", to be never seen again.
+    // Presumably a shark in lava or a lavafish in deep water could
+    // drown, but that should never happen, so this simple check should
+    // be enough.
+    switch (mons_primary_habitat(this))
+    {
+    case HT_WATER:
+    case HT_LAVA:
+        return (false);
+    default:
+        break;
+    }
+
+    // Mummies can fall apart in water or be incinerated in lava.
+    // Ghouls, vampires, and demons can drown in water or lava.  Others
+    // just "sink like a rock", to never be seen again.
     return (!mons_res_asphyx(this)
             || mons_genus(type) == MONS_MUMMY
             || mons_genus(type) == MONS_GHOUL
             || mons_genus(type) == MONS_VAMPIRE
-            || holiness() == MH_DEMONIC);
+            || mons_holiness(this) == MH_DEMONIC);
 }
 
 size_type monsters::body_size(int /* psize */, bool /* base */) const
@@ -4924,22 +4938,13 @@ bool monsters::pickup_potion(item_def &item, int near)
 {
     // Only allow monsters to pick up potions if they can actually use
     // them.
-    switch (item.sub_type)
+    const potion_type ptype = static_cast<potion_type>(item.sub_type);
+
+    if (!this->can_drink_potion(ptype))
+        return (false);
+
+    switch (ptype)
     {
-    case POT_HEALING:
-    case POT_HEAL_WOUNDS:
-        if (mons_holiness(this) == MH_UNDEAD
-            || mons_holiness(this) == MH_NONLIVING
-            || mons_holiness(this) == MH_PLANT)
-        {
-            return (false);
-        }
-        break;
-    case POT_BLOOD:
-    case POT_BLOOD_COAGULATED:
-        if (::mons_species(this->type) != MONS_VAMPIRE)
-            return (false);
-        break;
     case POT_SPEED:
     case POT_INVISIBILITY:
         // If there are any item using monsters that are permanently
@@ -5183,8 +5188,8 @@ bool monsters::has_base_name() const
 
 std::string monsters::name(description_level_type desc, bool force_vis) const
 {
-    if (type == -1)
-        return ("INVALID MONSTER");
+    if (desc == DESC_NONE)
+        return ("");
 
     const bool possessive =
         (desc == DESC_NOCAP_YOUR || desc == DESC_NOCAP_ITS);
@@ -5207,6 +5212,9 @@ std::string monsters::name(description_level_type desc, bool force_vis) const
 std::string monsters::base_name(description_level_type desc, bool force_vis)
     const
 {
+    if (desc == DESC_NONE)
+        return ("");
+
     if (ghost.get() || mons_is_unique(type))
         return (name(desc, force_vis));
     else
@@ -5220,6 +5228,9 @@ std::string monsters::base_name(description_level_type desc, bool force_vis)
 std::string monsters::full_name(description_level_type desc,
                                 bool use_comma) const
 {
+    if (desc == DESC_NONE)
+        return ("");
+
     std::string title = _str_monam(*this, desc, true);
 
     const unsigned long flag = flags & MF_NAME_MASK;
@@ -5832,9 +5843,13 @@ int monsters::res_rotting() const
 
 int monsters::res_torment() const
 {
-    mon_holy_type holy = mons_holiness(this);
-    if (holy == MH_UNDEAD || holy == MH_DEMONIC || holy == MH_NONLIVING)
+    const mon_holy_type holy = mons_holiness(this);
+    if (holy == MH_UNDEAD
+        || holy == MH_DEMONIC
+        || holy == MH_NONLIVING)
+    {
         return (1);
+    }
 
     return (0);
 }
@@ -7628,7 +7643,7 @@ void monsters::apply_location_effects(const coord_def &oldpos)
             prop &= ~FPROP_BLOODY;
             if (see_grid(pos()) && !visible_to(&you))
             {
-               std::string desc = 
+               std::string desc =
                    feature_description(pos(), false, DESC_NOCAP_THE, false);
                mprf("The bloodstain on %s disappears!", desc.c_str());
             }
@@ -7840,8 +7855,8 @@ bool monsters::should_drink_potion(potion_type ptype) const
     case POT_SPEED:
         return (!has_ench(ENCH_HASTE));
     case POT_INVISIBILITY:
-        // We're being nice: friendlies won't go invisible
-        // if the player won't be able to see them.
+        // We're being nice: friendlies won't go invisible if the player
+        // won't be able to see them.
         return (!has_ench(ENCH_INVIS)
                 && (player_see_invis(false) || !mons_friendly(this)));
     default:
@@ -8338,7 +8353,7 @@ std::string do_mon_str_replacements(const std::string &in_msg,
             msg = replace_all(msg, "@surface@", "buggy surface");
         else if (feat == DNGN_LAVA)
             msg = replace_all(msg, "@surface@", "lava");
-        else if (feat == DNGN_DEEP_WATER || feat == DNGN_SHALLOW_WATER)
+        else if (grid_is_water(feat))
             msg = replace_all(msg, "@surface@", "water");
         else if (feat >= DNGN_ALTAR_FIRST_GOD && feat <= DNGN_ALTAR_LAST_GOD)
             msg = replace_all(msg, "@surface@", "altar");

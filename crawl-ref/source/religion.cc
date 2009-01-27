@@ -924,21 +924,21 @@ static int _yred_random_servants(int threshold, bool force_hostile = false)
     int temp_rand = random2(std::min(100, threshold));
 
     // undead
-    mon = ((temp_rand < 25) ? MONS_WRAITH :           // 25%
-           (temp_rand < 35) ? MONS_WIGHT :            // 10%
-           (temp_rand < 44) ? MONS_FLYING_SKULL :     //  9%
-           (temp_rand < 52) ? MONS_SPECTRAL_WARRIOR : //  8%
-           (temp_rand < 59) ? MONS_ROTTING_HULK :     //  7%
-           (temp_rand < 65) ? MONS_SKELETAL_WARRIOR : //  6%
-           (temp_rand < 70) ? MONS_FREEZING_WRAITH :  //  5%
-           (temp_rand < 75) ? MONS_FLAMING_CORPSE :   //  5%
-           (temp_rand < 80) ? MONS_GHOUL :            //  5%
-           (temp_rand < 85) ? MONS_MUMMY :            //  5%
-           (temp_rand < 89) ? MONS_VAMPIRE :          //  4%
-           (temp_rand < 93) ? MONS_HUNGRY_GHOST :     //  4%
-           (temp_rand < 96) ? MONS_FLAYED_GHOST :     //  3%
-           (temp_rand < 98) ? MONS_SKELETAL_DRAGON    //  2%
-                            : MONS_DEATH_COB);        //  2%
+    mon = ((temp_rand < 15) ? MONS_WRAITH :           // 15%
+           (temp_rand < 30) ? MONS_WIGHT :            // 15%
+           (temp_rand < 40) ? MONS_FLYING_SKULL :     // 10%
+           (temp_rand < 49) ? MONS_SPECTRAL_WARRIOR : //  9%
+           (temp_rand < 57) ? MONS_ROTTING_HULK :     //  8%
+           (temp_rand < 64) ? MONS_SKELETAL_WARRIOR : //  7%
+           (temp_rand < 70) ? MONS_FREEZING_WRAITH :  //  6%
+           (temp_rand < 76) ? MONS_FLAMING_CORPSE :   //  6%
+           (temp_rand < 81) ? MONS_GHOUL :            //  5%
+           (temp_rand < 86) ? MONS_MUMMY :            //  5%
+           (temp_rand < 90) ? MONS_VAMPIRE :          //  4%
+           (temp_rand < 94) ? MONS_HUNGRY_GHOST :     //  4%
+           (temp_rand < 97) ? MONS_FLAYED_GHOST :     //  3%
+           (temp_rand < 99) ? MONS_SKELETAL_DRAGON    //  2%
+                            : MONS_DEATH_COB);        //  1%
 
     if (mon == MONS_FLYING_SKULL)
         how_many = 2 + random2(4);
@@ -1810,24 +1810,14 @@ bool bless_follower(monsters *follower,
 
 blessing_done:
 
-    bool see_follower = false;
-
     std::string whom = "";
     if (!follower)
         whom = "you";
     else
     {
         if (mons_near(follower) && player_monster_visible(follower))
-            see_follower = true;
-
-        if (see_follower)
-        {
-            if (follower->is_named())
-                whom = follower->name(DESC_PLAIN);
-            else
-                whom = "your " + follower->name(DESC_PLAIN);
-        }
-        else // cannot see who was blessed
+            whom = follower->name(DESC_NOCAP_THE);
+        else
             whom = "a follower";
     }
 
@@ -3376,12 +3366,9 @@ bool is_holy_item(const item_def& item)
     switch (item.base_type)
     {
     case OBJ_WEAPONS:
-        {
-        const int item_brand = get_weapon_brand(item);
-
-        retval = (item_brand == SPWPN_HOLY_WRATH || is_blessed_blade(item));
+        retval = (is_blessed_blade(item)
+                  || get_weapon_brand(item) == SPWPN_HOLY_WRATH);
         break;
-        }
     case OBJ_SCROLLS:
         retval = (item.sub_type == SCR_HOLY_WORD);
         break;
@@ -5619,12 +5606,6 @@ void yred_make_enslaved_soul(monsters *mon, bool force_hostile,
     // If the monster's held in a net, get it out.
     mons_clear_trapping_net(mon);
 
-    if (!quiet)
-    {
-        mprf("%s soul %s.", whose.c_str(),
-             twisted ? "becomes twisted" : "remains intact");
-    }
-
     const monsters orig = *mon;
 
     if (twisted)
@@ -5646,6 +5627,7 @@ void yred_make_enslaved_soul(monsters *mon, bool force_hostile,
     // Drop the monster's equipment.
     monster_drop_ething(mon);
 
+    // Recreate the monster as an abomination or spectral thing.
     define_monster(*mon);
 
     mon->colour = EC_UNHOLY;
@@ -5674,8 +5656,9 @@ void yred_make_enslaved_soul(monsters *mon, bool force_hostile,
 
     if (!quiet)
     {
-        mprf("%s soul %s.", whose.c_str(),
-             !force_hostile ? "is now yours" : "fights you");
+        mprf("%s soul %s, and %s.", whose.c_str(),
+             twisted        ? "becomes twisted" : "remains intact",
+             !force_hostile ? "is now yours"    : "fights you");
     }
 }
 
@@ -5959,7 +5942,7 @@ static bool _bless_weapon( god_type god, brand_type brand, int colour )
         {
             convert2good(weap);
 
-            if (is_convertible(weap))
+            if (is_blessed_blade_convertible(weap))
             {
                 origin_acquired(weap, GOD_SHINING_ONE);
                 make_item_blessed_blade(weap);
@@ -6060,7 +6043,7 @@ static void _altar_prayer()
 
         if (wpn != -1
             && (get_weapon_brand(you.inv[wpn]) != SPWPN_HOLY_WRATH
-                || is_convertible(you.inv[wpn])))
+                || is_blessed_blade_convertible(you.inv[wpn])))
         {
             _bless_weapon(GOD_SHINING_ONE, SPWPN_HOLY_WRATH, YELLOW);
         }

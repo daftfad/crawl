@@ -1919,7 +1919,7 @@ int MapRegion::handle_mouse(MouseEvent &event)
             m_far_view = true;
             tiles.load_dungeon(gc);
         }
-        return CK_MOUSE_CMD;
+        return 0;
     case MouseEvent::RELEASE:
         if ((event.button == MouseEvent::RIGHT) && m_far_view)
         {
@@ -2335,7 +2335,10 @@ CRTRegion::CRTRegion(FTFont *font) : TextRegion(font)
 
 int CRTRegion::handle_mouse(MouseEvent &event)
 {
-    return 0;
+    if (event.event != MouseEvent::PRESS || event.button != MouseEvent::LEFT)
+        return 0;
+
+    return CK_MOUSE_CLICK;
 }
 
 MenuRegion::MenuRegion(ImageManager *im, FTFont *entry) :

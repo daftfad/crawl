@@ -2949,10 +2949,14 @@ static void _give_monster_item(monsters *mon, int thing,
     mthing.link = NON_ITEM;
     unset_ident_flags(mthing, ISFLAG_IDENT_MASK);
 
-    if (get_weapon_brand(mthing) == SPWPN_HOLY_WRATH
-        && mons_is_unholy(mon))
+    if (mons_is_unholy(mon)
+        && (is_blessed_blade(mthing)
+            || get_weapon_brand(mthing) == SPWPN_HOLY_WRATH))
     {
-        set_item_ego_type( mthing, OBJ_WEAPONS, SPWPN_NORMAL );
+        if (is_blessed_blade(mthing))
+            convert2bad(mthing);
+        if (get_weapon_brand(mthing) == SPWPN_HOLY_WRATH)
+            set_item_ego_type(mthing, OBJ_WEAPONS, SPWPN_NORMAL);
     }
 
     unwind_var<int> save_speedinc(mon->speed_increment);
@@ -2970,7 +2974,7 @@ static void _give_monster_item(monsters *mon, int thing,
     ASSERT(holding_monster(mthing) == mon);
 
     if (!force_item || mthing.colour == BLACK)
-        item_colour( mthing );
+        item_colour(mthing);
 }
 
 static void _give_scroll(monsters *mon, int level)
@@ -2994,7 +2998,7 @@ static void _give_scroll(monsters *mon, int level)
             return;
         }
     }
-    else if (mons_is_unique( mon->type ) && one_chance_in(3))
+    else if (mons_is_unique(mon->type) && one_chance_in(3))
         thing_created = items(0, OBJ_SCROLLS, OBJ_RANDOM, true, level, 0);
 
     if (thing_created == NON_ITEM)
@@ -3007,10 +3011,11 @@ static void _give_scroll(monsters *mon, int level)
 static void _give_wand(monsters *mon, int level)
 {
     //mv - give wand
-    if (mons_is_unique( mon->type ) && one_chance_in(5))
+    if (mons_is_unique(mon->type) && one_chance_in(5))
     {
         const int thing_created =
             items(0, OBJ_WANDS, OBJ_RANDOM, true, level, 0);
+
         if (thing_created == NON_ITEM)
             return;
 
@@ -3018,7 +3023,7 @@ static void _give_wand(monsters *mon, int level)
         if (mon->hit_dice < 5)
         {
             // Technically these wands will be undercharged, but it
-            // doesn't really matter
+            // doesn't really matter.
             if (mitm[thing_created].sub_type == WAND_FIRE)
                 mitm[thing_created].sub_type = WAND_FLAME;
             if (mitm[thing_created].sub_type == WAND_COLD)
@@ -3038,7 +3043,7 @@ static void _give_wand(monsters *mon, int level)
 static void _give_potion(monsters *mon, int level)
 {
     //mv - give potion
-    if (mons_species( mon->type ) == MONS_VAMPIRE && one_chance_in(5))
+    if (mons_species(mon->type) == MONS_VAMPIRE && one_chance_in(5))
     {
         // This handles initialization of stack timer.
         const int thing_created =
@@ -3050,15 +3055,17 @@ static void _give_potion(monsters *mon, int level)
         mitm[thing_created].flags = 0;
         _give_monster_item(mon, thing_created);
     }
-    else if (mons_is_unique( mon->type ) && one_chance_in(3))
+    else if (mons_is_unique(mon->type) && one_chance_in(3))
     {
         const int thing_created =
             items(0, OBJ_POTIONS, OBJ_RANDOM, true, level, 0);
+
         if (thing_created == NON_ITEM)
             return;
 
         mitm[thing_created].flags = 0;
-        _give_monster_item(mon, thing_created);
+        _give_monster_item(mon, thing_created, false,
+                           &monsters::pickup_potion);
     }
 }
 
@@ -3128,7 +3135,6 @@ static item_make_species_type _give_weapon(monsters *mon, int level,
         {
             item.base_type = OBJ_WEAPONS;
             item.sub_type = WPN_SLING;
-            item_race = MAKE_ITEM_NO_RACE;
             break;
         }
         // deliberate fall through {dlb}
@@ -3151,7 +3157,6 @@ static item_make_species_type _give_weapon(monsters *mon, int level,
         if (coinflip())
         {
             force_item  = true;
-            item_race   = MAKE_ITEM_NO_RACE;
             item.plus  += 1 + random2(3);
             item.plus2 += 1 + random2(3);
 
@@ -3387,7 +3392,6 @@ static item_make_species_type _give_weapon(monsters *mon, int level,
     case MONS_POLYPHEMUS:
     case MONS_CYCLOPS:
     case MONS_STONE_GIANT:
-        item_race = MAKE_ITEM_NO_RACE;
         item.base_type = OBJ_MISSILES;
         item.sub_type = MI_LARGE_ROCK;
         break;
@@ -3411,13 +3415,11 @@ static item_make_species_type _give_weapon(monsters *mon, int level,
         // intentional fall-through...
 
     case MONS_SIGMUND:
-        item_race = MAKE_ITEM_NO_RACE;
         item.base_type = OBJ_WEAPONS;
         item.sub_type = WPN_SCYTHE;
         break;
 
     case MONS_BALRUG:
-        item_race = MAKE_ITEM_NO_RACE;
         item.base_type = OBJ_WEAPONS;
         item.sub_type = WPN_DEMON_WHIP;
         break;
@@ -3437,7 +3439,6 @@ static item_make_species_type _give_weapon(monsters *mon, int level,
     case MONS_EROLCHA:
         item_race = MAKE_ITEM_NO_RACE;
         item.base_type = OBJ_WEAPONS;
-
         item.sub_type = (one_chance_in(3) ? WPN_GIANT_SPIKED_CLUB
                                           : WPN_GIANT_CLUB);
 
@@ -3591,6 +3592,7 @@ static item_make_species_type _give_weapon(monsters *mon, int level,
     }
     case MONS_FIRE_GIANT:
         force_item = true;
+        item_race      = MAKE_ITEM_NO_RACE;
         item.base_type = OBJ_WEAPONS;
         item.sub_type  = WPN_GREAT_SWORD;
         item.plus      = 0;
@@ -3606,6 +3608,7 @@ static item_make_species_type _give_weapon(monsters *mon, int level,
 
     case MONS_FROST_GIANT:
         force_item = true;
+        item_race      = MAKE_ITEM_NO_RACE;
         item.base_type = OBJ_WEAPONS;
         item.sub_type  = WPN_BATTLEAXE;
         item.plus      = 0;
@@ -3928,6 +3931,7 @@ static void _give_ammo(monsters *mon, int level,
             }
 
             w.quantity = qty;
+
             _give_monster_item(mon, thing_created, false,
                                &monsters::pickup_throwable_weapon);
         }

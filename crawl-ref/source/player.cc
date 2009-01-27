@@ -375,7 +375,7 @@ bool is_grid_dangerous(int grid)
 {
     return (!player_is_airborne()
             && (grid == DNGN_LAVA
-                || (grid == DNGN_DEEP_WATER && !player_likes_water()) ));
+                || (grid == DNGN_DEEP_WATER && !player_likes_water())));
 }
 
 bool player_in_mappable_area( void )
@@ -2675,13 +2675,23 @@ int player_see_invis(bool calc_unid)
 // mons_near().
 bool player_monster_visible(const monsters *mon)
 {
-    if (mons_is_submerged(mon)
-        || mon->invisible() && !player_see_invis())
-    {
+    if (!player_see_invis() && mon->invisible())
         return (false);
-    }
 
-    return (true);
+    if (!mons_is_submerged(mon))
+        return (true);
+
+    const dungeon_feature_type feat = grd(mon->pos());
+
+    // Treat monsters who are submerged due to drowning as visible, so
+    // we get proper messages when they die.  Monsters can only drown in
+    // lava or deep water, so monsters that are "submerged" in other
+    // features (air elementals in air, trapdoor spiders in the floor)
+    // are exempt from this check.
+    if (feat != DNGN_LAVA && feat != DNGN_DEEP_WATER)
+        return (false);
+
+    return (mon->can_drown());
 }
 
 // Returns true if player is mesmerised by a given monster.

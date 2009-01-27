@@ -731,25 +731,26 @@ bool lose_stat(unsigned char which_stat, unsigned char stat_loss,
 void direct_effect(monsters *source, spell_type spell,
                    bolt &pbolt, actor *defender)
 {
-    const bool mons_defender = defender->atype() == ACT_MONSTER;
-    monsters *mdef = mons_defender? dynamic_cast<monsters*>(defender) : NULL;
+    monsters *def =
+        (defender->atype() == ACT_MONSTER) ? dynamic_cast<monsters*>(defender)
+                                           : NULL;
 
-    if (mdef)
+    if (def)
     {
         // annoy the target
-        behaviour_event(mdef, ME_ANNOY, monster_index(source));
+        behaviour_event(def, ME_ANNOY, monster_index(source));
     }
 
-
     int damage_taken = 0;
+
     switch (spell)
     {
     case SPELL_SMITING:
-        if (mons_defender)
-            simple_monster_message(dynamic_cast<monsters*>(defender),
-                                   " is smitten.");
+        if (def)
+            simple_monster_message(def, " is smitten.");
         else
-            mpr( "Something smites you!" );
+            mpr("Something smites you!");
+
         pbolt.name       = "smiting";
         pbolt.flavour    = BEAM_MISSILE;
         pbolt.aux_source = "by divine providence";
@@ -757,7 +758,7 @@ void direct_effect(monsters *source, spell_type spell,
         break;
 
     case SPELL_BRAIN_FEED:
-        if (!mons_defender)
+        if (!def)
         {
             // lose_stat() must come last {dlb}
             if (one_chance_in(3)
@@ -778,8 +779,8 @@ void direct_effect(monsters *source, spell_type spell,
     // apply damage and handle death, where appropriate {dlb}
     if (damage_taken > 0)
     {
-        if (mdef)
-            mdef->hurt(source, damage_taken);
+        if (def)
+            def->hurt(source, damage_taken);
         else
             ouch(damage_taken, pbolt.beam_source, KILLED_BY_BEAM,
                  pbolt.aux_source.c_str());
@@ -803,7 +804,7 @@ void random_uselessness(int scroll_slot)
         break;
 
     case 1:
-        mpr("The scroll reassembles itself in your hand!");
+        mpr("The scroll reassembles itself in your hands!");
         inc_inv_item_quantity(scroll_slot, 1);
         break;
 
@@ -837,7 +838,7 @@ void random_uselessness(int scroll_slot)
     case 5:
         temp_rand = random2(3);
         mprf("Your %s",
-             (temp_rand == 0) ? "ears itch."   :
+             (temp_rand == 0) ? "ears itch!" :
              (temp_rand == 1) ? "brain hurts!"
                               : "nose twitches suddenly!");
         break;
@@ -2683,13 +2684,13 @@ void change_labyrinth(bool msg)
     std::vector<coord_def> targets;
 
     // Try 10 times for an area that is little mapped.
-    for (int tries = 10; tries > 0; tries--)
+    for (int tries = 10; tries > 0; --tries)
     {
         targets.clear();
 
         int x = random_range(LABYRINTH_BORDER, GXM - LABYRINTH_BORDER - size);
         int y = random_range(LABYRINTH_BORDER, GYM - LABYRINTH_BORDER - size);
-        c1 = coord_def(x,y);
+        c1 = coord_def(x, y);
         c2 = coord_def(x + size, y + size);
 
         int count_known = 0;
@@ -3460,10 +3461,10 @@ static void _catchup_monster_moves(monsters *mon, int turns)
     const int moves = (range > 50) ? 50 : range;
 
     // const bool short_time = (range >= 5 + random2(10));
-    const bool long_time  = (range >= (500 + roll_dice( 2, 500 )));
+    const bool long_time = (range >= (500 + roll_dice(2, 500)));
 
-    const bool ranged_attack = (mons_has_ranged_spell( mon, true )
-                                || mons_has_ranged_attack( mon ));
+    const bool ranged_attack = (mons_has_ranged_spell(mon, true)
+                                || mons_has_ranged_attack(mon));
 
 #if DEBUG_DIAGNOSTICS
     // probably too annoying even for DEBUG_DIAGNOSTICS
@@ -3488,11 +3489,11 @@ static void _catchup_monster_moves(monsters *mon, int turns)
         {
             mon->behaviour = BEH_WANDER;
             mon->foe = MHITNOT;
-            mon->target.set(10 + random2(GXM - 10), 10 + random2(GYM - 10));
+            mon->target = random_in_bounds();
         }
         else
         {
-            // monster will be sleeping after we move it
+            // The monster will be sleeping after we move it.
             mon->behaviour = BEH_SLEEP;
         }
     }
@@ -3500,13 +3501,14 @@ static void _catchup_monster_moves(monsters *mon, int turns)
     {
         // If we're doing short time movement and the monster has a
         // ranged attack (missile or spell), then the monster will
-        // flee to gain distance if its "too close", else it will
+        // flee to gain distance if it's "too close", else it will
         // just shift its position rather than charge the player. -- bwr
         if (grid_distance(mon->pos(), mon->target) < 3)
         {
             mon->behaviour = BEH_FLEE;
 
-            // If the monster is on the target square, fleeing won't work.
+            // If the monster is on the target square, fleeing won't
+            // work.
             if (mon->pos() == mon->target)
             {
                 if (you.pos() != mon->pos())
@@ -3516,22 +3518,33 @@ static void _catchup_monster_moves(monsters *mon, int turns)
                 }
                 else
                 {
-                    // Randomize the target so we have a direction to flee.
-                    mon->target.x += (random2(3) - 1);
-                    mon->target.y += (random2(3) - 1);
+                    coord_def mshift(random2(3) - 1, random2(3) - 1);
+
+                    // Bounds check: don't let fleeing monsters try to
+                    // run off the grid.
+                    const coord_def s = mon->target + mshift;
+                    if (!in_bounds_x(s.x))
+                        mshift.x = 0;
+                    if (!in_bounds_y(s.y))
+                        mshift.y = 0;
+
+                    // Randomise the target so we have a direction to
+                    // flee.
+                    mon->target.x += mshift.x;
+                    mon->target.y += mshift.y;
                 }
             }
 
 #if DEBUG_DIAGNOSTICS
-            mpr( "backing off...", MSGCH_DIAGNOSTICS );
+            mpr("backing off...", MSGCH_DIAGNOSTICS);
 #endif
         }
         else
         {
-            shift_monster( mon, mon->pos() );
+            shift_monster(mon, mon->pos());
 
 #if DEBUG_DIAGNOSTICS
-            mprf(MSGCH_DIAGNOSTICS, "shifted to (%d,%d)",
+            mprf(MSGCH_DIAGNOSTICS, "shifted to (%d, %d)",
                  mon->pos().x, mon->pos().y);
 #endif
             return;
@@ -3539,8 +3552,9 @@ static void _catchup_monster_moves(monsters *mon, int turns)
     }
 
     coord_def pos(mon->pos());
-    // dirt simple movement:
-    for (int i = 0; i < moves; i++)
+
+    // Dirt simple movement.
+    for (int i = 0; i < moves; ++i)
     {
         coord_def inc(mon->target - pos);
         inc = coord_def(sgn(inc.x), sgn(inc.y));
@@ -3548,10 +3562,12 @@ static void _catchup_monster_moves(monsters *mon, int turns)
         if (mons_is_fleeing(mon))
             inc *= -1;
 
-        if (pos.x + inc.x < 0 || pos.x + inc.x >= GXM)
+        // Bounds check: don't let shifting monsters try to run off the
+        // grid.
+        const coord_def s = pos + inc;
+        if (!in_bounds_x(s.x))
             inc.x = 0;
-
-        if (pos.y + inc.y < 0 || pos.y + inc.y >= GYM)
+        if (!in_bounds_y(s.y))
             inc.y = 0;
 
         if (inc.origin())
@@ -3562,16 +3578,18 @@ static void _catchup_monster_moves(monsters *mon, int turns)
         if (grid_is_solid(feat)
             || mgrd(next) != NON_MONSTER
             || !monster_habitable_grid(mon, feat))
+        {
             break;
+        }
 
         pos = next;
     }
 
-    if (!shift_monster( mon, pos ))
-        shift_monster( mon, mon->pos() );
+    if (!shift_monster(mon, pos))
+        shift_monster(mon, mon->pos());
 
 #if DEBUG_DIAGNOSTICS
-    mprf(MSGCH_DIAGNOSTICS, "moved to (%d,%d)", mon->pos().x, mon->pos().y );
+    mprf(MSGCH_DIAGNOSTICS, "moved to (%d, %d)", mon->pos().x, mon->pos().y);
 #endif
 }
 

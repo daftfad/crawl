@@ -189,6 +189,11 @@ void set_envmap_glyph(int x, int y, int object, int col)
 #endif
 }
 
+void set_envmap_glyph(const coord_def& c, int object, int col)
+{
+    set_envmap_glyph(c.x, c.y, object, col);
+}
+
 void set_envmap_obj( const coord_def& where, int obj )
 {
     env.map(where).object = obj;
@@ -894,7 +899,7 @@ static void _good_god_follower_attitude_change(monsters *monster)
             int wpn = you.equip[EQ_WEAPON];
             if (wpn != -1
                 && you.inv[wpn].base_type == OBJ_WEAPONS
-                && is_evil_item( you.inv[wpn] )
+                && is_evil_item(you.inv[wpn])
                 && coinflip()) // 50% chance of conversion failing
             {
                 msg::stream << monster->name(DESC_CAP_THE)
@@ -928,13 +933,13 @@ void beogh_follower_convert(monsters *monster, bool orc_hit)
 
         const int hd = monster->hit_dice;
 
-        if (you.piety >= piety_breakpoint(2) && !player_under_penance() &&
-            random2(you.piety / 15) + random2(4 + you.experience_level / 3)
-              > random2(hd) + hd + random2(5))
+        if (you.piety >= piety_breakpoint(2) && !player_under_penance()
+            && random2(you.piety / 15) + random2(4 + you.experience_level / 3)
+                 > random2(hd) + hd + random2(5))
         {
             if (you.weapon()
                 && you.weapon()->base_type == OBJ_WEAPONS
-                && get_weapon_brand( *you.weapon() ) == SPWPN_ORC_SLAYING
+                && get_weapon_brand(*you.weapon()) == SPWPN_ORC_SLAYING
                 && coinflip()) // 50% chance of conversion failing
             {
                 msg::stream << monster->name(DESC_CAP_THE)
@@ -1406,6 +1411,7 @@ bool check_awaken(monsters* monster)
 
     // You didn't wake the monster!
     if (player_light_armour(true)
+        && you.can_see(monster) // to avoid leaking information
         && you.burden_state == BS_UNENCUMBERED
         && you.special_wield != SPWLD_SHADOW
         && !mons_wont_attack(monster)
@@ -1417,7 +1423,7 @@ bool check_awaken(monsters* monster)
     }
 
     return (false);
-}                               // end check_awaken()
+}
 
 static void _set_show_backup( int ex, int ey )
 {
@@ -1668,7 +1674,7 @@ bool noisy(int loudness, const coord_def& where, const char *msg, bool mermaid)
             // If the noise came from the character, any nearby monster
             // will be jumping on top of them.
             if (where == you.pos())
-                behaviour_event( monster, ME_ALERT, MHITYOU );
+                behaviour_event( monster, ME_ALERT, MHITYOU, you.pos() );
             else if (mermaid && mons_primary_habitat(monster) == HT_WATER
                      && !mons_friendly(monster))
             {
@@ -2942,9 +2948,7 @@ bool is_feature(int feature, const coord_def& where)
     if (!env.map(where).object && !see_grid(where))
         return (false);
 
-    // 'grid' can fit in an unsigned char, but making this a short shuts up
-    // warnings about out-of-range case values.
-    short grid = grd(where);
+    dungeon_feature_type grid = grd(where);
 
     switch (feature)
     {
@@ -3079,7 +3083,7 @@ static bool _is_feature_fudged(int feature, const coord_def& where)
 
     if (feature == '<')
     {
-        switch(grid)
+        switch (grid)
         {
         case DNGN_EXIT_HELL:
         case DNGN_EXIT_PORTAL_VAULT:
@@ -3121,7 +3125,7 @@ static int _find_feature(int feature, int curs_x, int curs_y,
     int matchcount = 0;
 
     // Find the first occurrence of feature 'feature', spiralling around (x,y)
-    int maxradius = GXM > GYM? GXM : GYM;
+    int maxradius = GXM > GYM ? GXM : GYM;
     for (int radius = 1; radius < maxradius; ++radius)
         for (int axis = -2; axis < 2; ++axis)
         {
@@ -5168,6 +5172,9 @@ void viewwindow(bool draw_it, bool do_updates)
                 // in grid coords
                 const coord_def gc(view2grid(coord_def(count_x, count_y)));
                 const coord_def ep = view2show(grid2view(gc));
+#ifdef USE_TILE
+                const coord_def sep = ep - coord_def(1,1);
+#endif
 
                 // Print tutorial messages for features in LOS.
                 if (Options.tutorial_left && in_bounds(gc)
@@ -5193,7 +5200,7 @@ void viewwindow(bool draw_it, bool do_updates)
                         else if (grd(gc) == DNGN_ENTER_SHOP)
                             learned_something_new(TUT_SEEN_SHOP, gc);
 
-                        if (igrd[gc.x][gc.y] != NON_ITEM
+                        if (igrd(gc) != NON_ITEM
                             && Options.feature_item_brand != CHATTR_NORMAL
                             && (is_feature('>', gc) || is_feature('<', gc)))
                         {
@@ -5215,7 +5222,7 @@ void viewwindow(bool draw_it, bool do_updates)
                 else if (!crawl_view.in_grid_los(gc))
                 {
                     // Outside the env.show area.
-                    buffy[bufcount]     = get_envmap_char( gc.x, gc.y );
+                    buffy[bufcount]     = get_envmap_char(gc);
                     buffy[bufcount + 1] = DARKGREY;
 
                     if (Options.colour_map)
@@ -5225,10 +5232,10 @@ void viewwindow(bool draw_it, bool do_updates)
                     }
 
 #ifdef USE_TILE
-                    unsigned int bg = env.tile_bk_bg[gc.x][gc.y];
-                    unsigned int fg = env.tile_bk_fg[gc.x][gc.y];
+                    unsigned int bg = env.tile_bk_bg(gc);
+                    unsigned int fg = env.tile_bk_fg(gc);
                     if (bg == 0 && fg == 0)
-                        tileidx_unseen(fg, bg, get_envmap_char(gc.x, gc.y), gc);
+                        tileidx_unseen(fg, bg, get_envmap_char(gc), gc);
 
                     tileb[bufcount]     = fg;
                     tileb[bufcount + 1] = bg | tile_unseen_flag(gc);
@@ -5240,30 +5247,28 @@ void viewwindow(bool draw_it, bool do_updates)
                     int             object = env.show(ep);
                     unsigned short  colour = env.show_col(ep);
                     unsigned        ch;
-                    _get_symbol( gc, object, &ch, &colour );
+                    _get_symbol(gc, object, &ch, &colour);
 
                     if (map)
                     {
-                        set_envmap_glyph( gc.x, gc.y, object, colour );
+                        set_envmap_glyph(gc, object, colour);
                         if (is_terrain_changed(gc) || !is_terrain_seen(gc))
                             update_excludes.push_back(gc);
 
-                        set_terrain_seen( gc.x, gc.y );
-                        set_envmap_detected_mons(gc.x, gc.y, false);
-                        set_envmap_detected_item(gc.x, gc.y, false);
+                        set_terrain_seen(gc);
+                        set_envmap_detected_mons(gc, false);
+                        set_envmap_detected_item(gc, false);
                     }
 #ifdef USE_TILE
                     if (map)
                     {
-                        env.tile_bk_bg[gc.x][gc.y] =
-                            env.tile_bg[ep.x-1][ep.y-1];
-                        env.tile_bk_fg[gc.x][gc.y] =
-                            env.tile_fg[ep.x-1][ep.y-1];
+                        env.tile_bk_bg(gc) = env.tile_bg(sep);
+                        env.tile_bk_fg(gc) = env.tile_fg(sep);
                     }
 
-                    tileb[bufcount] = env.tile_fg[ep.x-1][ep.y-1] =
+                    tileb[bufcount] = env.tile_fg(sep) =
                         tileidx_player(you.char_class);
-                    tileb[bufcount+1] = env.tile_bg[ep.x-1][ep.y-1];
+                    tileb[bufcount+1] = env.tile_bg(sep);
 #endif
 
                     // Player overrides everything in cell.
@@ -5289,8 +5294,8 @@ void viewwindow(bool draw_it, bool do_updates)
                     buffy[bufcount]     = ch;
                     buffy[bufcount + 1] = colour;
 #ifdef USE_TILE
-                    tileb[bufcount]   = env.tile_fg[ep.x-1][ep.y-1];
-                    tileb[bufcount+1] = env.tile_bg[ep.x-1][ep.y-1];
+                    tileb[bufcount]   = env.tile_fg(sep);
+                    tileb[bufcount+1] = env.tile_bg(sep);
 #endif
 
                     if (map)
@@ -5306,26 +5311,23 @@ void viewwindow(bool draw_it, bool do_updates)
                             if (is_terrain_changed(gc) || !is_terrain_seen(gc))
                                 update_excludes.push_back(gc);
 
-                            set_terrain_seen( gc.x, gc.y );
-                            set_envmap_glyph( gc.x, gc.y, object, colour );
-                            set_envmap_detected_mons(gc.x, gc.y, false);
-                            set_envmap_detected_item(gc.x, gc.y, false);
+                            set_terrain_seen(gc);
+                            set_envmap_glyph(gc, object, colour );
+                            set_envmap_detected_mons(gc, false);
+                            set_envmap_detected_item(gc, false);
 #ifdef USE_TILE
                             // We remove any references to mcache when
                             // writing to the background.
                             if (Options.clean_map)
                             {
-                                env.tile_bk_fg[gc.x][gc.y] =
-                                    get_clean_map_idx(
-                                    env.tile_fg[ep.x-1][ep.y-1]);
+                                env.tile_bk_fg(gc) =
+                                    get_clean_map_idx(env.tile_fg(sep));
                             }
                             else
                             {
-                                env.tile_bk_fg[gc.x][gc.y] =
-                                    env.tile_fg[ep.x-1][ep.y-1];
+                                env.tile_bk_fg(gc) = env.tile_fg(sep);
                             }
-                            env.tile_bk_bg[gc.x][gc.y] =
-                                env.tile_bg[ep.x-1][ep.y-1];
+                            env.tile_bk_bg(gc) = env.tile_bg(sep);
 #endif
                         }
 
@@ -5340,12 +5342,12 @@ void viewwindow(bool draw_it, bool do_updates)
                         // have a monster or cloud on it, and is equal
                         // to the grid before monsters and clouds were
                         // added otherwise.
-                        if (Options.clean_map && Show_Backup(ep)
-                            && is_terrain_seen( gc.x, gc.y ))
+                        if (Options.clean_map
+                            && Show_Backup(ep)
+                            && is_terrain_seen(gc))
                         {
-                            _get_symbol( gc, Show_Backup(ep), &ch, &colour );
-                            set_envmap_glyph( gc.x, gc.y, Show_Backup(ep),
-                                              colour );
+                            _get_symbol(gc, Show_Backup(ep), &ch, &colour);
+                            set_envmap_glyph(gc, Show_Backup(ep), colour);
                         }
 
                         // Now we get to filling in both the unseen
@@ -5361,7 +5363,7 @@ void viewwindow(bool draw_it, bool do_updates)
                         if (buffy[bufcount] == 0)
                         {
                             // Show map.
-                            buffy[bufcount]     = get_envmap_char( gc.x, gc.y );
+                            buffy[bufcount]     = get_envmap_char(gc);
                             buffy[bufcount + 1] = DARKGREY;
 
                             if (Options.colour_map)
@@ -5370,21 +5372,19 @@ void viewwindow(bool draw_it, bool do_updates)
                                     colour_code_map(gc, Options.item_colour);
                             }
 #ifdef USE_TILE
-                            if (env.tile_bk_fg[gc.x][gc.y] != 0
-                                || env.tile_bk_bg[gc.x][gc.y] != 0)
+                            if (env.tile_bk_fg(gc) != 0
+                                || env.tile_bk_bg(gc) != 0)
                             {
-                                tileb[bufcount] =
-                                    env.tile_bk_fg[gc.x][gc.y];
+                                tileb[bufcount] = env.tile_bk_fg(gc);
 
                                 tileb[bufcount + 1] =
-                                    env.tile_bk_bg[gc.x][gc.y]
-                                    | tile_unseen_flag(gc);
+                                    env.tile_bk_bg(gc) | tile_unseen_flag(gc);
                             }
                             else
                             {
                                 tileidx_unseen(tileb[bufcount],
                                                tileb[bufcount+1],
-                                               get_envmap_char(gc.x, gc.y),
+                                               get_envmap_char(gc),
                                                gc);
                             }
 #endif
@@ -5396,8 +5396,8 @@ void viewwindow(bool draw_it, bool do_updates)
                 if (flash_colour && buffy[bufcount])
                 {
                     buffy[bufcount + 1] =
-                        see_grid(gc.x, gc.y) ? real_colour(flash_colour)
-                                             : DARKGREY;
+                        see_grid(gc) ? real_colour(flash_colour)
+                                     : DARKGREY;
                 }
 
                 bufcount += 2;
@@ -5436,7 +5436,7 @@ void viewwindow(bool draw_it, bool do_updates)
     }
 
     _debug_pane_bounds();
-}                               // end viewwindow()
+}
 
 //////////////////////////////////////////////////////////////////////////////
 // crawl_view_buffer
@@ -5701,7 +5701,7 @@ void crawl_view_geometry::shift_player_to(const coord_def &c)
     last_player_pos = c;
 
     set_player_at(c);
-    
+
     ASSERT(crawl_view.vgrdc == offset + c);
     ASSERT(last_player_pos == c);
 }
