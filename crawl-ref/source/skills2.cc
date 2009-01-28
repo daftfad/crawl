@@ -1571,12 +1571,12 @@ const int spec_skills[ NUM_SPECIES ][40] =
      (120 * 75)/100,            // SK_EVOCATIONS
     },
 
-    {                           // SP_DEEP_DWARF (14)
+    {                           // SP_DEEP_DWARF (39)
      110,                       // SK_FIGHTING
      120,                       // SK_SHORT_BLADES
      100,                       // SK_LONG_BLADES
      130,                       // SK_UNUSED_1
-     80,                        // SK_AXES
+     90,                        // SK_AXES
      130,                       // SK_MACES_FLAILS
      140,                       // SK_POLEARMS
      130,                       // SK_STAVES
@@ -1585,13 +1585,13 @@ const int spec_skills[ NUM_SPECIES ][40] =
      90,                        // SK_CROSSBOWS
      120,                       // SK_DARTS
      120,                       // SK_THROWING
-     60,                        // SK_ARMOUR
-     70,                        // SK_DODGING
+     90,                        // SK_ARMOUR
+     90,                        // SK_DODGING
      70,                        // SK_STEALTH
-     80,                        // SK_STABBING
-     60,                        // SK_SHIELDS
-     70,                        // SK_TRAPS_DOORS
-     110,                       // SK_UNARMED_COMBAT
+     110,                       // SK_STABBING
+     90,                        // SK_SHIELDS
+     80,                        // SK_TRAPS_DOORS
+     120,                       // SK_UNARMED_COMBAT
      100,                       // undefined
      100,                       // undefined
      100,                       // undefined
