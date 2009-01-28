@@ -5620,6 +5620,7 @@ bool _give_items_skills()
             break;
 
         case SP_MOUNTAIN_DWARF:
+        case SP_DEEP_DWARF:
             _newgame_make_item(1, EQ_NONE, OBJ_WEAPONS, WPN_CROSSBOW);
             _newgame_make_item(2, EQ_NONE, OBJ_MISSILES, MI_BOLT, -1,
                                15 + random2avg(21, 5));
