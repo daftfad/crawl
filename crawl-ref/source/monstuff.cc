@@ -385,6 +385,13 @@ int fill_out_corpse(const monsters* monster, item_def& corpse,
 int place_monster_corpse(const monsters *monster, bool silent,
                          bool force)
 {
+    // The game can attempt to place a corpse for an out-of-bounds monster
+    // if a shifter turns into a giant spore and explodes.  In this
+    // case we place no corpse since the explosion means anything left
+    // over would be scattered, tiny chunks of shifter.
+    if (!in_bounds(monster->pos()))
+        return (-1);
+
     item_def corpse;
     const int corpse_class = fill_out_corpse(monster, corpse);
 
@@ -1791,6 +1798,9 @@ static bool _jelly_divide(monsters *parent)
         if (!silenced(parent->pos()) || !silenced(child->pos()))
             mpr("You hear a squelching noise.", MSGCH_SOUND);
     }
+
+    if (crawl_state.arena)
+        arena_placed_monster(child);
 
     return (true);
 }                               // end jelly_divide()

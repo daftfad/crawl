@@ -879,7 +879,7 @@ int get_mons_colour(const monsters *mons)
 
 static void _good_god_follower_attitude_change(monsters *monster)
 {
-    if (player_is_unholy())
+    if (player_is_unholy() || crawl_state.arena)
         return;
 
     // For followers of good gods, decide whether holy beings will be
@@ -905,11 +905,14 @@ static void _good_god_follower_attitude_change(monsters *monster)
                 msg::stream << monster->name(DESC_CAP_THE)
                             << " glares at your weapon."
                             << std::endl;
+                good_god_holy_fail_attitude_change(monster);
                 return;
             }
             good_god_holy_attitude_change(monster);
             stop_running();
         }
+        else
+            good_god_holy_fail_attitude_change(monster);
     }
 }
 

@@ -844,6 +844,10 @@ VISUAL:@The_monster@ flies around in tight circles.
 
 @The_monster@ hisses menacingly.
 %%%%
+'j'
+
+VISUAL:@The_monster@ briefly extends @possessive@ eye-stalks.
+%%%%
 'r'
 
 VISUAL:@The_monster@ twitches @possessive@ whiskers.
@@ -2719,6 +2723,10 @@ VISUAL:@The_monster@ pokes out @possessive@ tongue.
 @The_monster@ says @to_foe@, "Come and play with me!"
 ## END Killer Klown ##
 %%%%
+moth of wrath
+
+VISUAL:@The_monster@ angrily waves @possessive@ antennae.
+%%%%
 # The moth of wrath doesn't buzz like the other 'y' monsters, what
 # with it being a moth.
 default confused moth of wrath
@@ -2837,7 +2845,7 @@ w:1
 @The_monster@ says @to_foe@, "Thou must remain pure in the battle against evil."
 
 w:1
-@The_monster@ says @to_foe@, "May @player_god@ always shine on thee, @player_name@!"
+@The_monster@ says @to_foe@, "May @player_god@ always shine on thee, @foe_name@!"
 
 w:1
 @The_monster@ says @to_foe@, "@player_god@ be with thee, mortal!"
@@ -2882,6 +2890,22 @@ good_god_neutral_holy_being_speech
 @The_monster@ says @to_foe@, "Forge ahead, servant of @player_god@!"
 
 @The_monster@ says @to_foe@, "Carry on, mortal."
+%%%%
+good_god_nonneutral_holy_being_reaction
+
+@The_monster@ ignores your imperfect holy aura.
+
+@The_monster@ frowns, and retains its fighting stance.
+
+@The_monster@ refuses to salute you.
+%%%%
+good_god_nonneutral_holy_being_speech
+
+@The_monster@ shouts @at_foe@, "Seek the light more diligently, mortal!"
+
+@The_monster@ says @to_foe@, "Thou art not yet worthy, servant of @player_god@."
+
+@The_monster@ says @to_foe@, "I sense wickedness within thee, mortal!"
 %%%%
 #############################################################
 # evil monsters may also have some choicy things to say...
@@ -3121,7 +3145,7 @@ _hostile_orc_beogh_believer_speech_common_
 
 @The_monster@ @shouts@ @at_foe@, "Die, @orc_heathen@!"
 
-@The_monster@ @shouts@, "Die, @player_name@, for besmirching Beogh's name!"
+@The_monster@ @shouts@, "Die, @foe_name@, for besmirching Beogh's name!"
 
 VISUAL:@The_monster@ grimaces.
 %%%%
@@ -3137,7 +3161,7 @@ _hostile_orc_beogh_believer_speech_rare_
 
 @The_monster@ laughs @at_foe@, "You, our saviour!?"
 
-@The_monster@ @shouts@ @at_foe@, "Orcs!  @foe_name@ is lying!"
+@The_monster@ @shouts@ @at_foe@, "Orcs! @foe_name@ is lying!"
 
 @The_monster@ @orc_says_to_foe@, "For a messiah, you look rather @orc_pathetic@."
 
