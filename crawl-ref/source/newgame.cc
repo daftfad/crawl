@@ -1519,7 +1519,6 @@ static char_choice_restriction _class_allowed(species_type speci,
         case SP_NAGA:
         case SP_KENKU:
         case SP_GHOUL:
-        case SP_DEEP_DWARF:
             return (CC_RESTRICTED);
         default:
             return (CC_UNRESTRICTED);
@@ -1564,7 +1563,6 @@ static char_choice_restriction _class_allowed(species_type speci,
         case SP_MUMMY:
         case SP_GHOUL:
         case SP_VAMPIRE:
-        case SP_DEEP_DWARF:
             return (CC_RESTRICTED);
         default:
             return (CC_UNRESTRICTED);
@@ -1911,6 +1909,7 @@ static char_choice_restriction _class_allowed(species_type speci,
         case SP_MUMMY:
         case SP_GHOUL:
         case SP_VAMPIRE:
+        case SP_DEEP_DWARF:
             return (CC_RESTRICTED);
         default:
             return (CC_UNRESTRICTED);
