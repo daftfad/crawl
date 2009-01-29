@@ -140,12 +140,11 @@ static species_type new_species_order[] = {
     SP_HUMAN,       SP_HIGH_ELF,
     SP_GREY_ELF,    SP_DEEP_ELF,
     SP_SLUDGE_ELF,  SP_MOUNTAIN_DWARF,
-    SP_HILL_ORC,    SP_MERFOLK,
+    SP_DEEP_DWARF,  SP_HILL_ORC,
+    SP_MERFOLK,
     // small species
     SP_HALFLING,    SP_GNOME,
     SP_KOBOLD,      SP_SPRIGGAN,
-    // significantly different body properties
-    SP_DEEP_DWARF,
     // significantly different body type than human
     SP_NAGA,        SP_CENTAUR,
     SP_OGRE,        SP_TROLL,
