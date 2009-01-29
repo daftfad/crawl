@@ -2057,6 +2057,10 @@ bool mutate(mutation_type which_mutation, bool failMsg,
         return (false);
     }
 
+    // Deep Dwarves don't heal.
+    if (you.species == SP_DEEP_DWARF && mutat == MUT_REGENERATION)
+        return (false);
+
     if (you.mutation[mutat] >= mutation_defs[mutat].levels)
         return (false);
 
