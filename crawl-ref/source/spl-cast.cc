@@ -1217,7 +1217,9 @@ spret_type your_spells(spell_type spell, int powc, bool allow_fail)
     case SPELL_PAIN:
         if (!zapping(ZAP_PAIN, powc, beam, true))
             return (SPRET_ABORT);
-        dec_hp(1, false);
+        // Deep Dwarves' damage reduction always blocks at least 1hp.
+        if (you.species != SP_DEEP_DWARF)
+            dec_hp(1, false);
         break;
 
     case SPELL_FLAME_TONGUE:
