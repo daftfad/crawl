@@ -1926,31 +1926,19 @@ void wizard_make_object_randart()
         return;
     }
 
-    int j;
-    // Set j == equipment slot of chosen item, remove old randart benefits.
-    for (j = 0; j < NUM_EQUIP; j++)
-    {
-        if (you.equip[j] == i)
-        {
-            if (j == EQ_WEAPON)
-                you.wield_change = true;
-
-            if (is_random_artefact( item ))
-                unuse_randart( i );
-            break;
-        }
-    }
+    if (you.weapon() == &item)
+        you.wield_change = true;
 
     if (is_random_artefact(item))
     {
         if (!yesno("Is already a randart; wipe and re-use?"))
         {
-            canned_msg( MSG_OK );
-            // If equipped, re-apply benefits.
-            if (j != NUM_EQUIP)
-                use_randart( i );
+            canned_msg(MSG_OK);
             return;
         }
+
+        if (item_is_equipped(item))
+            unuse_randart(item);
 
         item.special = 0;
         item.flags  &= ~ISFLAG_RANDART;
@@ -1960,7 +1948,7 @@ void wizard_make_object_randart()
     mpr("Fake item as gift from which god (ENTER to leave alone): ",
         MSGCH_PROMPT);
     char name[80];
-    if (!cancelable_get_line( name, sizeof( name ) ) && name[0])
+    if (!cancelable_get_line(name, sizeof( name )) && name[0])
     {
         god_type god = string_to_god(name, false);
         if (god == GOD_NO_GOD)
@@ -1980,7 +1968,7 @@ void wizard_make_object_randart()
             return;
         }
     }
-    else if (!make_item_randart( item ))
+    else if (!make_item_randart(item))
     {
         mpr("Failed to turn item into randart.");
         return;
@@ -1993,10 +1981,10 @@ void wizard_make_object_randart()
     }
 
     // If equipped, apply new randart benefits.
-    if (j != NUM_EQUIP)
-        use_randart( i );
+    if (item_is_equipped(item))
+        use_randart(item);
 
-    mpr( item.name(DESC_INVENTORY_EQUIP).c_str() );
+    mpr(item.name(DESC_INVENTORY_EQUIP).c_str());
 }
 #endif
 
@@ -4878,7 +4866,7 @@ void wizard_give_monster_item(monsters *mon)
         }
 
     item_def     &item = you.inv[player_slot];
-    mon_inv_type mon_slot;
+    mon_inv_type mon_slot = NUM_MONSTER_SLOTS;
 
     switch (item.base_type)
     {
@@ -5025,6 +5013,7 @@ void wizard_give_monster_item(monsters *mon)
     int  old_eq     = NON_ITEM;
     bool unequipped = false;
     if (item.base_type != OBJ_CORPSES
+        && mon_slot != NUM_MONSTER_SLOTS
         && mon->inv[mon_slot] != NON_ITEM
         && !items_stack(item, mitm[mon->inv[mon_slot]]))
     {
@@ -5049,7 +5038,7 @@ void wizard_give_monster_item(monsters *mon)
     if (!mon->pickup_item(mitm[index], false, true))
     {
         mpr("Monster wouldn't take item.");
-        if (old_eq != NON_ITEM)
+        if (old_eq != NON_ITEM && mon_slot != NUM_MONSTER_SLOTS)
         {
             mon->inv[mon_slot] = old_eq;
             if (unequipped)
@@ -5536,58 +5525,103 @@ void debug_miscast( int target_index )
 
 static void _dump_levgen()
 {
-    if (!Generating_Level)
-        return;
+    CrawlHashTable &props = env.properties;
 
-    extern std::string dgn_Build_Method;
+    std::string method;
+    std::string type;
 
-    mprf("dgn_Build_Method = %s", dgn_Build_Method.c_str());
-    mprf("dgn_Layout_Type  = %s", dgn_Layout_Type.c_str());
+    if (Generating_Level)
+    {
+        mpr("Currently generating level.");
+        extern std::string dgn_Build_Method;
+        method = dgn_Build_Method;
+        type   = dgn_Layout_Type;
+    }
+    else
+    {
+        if (!props.exists(BUILD_METHOD_KEY))
+            method = "ABSENT";
+        else
+            method = props[BUILD_METHOD_KEY].get_string();
 
-    extern bool river_level, lake_level, many_pools_level;
+        if (!props.exists(LAYOUT_TYPE_KEY))
+            type = "ABSENT";
+        else
+            type = props[LAYOUT_TYPE_KEY].get_string();
+    }
 
-    if (river_level)
-        mpr("river level");
-    if (lake_level)
-        mpr("lake level");
-    if (many_pools_level)
-        mpr("many pools level");
+    mprf("dgn_Build_Method = %s", method.c_str());
+    mprf("dgn_Layout_Type  = %s", type.c_str());
 
-    std::vector<std::string> vault_names;
+    std::string extra;
 
-    for (unsigned int i = 0; i < Level_Vaults.size(); i++)
-        vault_names.push_back(Level_Vaults[i].map.name);
+    if (!props.exists(LEVEL_EXTRAS_KEY))
+        extra = "ABSENT";
+    else
+    {
+        const CrawlVector &vec = props[LEVEL_EXTRAS_KEY].get_vector();
 
-    if (Level_Vaults.size() > 0)
-            mpr_comma_separated_list("Level_Vaults: ", vault_names,
-                                     " and ", ", ", MSGCH_WARN);
-    vault_names.clear();
+        for (unsigned int i = 0; i < vec.size(); i++)
+            extra += vec[i].get_string() + ", ";
+    }
 
-    for (unsigned int i = 0; i < Temp_Vaults.size(); i++)
-        vault_names.push_back(Temp_Vaults[i].map.name);
+    mprf("Level extras: %s", extra.c_str());
 
-    if (Temp_Vaults.size() > 0)
-        mpr_comma_separated_list("Temp_Vaults: ", vault_names,
-                                 " and ", ", ", MSGCH_WARN);
+    mpr("Level vaults:");
+    if (!props.exists(LEVEL_VAULTS_KEY))
+        mpr("ABSENT");
+    else
+    {
+        const CrawlHashTable &vaults = props[LEVEL_VAULTS_KEY].get_table();
+        CrawlHashTable::const_iterator i = vaults.begin();
+
+        for (; i != vaults.end(); i++)
+            mprf("    %s: %s", i->first.c_str(),
+                 i->second.get_string().c_str());
+    }
+    mpr("");
+
+    mpr("Temp vaults:");
+    if (!props.exists(TEMP_VAULTS_KEY))
+        mpr("ABSENT");
+    else
+    {
+        const CrawlHashTable &vaults = props[TEMP_VAULTS_KEY].get_table();
+        CrawlHashTable::const_iterator i = vaults.begin();
+
+        for (; i != vaults.end(); i++)
+            mprf("    %s: %s", i->first.c_str(),
+                 i->second.get_string().c_str());
+    }
+    mpr("");
 }
 
 static void _dump_level_info(FILE* file)
 {
+    CrawlHashTable &props = env.properties;
+
     fprintf(file, "Place info:" EOL);
+
     fprintf(file, "your_level = %d, branch = %d, level_type = %d, "
                   "type_name = %s" EOL EOL,
             you.your_level, (int) you.where_are_you, (int) you.level_type,
             you.level_type_name.c_str());
 
-    if (Generating_Level)
-    {
-        fprintf(file, EOL "Crashed while generating level." EOL);
+    std::string place = level_id::current().describe();
+    std::string orig_place;
 
-        _dump_levgen();
-        fprintf(file, EOL);
-    }
+    if (!props.exists(LEVEL_ID_KEY))
+        orig_place = "ABSENT";
+    else
+        orig_place = props[LEVEL_ID_KEY].get_string();
+
+    fprintf(file, "Level id: %s" EOL, place.c_str());
+    if (place != orig_place)
+        fprintf(file, "Level id when level was generated: %s" EOL,
+                orig_place.c_str());
+
+    _dump_levgen();
 }
-
 
 static void _dump_player(FILE *file)
 {
@@ -5878,7 +5912,7 @@ static void _debug_marker_scan()
 
         for (unsigned int j = 0; j < at_pos.size(); j++)
         {
-            map_marker* tmp = at_pos[i];
+            map_marker* tmp = at_pos[j];
 
             if (tmp == NULL)
                 continue;
@@ -5943,7 +5977,7 @@ static void _debug_dump_markers()
     }
 } // _debug_dump_markers()
 
-static void _debug_dump_lua_markers()
+static void _debug_dump_lua_markers(FILE *file)
 {
     std::vector<map_marker*> markers = env.markers.get_all();
 
@@ -5961,15 +5995,15 @@ static void _debug_dump_lua_markers()
         if (result.size() > 0 && result[result.size() - 1] == '\n')
             result = result.substr(0, result.size() - 1);
 
-        mprf(MSGCH_DIAGNOSTICS, "Lua marker %d at (%d, %d):",
-             i, marker->pos.x, marker->pos.y);
-        mprf(MSGCH_DIAGNOSTICS, "{{{{");
-        mprf(MSGCH_DIAGNOSTICS, result.c_str());
-        mprf(MSGCH_DIAGNOSTICS, "}}}}");
+        fprintf(file, "Lua marker %d at (%d, %d):\n",
+                i, marker->pos.x, marker->pos.y);
+        fprintf(file, "{{{{\n");
+        fprintf(file, "%s", result.c_str());
+        fprintf(file, "}}}}\n");
     }
 }
 
-static void _debug_dump_lua_persist()
+static void _debug_dump_lua_persist(FILE* file)
 {
     lua_stack_cleaner cln(dlua);
 
@@ -5982,7 +6016,7 @@ static void _debug_dump_lua_persist()
     else
         result = "persist_to_string() returned nothing";
 
-    mprf(MSGCH_DIAGNOSTICS, "%s", result.c_str());
+    fprintf(file, "%s", result.c_str());
 }
 
 void do_crash_dump()
@@ -6095,11 +6129,11 @@ void do_crash_dump()
     // crashing.
     fprintf(file, "Lua persistant data:" EOL);
     fprintf(file, "<<<<<<<<<<<<<<<<<<<<<<" EOL);
-    _debug_dump_lua_persist();
+    _debug_dump_lua_persist(file);
     fprintf(file, ">>>>>>>>>>>>>>>>>>>>>>" EOL EOL);
     fprintf(file, "Lua marker contents:" EOL);
     fprintf(file, "<<<<<<<<<<<<<<<<<<<<<<" EOL);
-    _debug_dump_lua_markers();
+    _debug_dump_lua_markers(file);
     fprintf(file, ">>>>>>>>>>>>>>>>>>>>>>" EOL);
 
     set_msg_dump_file(NULL);
