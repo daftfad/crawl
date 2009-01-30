@@ -2964,11 +2964,11 @@ static void _decrement_durations()
             slow_player(dur);
         }
 
-        // 1KB: no berserk healing, offsetting that by halving the hunger
-        make_hungry(350, true);
+        make_hungry(700, true);
         you.hunger = std::max(50, you.hunger);
-        you.hp = (you.hp+1)*2/3;
 
+        // 1KB: no berserk healing
+        you.hp = (you.hp+1)*2/3;
         calc_hp();
 
         learned_something_new(TUT_POSTBERSERK);
