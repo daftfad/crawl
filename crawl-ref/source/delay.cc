@@ -506,9 +506,9 @@ void stop_delay( bool stop_stair_travel )
     case DELAY_DESCENDING_STAIRS: // short... and probably what people want
          if (stop_stair_travel)
          {
-#ifdef DEBUG_DIAGNOSTICS
-             mpr("Stop ascending/descending stairs.");
-#endif
+             mprf("You stop %s the stairs.",
+                  delay.type == DELAY_ASCENDING_STAIRS ? "ascending"
+                                                       : "descending");
              _pop_delay();
          }
          break;
@@ -525,20 +525,16 @@ void stop_delay( bool stop_stair_travel )
         update_turn_count();
 }
 
-void stop_butcher_delay()
-{
-    if (current_delay_action() == DELAY_BUTCHER
-        || current_delay_action() == DELAY_BOTTLE_BLOOD
-        || current_delay_action() == DELAY_OFFER_CORPSE)
-    {
-        stop_delay();
-    }
-}
-
 static bool _is_butcher_delay(int delay)
 {
     return (delay == DELAY_BUTCHER || delay == DELAY_BOTTLE_BLOOD
             || delay == DELAY_OFFER_CORPSE);
+}
+
+void stop_butcher_delay()
+{
+    if (_is_butcher_delay(current_delay_action()))
+        stop_delay();
 }
 
 void handle_interrupted_swap(bool swap_if_safe, bool force_unsafe,
@@ -1928,7 +1924,8 @@ bool interrupt_activity( activity_interrupt_type ai,
             return (false);
 
         was_monst = _monster_warning(ai, at, item.type) || was_monst;
-        stop_delay();
+        // Teleport stops stair delays.
+        stop_delay(ai == AI_TELEPORT);
         if (was_monst)
             handle_interrupted_swap(false, true);
 
@@ -1954,7 +1951,7 @@ bool interrupt_activity( activity_interrupt_type ai,
                         _monster_warning(ai, at, you.delay_queue[j].type)
                         || was_monst;
 
-                    stop_delay();
+                    stop_delay(ai == AI_TELEPORT);
                     if (was_monst)
                         handle_interrupted_swap(false, true);
                     return (true);

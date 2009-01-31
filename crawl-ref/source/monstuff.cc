@@ -1626,7 +1626,6 @@ int monster_die(monsters *monster, killer_type killer,
             monster->foe = killer_index;
     }
 
-
     if (!silent && !wizard && see_grid(monster->pos()))
     {
         // Make sure that the monster looks dead.
@@ -1650,8 +1649,7 @@ int monster_die(monsters *monster, killer_type killer,
     }
 
     if (!wizard && !submerged)
-        _monster_die_cloud(monster, !mons_reset, silent, summoned,
-                           summon_type);
+        _monster_die_cloud(monster, !mons_reset, silent, summoned, summon_type);
 
     int corpse = -1;
     if (!mons_reset)
@@ -2632,6 +2630,10 @@ void behaviour_event(monsters *mon, int event, int src,
 
         // Don't stop fleeing from sanctuary.
         if (!mons_wont_attack(mon) && is_sanctuary(mon->pos()))
+            break;
+
+        // Pacified monsters shouldn't change their behaviour.
+        if (mons_is_pacified(mon))
             break;
 
         // Just set behaviour... foe doesn't change.
