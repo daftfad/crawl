@@ -3513,6 +3513,7 @@ static void _newgame_make_item(int slot, equipment_type eqslot,
     item.plus      = plus;
     item.plus2     = plus2;
     item.special   = 0;
+    item.flags    |= ISFLAG_IDENT_MASK;
 
     // If the character is restricted in wearing armour of equipment slot
     // eqslot, hand out replacement instead.
@@ -4377,6 +4378,7 @@ static bool _choose_wand()
     const wand_type startwand[5] = { WAND_ENSLAVEMENT, WAND_CONFUSION,
                                      WAND_MAGIC_DARTS, WAND_FROST, WAND_FLAME };
     _make_rod(you.inv[2], STAFF_STRIKING);
+    you.inv[2].flags |= ISFLAG_IDENT_MASK;
     const int num_choices = 6;
 
     int keyin = 0;
