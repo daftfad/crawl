@@ -1976,8 +1976,7 @@ static void _pay_ability_costs(const ability_def& abil)
     if (abil.mp_cost)
     {
         dec_mp( abil.mp_cost );
-        if ((abil.flags & ABFLAG_PERMANENT_MP)
-            && (abil.ability!=ABIL_RECHARGING || one_chance_in(3)))
+        if (abil.flags & ABFLAG_PERMANENT_MP)
             rot_mp(1);
     }
 

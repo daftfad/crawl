@@ -115,7 +115,7 @@ At the permanent loss of one magic point restore your Strength, Dexterity and In
 %%%%
 Wand Recharging
 
-At the cost of a magic point, possibly permanently, recharge a wand, rod, or enchant a weapon of electrocution.
+At the permanent loss of one magic point recharge a wand, rod, or enchant a weapon of electrocution.
 %%%%
 Evoke Sense Surroundings
 
