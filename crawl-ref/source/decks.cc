@@ -1376,16 +1376,19 @@ static void _swap_monster_card(int power, deck_rarity_type rarity)
             return;
         }
 
-        bool mon_caught = mons_is_caught(&mon);
-        bool you_caught = you.attribute[ATTR_HELD];
+        const bool mon_caught = mons_is_caught(&mon);
+        const bool you_caught = you.attribute[ATTR_HELD];
+
+        // If it was submerged, it surfaces first.
+        mon.del_ench(ENCH_SUBMERGED);
 
         // Pick the monster up.
         mgrd(newpos) = NON_MONSTER;
-
         mon.moveto(you.pos());
 
         // Plunk it down.
         mgrd(mon.pos()) = monster_index(mon_to_swap);
+
 
         if (you_caught)
         {
@@ -1395,8 +1398,7 @@ static void _swap_monster_card(int power, deck_rarity_type rarity)
         }
 
         // Move you to its previous location.
-        // FIXME: this should also handle merfolk swimming, etc.
-        you.moveto(newpos);
+        move_player_to_grid(newpos, false, true, true, false);
 
         if (mon_caught)
         {
@@ -1845,12 +1847,12 @@ static void _elixir_card(int power, deck_rarity_type rarity)
     }
     else if (power_level == 1)
     {
-        you.hp = you.hp_max;
+        set_hp(you.hp_max, false);
         you.magic_points = 0;
     }
     else if (power_level >= 2)
     {
-        you.hp = you.hp_max;
+        set_hp(you.hp_max, false);
         you.magic_points = you.max_magic_points;
     }
     you.redraw_hit_points = true;

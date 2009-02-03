@@ -2112,7 +2112,7 @@ void wizard_heal(bool super_heal)
     you.disease = 0;
     you.duration[DUR_CONF] = 0;
     you.duration[DUR_POISONING] = 0;
-    set_hp(abs(you.hp_max), false);
+    set_hp(you.hp_max, false);
     set_mp(you.max_magic_points, false);
     set_hunger(10999, true);
     you.redraw_hit_points = true;
@@ -2154,7 +2154,7 @@ void wizard_spawn_control()
              env.spawn_random_rate);
 
         if (!cancelable_get_line(specs, sizeof(specs)))
-        { 
+        {
             const int rate = atoi(specs);
             if (rate)
             {
@@ -2182,7 +2182,7 @@ void wizard_spawn_control()
              max_spawn);
 
         if (!cancelable_get_line(specs, sizeof(specs)))
-        { 
+        {
             const int num = std::min(atoi(specs), max_spawn);
             if (num > 0)
             {
@@ -2190,10 +2190,10 @@ void wizard_spawn_control()
                 // Each call to spawn_random_monsters() will spawn one with
                 // the rate at 5 or less.
                 env.spawn_random_rate = 5;
-                
+
                 for (int i = 0; i < num; i++)
                     spawn_random_monsters();
-                
+
                 env.spawn_random_rate = curr_rate;
                 done = true;
             }
@@ -2315,7 +2315,6 @@ void wizard_create_feature_name()
 {
     char specs[256];
     mpr("Create which feature (by name)? ", MSGCH_PROMPT);
-    get_input_line(specs, sizeof specs);
     if (!cancelable_get_line(specs, sizeof(specs)) && specs[0] != 0)
     {
         // Accept both "shallow_water" and "Shallow water"
@@ -4190,7 +4189,7 @@ static bool _fsim_mon_melee(FILE *out, int dodge, int armour, int mi)
     for (long i = 0; i < Options.fsim_rounds; ++i)
     {
         you.hp = you.hp_max = 5000;
-        monster_attack(mi);
+        monster_attack(&menv[mi]);
         const int damage = you.hp_max - you.hp;
         if (damage)
             hits++;
@@ -6541,26 +6540,20 @@ void do_crash_dump()
     sprintf(name, "%scrash-%s-%d.txt", dir.c_str(),
             you.your_name, (int) time(NULL));
 
-    FILE* file = fopen(name, "w");
+    fprintf(stderr, EOL "Writing crash info to %s" EOL, name);
+    errno = 0;
+    FILE* file = freopen(name, "w+", stderr);
 
-    if (file == NULL)
+    if (file == NULL || errno != 0)
     {
-        fprintf(stderr, EOL "Unable to open file '%s' for writing: %s" EOL,
+        fprintf(stdout, EOL "Unable to open file '%s' for writing: %s" EOL,
                 name, strerror(errno));
-        file = stderr;
+        file = stdout;
     }
-    else
-    {
-        fprintf(stderr, EOL "Writing crash info to %s" EOL, name);
 
-        // Merge stderr into file, so that the lua stack dumping functions
-        // (and anything else that uses stderr) will send everything to
-        // the output file.
-        dup2(fileno(file), fileno(stderr));
-
-        // Unbuffer the output file stream, to match with stderr.
-        setvbuf(file, NULL, _IONBF, 0);
-    }
+    // Unbuffer the file, since if we recursively crash buffered lines
+    // won't make it to the file.
+    setvbuf(file, NULL, _IONBF, 0);
 
     set_msg_dump_file(file);
 
@@ -6685,7 +6678,7 @@ void debug_dump_mon(const monsters* mon, bool recurse)
 
     if (in_bounds(mon->pos()))
     {
-        std::string feat = 
+        std::string feat =
             raw_feature_description(grd(mon->pos()), NUM_TRAPS, true);
         fprintf(stderr, "On/in/over feature: %s" EOL EOL, feat.c_str());
     }

@@ -700,7 +700,7 @@ static bool _can_pacify_monster(const monsters *mon, const int healed)
     return (false);
 }
 
-static int _healing_spell(int healed, const coord_def where = coord_def(0,0))
+static int _healing_spell(int healed, const coord_def where = coord_def())
 {
     ASSERT(healed >= 1);
 
@@ -722,10 +722,7 @@ static int _healing_spell(int healed, const coord_def where = coord_def(0,0))
     }
 
     if (!spd.isValid)
-    {
-        canned_msg(MSG_OK);
         return (0);
-    }
 
     if (spd.target == you.pos())
     {
@@ -780,11 +777,13 @@ static int _healing_spell(int healed, const coord_def where = coord_def(0,0))
             good_god_holy_attitude_change(monster);
         else
         {
+            const bool is_summoned = mons_is_summoned(monster);
             simple_monster_message(monster, " turns neutral.");
             mons_pacify(monster);
 
             // Give a small piety return.
-            gain_piety(1 + random2(healed/15));
+            if (!is_summoned)
+                gain_piety(1 + random2(healed/15));
         }
     }
     else if (nothing_happens)
@@ -1315,8 +1314,6 @@ void deflection(int pow)
 
 void cast_regen(int pow)
 {
-    mpr("Your skin crawls.");
-
     _increase_duration(DUR_REGENERATION, 5 + roll_dice(2, pow / 3 + 1), 100,
                        "Your skin crawls.");
 }

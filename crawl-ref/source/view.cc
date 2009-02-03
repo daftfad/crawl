@@ -1225,8 +1225,8 @@ inline static bool _update_monster_grid(const monsters *monster)
             && env.cgrid(monster->pos()) == EMPTY_CLOUD)
         {
             _set_show_backup(e.x, e.y);
-            env.show[e.x][e.y]     = DNGN_INVIS_EXPOSED;
-            env.show_col[e.x][e.y] = BLUE;
+            env.show(e)     = DNGN_INVIS_EXPOSED;
+            env.show_col(e) = BLUE;
         }
         return (false);
     }
@@ -1235,8 +1235,8 @@ inline static bool _update_monster_grid(const monsters *monster)
     if (!mons_is_mimic( monster->type ))
         _set_show_backup(e.x, e.y);
 
-    env.show[e.x][e.y]     = monster->type + DNGN_START_OF_MONSTERS;
-    env.show_col[e.x][e.y] = get_mons_colour( monster );
+    env.show(e)     = monster->type + DNGN_START_OF_MONSTERS;
+    env.show_col(e) = get_mons_colour( monster );
 
     return (true);
 }
@@ -1339,16 +1339,12 @@ void update_monsters_in_view()
         && you.attribute[ATTR_ABYSS_ENTOURAGE] < num_hostile)
     {
         you.attribute[ATTR_ABYSS_ENTOURAGE] = num_hostile;
-
         xom_is_stimulated(16 * num_hostile);
     }
 }
 
 bool check_awaken(monsters* monster)
 {
-    int mons_perc = 0;
-    const mon_holy_type mon_holy = mons_holiness(monster);
-
     // Monsters put to sleep by ensorcelled hibernation will sleep
     // at least one turn.
     if (monster->has_ench(ENCH_SLEEPY))
@@ -1366,8 +1362,8 @@ bool check_awaken(monsters* monster)
         return (true);
 
     // I assume that creatures who can sense invisible are very perceptive.
-    mons_perc = 10 + (mons_intel(monster) * 4) + monster->hit_dice
-                   + mons_sense_invis(monster) * 5;
+    int mons_perc = 10 + (mons_intel(monster) * 4) + monster->hit_dice
+                       + mons_sense_invis(monster) * 5;
 
     bool unnatural_stealthy = false; // "stealthy" only because of invisibility?
 
@@ -1386,7 +1382,7 @@ bool check_awaken(monsters* monster)
 
     if (mons_is_sleeping(monster))
     {
-        if (mon_holy == MH_NATURAL)
+        if (mons_holiness(monster) == MH_NATURAL)
         {
             // Monster is "hibernating"... reduce chance of waking.
             if (monster->has_ench(ENCH_SLEEP_WARY))
@@ -1440,36 +1436,22 @@ static int _get_item_dngn_code(const item_def &item)
 {
     switch (item.base_type)
     {
-    case OBJ_ORBS:
-        return (DNGN_ITEM_ORB);
-    case OBJ_WEAPONS:
-        return (DNGN_ITEM_WEAPON);
-    case OBJ_MISSILES:
-        return (DNGN_ITEM_MISSILE);
-    case OBJ_ARMOUR:
-        return (DNGN_ITEM_ARMOUR);
-    case OBJ_WANDS:
-        return (DNGN_ITEM_WAND);
-    case OBJ_FOOD:
-        return (DNGN_ITEM_FOOD);
-    case OBJ_SCROLLS:
-        return (DNGN_ITEM_SCROLL);
+    case OBJ_ORBS:       return (DNGN_ITEM_ORB);
+    case OBJ_WEAPONS:    return (DNGN_ITEM_WEAPON);
+    case OBJ_MISSILES:   return (DNGN_ITEM_MISSILE);
+    case OBJ_ARMOUR:     return (DNGN_ITEM_ARMOUR);
+    case OBJ_WANDS:      return (DNGN_ITEM_WAND);
+    case OBJ_FOOD:       return (DNGN_ITEM_FOOD);
+    case OBJ_SCROLLS:    return (DNGN_ITEM_SCROLL);
     case OBJ_JEWELLERY:
         return (jewellery_is_amulet(item)? DNGN_ITEM_AMULET : DNGN_ITEM_RING);
-    case OBJ_POTIONS:
-        return (DNGN_ITEM_POTION);
-    case OBJ_BOOKS:
-        return (DNGN_ITEM_BOOK);
-    case OBJ_STAVES:
-        return (DNGN_ITEM_STAVE);
-    case OBJ_MISCELLANY:
-        return (DNGN_ITEM_MISCELLANY);
-    case OBJ_CORPSES:
-        return (DNGN_ITEM_CORPSE);
-    case OBJ_GOLD:
-        return (DNGN_ITEM_GOLD);
-    default:
-        return (DNGN_ITEM_ORB); // bad item character
+    case OBJ_POTIONS:    return (DNGN_ITEM_POTION);
+    case OBJ_BOOKS:      return (DNGN_ITEM_BOOK);
+    case OBJ_STAVES:     return (DNGN_ITEM_STAVE);
+    case OBJ_MISCELLANY: return (DNGN_ITEM_MISCELLANY);
+    case OBJ_CORPSES:    return (DNGN_ITEM_CORPSE);
+    case OBJ_GOLD:       return (DNGN_ITEM_GOLD);
+    default:             return (DNGN_ITEM_ORB); // bad item character
    }
 }
 
@@ -5180,36 +5162,12 @@ void viewwindow(bool draw_it, bool do_updates)
 #endif
 
                 // Print tutorial messages for features in LOS.
-                if (Options.tutorial_left && in_bounds(gc)
-                    && crawl_view.in_grid_los(gc))
+                if (Options.tutorial_left
+                    && in_bounds(gc)
+                    && crawl_view.in_grid_los(gc)
+                    && env.show(ep))
                 {
-                    const int object = env.show(ep);
-                    if (object && Options.tutorial_left)
-                    {
-                        if (grid_is_escape_hatch(grd(gc)))
-                        {
-                            learned_something_new(TUT_SEEN_ESCAPE_HATCH, gc);
-                        }
-                        else if (grid_is_branch_stairs(grd(gc)))
-                            learned_something_new(TUT_SEEN_BRANCH, gc);
-                        else if (is_feature('>', gc))
-                        {
-                            learned_something_new(TUT_SEEN_STAIRS, gc);
-                        }
-                        else if (is_feature('_', gc))
-                            learned_something_new(TUT_SEEN_ALTAR, gc);
-                        else if (grd(gc) == DNGN_CLOSED_DOOR)
-                            learned_something_new(TUT_SEEN_DOOR, gc);
-                        else if (grd(gc) == DNGN_ENTER_SHOP)
-                            learned_something_new(TUT_SEEN_SHOP, gc);
-
-                        if (igrd(gc) != NON_ITEM
-                            && Options.feature_item_brand != CHATTR_NORMAL
-                            && (is_feature('>', gc) || is_feature('<', gc)))
-                        {
-                            learned_something_new(TUT_STAIR_BRAND, gc);
-                        }
-                    }
+                    tutorial_observe_cell(gc);
                 }
 
                 // Order is important here.

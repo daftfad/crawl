@@ -2761,12 +2761,13 @@ void check_beholders()
     for (int i = you.mesmerised_by.size() - 1; i >= 0; i--)
     {
         const monsters* mon = &menv[you.mesmerised_by[i]];
-        if (!mon->alive() || mons_genus(mon->type) != MONS_MERMAID)
+        if (!mon->alive() || mons_genus(mon->type) != MONS_MERMAID
+            || mons_is_submerged(mon))
         {
 #if DEBUG
             if (!mon->alive())
                 mpr("Dead mermaid/siren still mesmerising?", MSGCH_DIAGNOSTICS);
-            else
+            else if (mons_genus(mon->type) != MONS_MERMAID)
             {
                 mprf(MSGCH_DIAGNOSTICS, "Non-mermaid/siren '%s' mesmerising?",
                      mon->name(DESC_PLAIN, true).c_str());
@@ -2784,7 +2785,7 @@ void check_beholders()
         }
         const coord_def pos = mon->pos();
         int walls = num_feats_between(you.pos(), pos,
-                                      DNGN_UNSEEN, DNGN_MAXWALL);
+                                      DNGN_UNSEEN, DNGN_MAXOPAQUE);
 
         if (walls > 0)
         {
@@ -6594,7 +6595,14 @@ bool player::can_go_berserk(bool verbose) const
     {
         if (verbose)
             mpr("You're too exhausted to go berserk.");
+        // or else they won't notice -- no message here
+        return (false);
+    }
 
+    if (you.duration[DUR_MESMERISED])
+    {
+        if (verbose)
+            mpr("You are too mesmerised to rage.");
         // or else they won't notice -- no message here
         return (false);
     }

@@ -1695,11 +1695,14 @@ int monster_die(monsters *monster, killer_type killer,
     if (drop_items)
         monster_drop_ething(monster, YOU_KILL(killer) || pet_kill);
     else
+    {
         // Destroy the items belonging to MF_HARD_RESET monsters so they
         // don't clutter up mitm[]
         monster->destroy_inventory();
+    }
 
-    if (!silent && !wizard && !(monster->flags & MF_KNOWN_MIMIC)
+    if (!silent && !wizard && !mons_reset
+        && !(monster->flags & MF_KNOWN_MIMIC)
         && mons_is_shapeshifter(monster))
     {
         simple_monster_message(monster, "'s shape twists and changes "
@@ -1736,11 +1739,14 @@ void monster_cleanup(monsters *monster)
 
 static bool _jelly_divide(monsters *parent)
 {
-    monsters *child = NULL;
-
-    if (!mons_class_flag(parent->type, M_SPLITS) || parent->hit_points == 1)
+    if (!mons_class_flag(parent->type, M_SPLITS))
         return (false);
 
+    const int reqd = std::max(parent->hit_dice * 8, 50);
+    if (parent->hit_points < reqd)
+        return (false);
+
+    monsters *child = NULL;
     coord_def child_spot;
     int num_spots = 0;
 
@@ -1792,16 +1798,14 @@ static bool _jelly_divide(monsters *parent)
     mgrd(child->pos()) = k;
 
     if (!simple_monster_message(parent, " splits in two!"))
-    {
-        if (!silenced(parent->pos()) || !silenced(child->pos()))
+        if (player_can_hear(parent->pos()) || player_can_hear(child->pos()))
             mpr("You hear a squelching noise.", MSGCH_SOUND);
-    }
 
     if (crawl_state.arena)
         arena_placed_monster(child);
 
     return (true);
-}                               // end jelly_divide()
+}
 
 // If you're invis and throw/zap whatever, alerts menv to your position.
 void alert_nearby_monsters(void)
@@ -2180,6 +2184,24 @@ bool monster_blink(monsters *monster)
     monster->apply_location_effects(oldplace);
 
     return (true);
+}
+
+static void _set_random_target(monsters* mon)
+{
+    mon->target = random_in_bounds(); // If we don't find anything better
+    for (int tries = 0; tries < 150; ++tries)
+    {
+        coord_def delta = coord_def(random2(13), random2(13)) - coord_def(6,6);
+        if (delta.origin())
+            continue;
+
+        const coord_def newtarget = delta + mon->pos();
+        if (!in_bounds(newtarget))
+            continue;
+
+        mon->target = newtarget;
+        break;
+    }
 }
 
 // allow_adjacent:  allow target to be adjacent to origin.
@@ -2961,7 +2983,9 @@ static void _mons_indicate_level_exit(const monsters *mon)
     const dungeon_feature_type gridc = grd(mon->pos());
 
     // All types of stairs.
-    if (is_travelable_stair(gridc))
+    if (is_gate(gridc))
+        simple_monster_message(mon, " passes through the gate.");
+    else if (is_travelable_stair(gridc))
     {
         command_type dir = grid_stair_direction(gridc);
         simple_monster_message(mon,
@@ -2970,8 +2994,6 @@ static void _mons_indicate_level_exit(const monsters *mon)
                 dir == CMD_GO_DOWNSTAIRS ? "goes down"
                                          : "takes").c_str());
     }
-    else if (is_gate(gridc))
-        simple_monster_message(mon, " passes through the gate.");
 }
 
 void make_mons_leave_level(monsters *mon)
@@ -3638,7 +3660,7 @@ static void _check_wander_target(monsters *mon, bool isPacified = false,
         // wandering monsters at least appear to have some sort of
         // attention span.  -- bwr
         if (need_target)
-            mon->target = random_in_bounds();
+            _set_random_target(mon);
     }
 }
 
@@ -3769,7 +3791,7 @@ static void _handle_behaviour(monsters *mon)
     // Check for confusion -- early out.
     if (mon->has_ench(ENCH_CONFUSION))
     {
-        mon->target = random_in_bounds();
+        _set_random_target(mon);
         return;
     }
 
@@ -4066,7 +4088,7 @@ static void _handle_behaviour(monsters *mon)
                 // Sometimes, your friends will wander a bit.
                 if (isFriendly && one_chance_in(8))
                 {
-                    mon->target = random_in_bounds();
+                    _set_random_target(mon);
                     mon->foe = MHITNOT;
                     new_beh  = BEH_WANDER;
                 }
@@ -4122,7 +4144,7 @@ static void _handle_behaviour(monsters *mon)
                         mon->travel_target = MTRAV_NONE;
                         patrolling = false;
                         mon->patrol_point.reset();
-                        mon->target = random_in_bounds();
+                        _set_random_target(mon);
                     }
                 }
 
@@ -5156,6 +5178,7 @@ static void _handle_nearby_ability(monsters *monster)
     }
 }
 
+// Returns true if you resist the siren's call.
 static bool _siren_movement_effect(const monsters *monster)
 {
     bool do_resist = (you.attribute[ATTR_HELD] || you_resist_magic(70));
@@ -5174,7 +5197,8 @@ static bool _siren_movement_effect(const monsters *monster)
 
         const coord_def newpos = you.pos() + dir;
 
-        if (!in_bounds(newpos) || is_grid_dangerous(grd(newpos)))
+        if (!in_bounds(newpos) || is_grid_dangerous(grd(newpos))
+            || !you.can_pass_through_feat(grd(newpos)))
         {
             do_resist = true;
         }
@@ -5656,11 +5680,14 @@ static bool _handle_special_ability(monsters *monster, bolt & beem)
             || mons_is_fleeing(monster)
             || mons_is_pacified(monster)
             || mons_friendly(monster)
-            || silenced(monster->pos())
-            || silenced(you.pos()))
+            || !player_can_hear(monster->pos()))
         {
             break;
         }
+
+        // Don't even try on berserkers. Mermaids know their limits.
+        if (you.duration[DUR_BERSERKER])
+            break;
 
         // Reduce probability because of spamminess.
         if (you.species == SP_MERFOLK && !one_chance_in(4))
@@ -5827,19 +5854,20 @@ static bool _handle_reaching(monsters *monster)
                 && grid_distance(monster->pos(), you.pos()) == 2)
             {
                 ret = true;
-                monster_attack(monster_index(monster), false);
+                monster_attack(monster, false);
             }
         }
         else if (monster->foe != MHITNOT)
         {
-            coord_def foepos = menv[monster->foe].pos();
+            monsters& mfoe = menv[monster->foe];
+            coord_def foepos = mfoe.pos();
             // Same comments as to invisibility as above.
             if (monster->target == foepos
                 && monster->mon_see_grid(foepos, true)
                 && grid_distance(monster->pos(), foepos) == 2)
             {
                 ret = true;
-                monsters_fight(monster_index(monster), monster->foe, false);
+                monsters_fight(monster, &mfoe, false);
             }
         }
     }
@@ -6743,11 +6771,8 @@ static inline bool _mons_natural_regen_roll(monsters *monster)
 // Do natural regeneration for monster.
 static void _monster_regenerate(monsters *monster)
 {
-    if (monster->has_ench(ENCH_SICK)
-        || !mons_can_regenerate(monster))
-    {
+    if (monster->has_ench(ENCH_SICK) || !mons_can_regenerate(monster))
         return;
-    }
 
     // Non-land creatures out of their element cannot regenerate.
     if (mons_primary_habitat(monster) != HT_LAND
@@ -6774,11 +6799,8 @@ static void _monster_regenerate(monsters *monster)
     }
 }
 
-static bool _swap_monsters(const int mover_idx, const int moved_idx)
+static bool _swap_monsters(monsters* mover, monsters* moved)
 {
-    monsters* mover = &menv[mover_idx];
-    monsters* moved = &menv[moved_idx];
-
     // Can't swap with a stationary monster.
     if (mons_is_stationary(moved))
         return (false);
@@ -6824,11 +6846,10 @@ static bool _swap_monsters(const int mover_idx, const int moved_idx)
     const coord_def moved_pos = moved->pos();
 
     mover->pos() = moved_pos;
-
     moved->pos() = mover_pos;
 
-    mgrd(mover->pos()) = mover_idx;
-    mgrd(moved->pos()) = moved_idx;
+    mgrd(mover->pos()) = mover->mindex();
+    mgrd(moved->pos()) = moved->mindex();
 
     if (you.can_see(mover) && you.can_see(moved))
     {
@@ -6859,10 +6880,9 @@ static void _swim_or_move_energy(monsters *mon)
 #    define DEBUG_ENERGY_USE(problem) ((void) 0)
 #endif
 
-static void _handle_monster_move(int i, monsters *monster)
+static void _handle_monster_move(monsters *monster)
 {
     bool brkk = false;
-    FixedArray <unsigned int, 19, 19> show;
 
     monster->hit_points = std::min(monster->max_hit_points,
                                    monster->hit_points);
@@ -7023,9 +7043,8 @@ static void _handle_monster_move(int i, monsters *monster)
 
         if (monster->type == MONS_TIAMAT && one_chance_in(3))
         {
-            int cols[] = { RED, WHITE, DARKGREY, GREEN, MAGENTA };
-            int newcol = cols[random2(sizeof(cols) / sizeof(cols[0]))];
-            monster->colour = newcol;
+            const int cols[] = { RED, WHITE, DARKGREY, GREEN, MAGENTA };
+            monster->colour = RANDOM_ELEMENT(cols);
         }
 
         _monster_regenerate(monster);
@@ -7041,7 +7060,8 @@ static void _handle_monster_move(int i, monsters *monster)
         ASSERT(in_bounds(monster->target) || monster->target.origin());
 
         // Submerging monsters will hide from clouds.
-        if (avoid_cloud && monster_can_submerge(monster, grd(monster->pos()))
+        if (avoid_cloud
+            && monster_can_submerge(monster, grd(monster->pos()))
             && !monster->submerged())
         {
             monster->add_ench(ENCH_SUBMERGED);
@@ -7058,7 +7078,7 @@ static void _handle_monster_move(int i, monsters *monster)
         // Harpies may eat food/corpses on the ground.
         if (monster->type == MONS_HARPY && !mons_is_fleeing(monster)
             && (mons_wont_attack(monster)
-                || (monster->pos() - you.pos()).rdist() > 1)
+                || (grid_distance(monster->pos(), you.pos()) > 1))
             && (mons_is_wandering(monster) && one_chance_in(3)
                 || one_chance_in(5))
             && expose_items_to_element(BEAM_STEAL_FOOD, monster->pos(), 10))
@@ -7144,39 +7164,21 @@ static void _handle_monster_move(int i, monsters *monster)
             {
                 std::vector<coord_def> moves;
 
+                mmov.reset();
                 int pfound = 0;
-                for (int yi = -1; yi <= 1; ++yi)
-                    for (int xi = -1; xi <= 1; ++xi)
-                    {
-                        coord_def c = monster->pos() + coord_def(xi, yi);
-                        if (in_bounds(c) && monster->can_pass_through(c)
-                            && one_chance_in(++pfound))
-                        {
-                            mmov.x = xi;
-                            mmov.y = yi;
-                        }
-                    }
+                for (adjacent_iterator ai(monster->pos(), false); ai; ++ai)
+                    if (monster->can_pass_through(*ai))
+                        if (one_chance_in(++pfound))
+                            mmov = *ai - monster->pos();
 
-                if (x_chance_in_y(2, 2 + pfound))
-                    mmov.reset();
-
-                // Bounds check: don't let confused monsters try to run
-                // off the grid.
-                const coord_def s = monster->pos() + mmov;
-                if (!in_bounds_x(s.x))
-                    mmov.x = 0;
-                if (!in_bounds_y(s.y))
-                    mmov.y = 0;
-
-                if (!monster->can_pass_through(monster->pos() + mmov))
-                    mmov.reset();
-
-                int enemy = mgrd(monster->pos() + mmov);
-                if (enemy != NON_MONSTER
-                    && !is_sanctuary(monster->pos())
-                    && !mmov.origin())
+                // OK, mmov determined.
+                const coord_def newcell = mmov + monster->pos();
+                monsters* enemy = monster_at(newcell);
+                if (enemy
+                    && newcell != monster->pos()
+                    && !is_sanctuary(monster->pos()))
                 {
-                    if (monsters_fight(i, enemy))
+                    if (monsters_fight(monster, enemy))
                     {
                         brkk = true;
                         mmov.reset();
@@ -7188,8 +7190,8 @@ static void _handle_monster_move(int i, monsters *monster)
                         // Instead run away!
                         if (monster->add_ench(mon_enchant(ENCH_FEAR)))
                         {
-                            behaviour_event(monster, ME_SCARE, MHITNOT,
-                                            monster->pos() + mmov);
+                            behaviour_event(monster, ME_SCARE,
+                                            MHITNOT, newcell);
                         }
                         break;
                     }
@@ -7201,12 +7203,6 @@ static void _handle_monster_move(int i, monsters *monster)
         }
         _handle_nearby_ability( monster );
 
-        bolt beem;
-
-        beem.source      = monster->pos();
-        beem.target      = monster->target;
-        beem.beam_source = monster->mindex();
-
         if (!mons_is_sleeping(monster)
             && !mons_is_wandering(monster)
 
@@ -7214,6 +7210,12 @@ static void _handle_monster_move(int i, monsters *monster)
             // hitting their foes.
             && !monster->has_ench(ENCH_BERSERK))
         {
+            bolt beem;
+            
+            beem.source      = monster->pos();
+            beem.target      = monster->target;
+            beem.beam_source = monster->mindex();
+
             const bool friendly_or_near =
                 mons_friendly(monster) || mons_near(monster, monster->foe);
             // Prevents unfriendlies from nuking you from offscreen.
@@ -7271,24 +7273,24 @@ static void _handle_monster_move(int i, monsters *monster)
         if (!mons_is_caught(monster))
         {
             // See if we move into (and fight) an unfriendly monster.
-            int targmon = mgrd(monster->pos() + mmov);
-            if (targmon != NON_MONSTER
-                && targmon != i
-                && !mons_aligned(i, targmon))
+            monsters* targ = monster_at(monster->pos() + mmov);
+            if (targ
+                && targ != monster
+                && !mons_aligned(monster->mindex(), targ->mindex()))
             {
                 // Maybe they can swap places?
-                if (_swap_monsters(i, targmon))
+                if (_swap_monsters(monster, targ))
                 {
                     _swim_or_move_energy(monster);
                     continue;
                 }
                 // Figure out if they fight.
-                else if (monsters_fight(i, targmon))
+                else if (monsters_fight(monster, targ))
                 {
                     if (mons_is_batty(monster))
                     {
                         monster->behaviour = BEH_WANDER;
-                        monster->target = random_in_bounds();
+                        _set_random_target(monster);
                         // monster->speed_increment -= monster->speed;
                     }
 
@@ -7304,24 +7306,17 @@ static void _handle_monster_move(int i, monsters *monster)
             if (monster->pos() + mmov == you.pos())
             {
                 ASSERT(!crawl_state.arena);
-                bool isFriendly = mons_friendly(monster);
-                bool attacked   = false;
 
-                if (!isFriendly)
+                if (!mons_friendly(monster))
                 {
-                    monster_attack(i);
-                    attacked = true;
+                    monster_attack(monster);
 
                     if (mons_is_batty(monster))
                     {
                         monster->behaviour = BEH_WANDER;
-                        monster->target = random_in_bounds();
+                        _set_random_target(monster);
                     }
                     DEBUG_ENERGY_USE("monster_attack()");
-                }
-
-                if (attacked)
-                {
                     mmov.reset();
                     continue;
                 }
@@ -7376,7 +7371,7 @@ void handle_monsters()
 
         const coord_def oldpos = monster->pos();
 
-        _handle_monster_move(i, monster);
+        _handle_monster_move(monster);
 
         if (!invalid_monster(monster) && monster->pos() != oldpos)
             immobile_monster[i] = true;
@@ -7402,8 +7397,8 @@ void handle_monsters()
 
 static bool _is_item_jelly_edible(const item_def &item)
 {
-    // Don't eat artefacts (note that unrandarts are randarts).
-    if (is_fixed_artefact(item) || is_random_artefact(item))
+    // Don't eat artefacts.
+    if (is_artefact(item))
         return (false);
 
     // Shouldn't eat stone things
@@ -7435,15 +7430,10 @@ static bool _is_item_jelly_edible(const item_def &item)
 //---------------------------------------------------------------
 static bool _handle_pickup(monsters *monster)
 {
-    // single calculation permissible {dlb}
-    bool monsterNearby = mons_near(monster);
-    int  item = NON_ITEM;
-
-    if (mons_is_sleeping(monster)
-        || mons_is_submerged(monster))
-    {
+    if (mons_is_sleeping(monster) || mons_is_submerged(monster))
         return (false);
-    }
+
+    const bool monster_nearby = mons_near(monster);
 
     if (mons_itemuse(monster) == MONUSE_EATS_ITEMS)
     {
@@ -7451,39 +7441,37 @@ static bool _handle_pickup(monsters *monster)
         if (monster->attitude != ATT_HOSTILE)
             return (false);
 
-        int  midx       = monster_index(monster);
         int  hps_gained = 0;
         int  max_eat    = roll_dice( 1, 10 );
         int  eaten      = 0;
         bool eaten_net  = false;
 
-        for (item = igrd(monster->pos());
-             item != NON_ITEM && eaten < max_eat && hps_gained < 50;
-             item = mitm[item].link)
+        for (stack_iterator si(monster->pos());
+             si && eaten < max_eat && hps_gained < 50;
+             ++si)
         {
-            int quant = mitm[item].quantity;
-
-            if (!_is_item_jelly_edible(mitm[item]))
+            if (!_is_item_jelly_edible(*si))
                 continue;
 
 #if DEBUG_DIAGNOSTICS || DEBUG_EATERS
             mprf(MSGCH_DIAGNOSTICS,
                  "%s eating %s", monster->name(DESC_PLAIN, true).c_str(),
-                 mitm[item].name(DESC_PLAIN).c_str());
+                 si->name(DESC_PLAIN).c_str());
 #endif
 
-            if (mitm[igrd(monster->pos())].base_type != OBJ_GOLD)
-            {
-                if (quant > max_eat - eaten)
-                    quant = max_eat - eaten;
+            int quant = si->quantity;
 
-                hps_gained += (quant * item_mass( mitm[item] )) / 20 + quant;
+            if (si->base_type != OBJ_GOLD)
+            {
+                quant = std::min(quant, max_eat - eaten);
+
+                hps_gained += (quant * item_mass(*si)) / 20 + quant;
                 eaten += quant;
 
                 if (mons_is_caught(monster)
-                    && mitm[item].base_type == OBJ_MISSILES
-                    && mitm[item].sub_type == MI_THROWING_NET
-                    && item_is_stationary(mitm[item]))
+                    && si->base_type == OBJ_MISSILES
+                    && si->sub_type == MI_THROWING_NET
+                    && item_is_stationary(*si))
                 {
                     monster->del_ench(ENCH_HELD, true);
                     eaten_net = true;
@@ -7499,18 +7487,16 @@ static bool _handle_pickup(monsters *monster)
                 eaten++;
             }
 
-            if (quant >= mitm[item].quantity)
-                item_was_destroyed(mitm[item], midx);
+            if (quant >= si->quantity)
+                item_was_destroyed(*si, monster->mindex());
 
-            dec_mitm_item_quantity( item, quant );
+            dec_mitm_item_quantity(si.link(), quant);
         }
 
         if (eaten)
         {
-            if (hps_gained < 1)
-                hps_gained = 1;
-            else if (hps_gained > 50)
-                hps_gained = 50;
+            hps_gained = std::max(hps_gained, 1);
+            hps_gained = std::min(hps_gained, 50);
 
             // This is done manually instead of using heal_monster(),
             // because that function doesn't work quite this way.  -- bwr
@@ -7519,27 +7505,20 @@ static bool _handle_pickup(monsters *monster)
             if (monster->max_hit_points < monster->hit_points)
                 monster->max_hit_points = monster->hit_points;
 
-            if (!silenced(you.pos())
-                && !silenced(monster->pos()))
+            if (player_can_hear(monster->pos()))
             {
                 mprf(MSGCH_SOUND, "You hear a%s slurping noise.",
-                     monsterNearby ? "" : " distant");
+                     monster_nearby ? "" : " distant");
             }
+
             if (eaten_net)
                 simple_monster_message(monster, " devours the net!");
 
-            if (mons_class_flag( monster->type, M_SPLITS ))
-            {
-                const int reqd = (monster->hit_dice <= 6)
-                                            ? 50 : monster->hit_dice * 8;
-
-                if (monster->hit_points >= reqd)
-                    _jelly_divide(monster);
-            }
+            _jelly_divide(monster);
         }
 
         return (false);
-    }                           // end "if jellies"
+    }
 
     // Note: Monsters only look at stuff near the top of stacks.
     // XXX: Need to put in something so that monster picks up multiple items
@@ -7547,22 +7526,19 @@ static bool _handle_pickup(monsters *monster)
     // Monsters may now pick up several items in the same turn, though with
     // reducing chances. (jpeg)
     bool success = false;
-    for (item = igrd(monster->pos()); item != NON_ITEM; )
+    for (stack_iterator si(monster->pos()); si; ++si)
     {
-        item_def &topickup = mitm[item];
-        item = topickup.link;
-        if (monster->pickup_item(topickup, monsterNearby))
+        if (monster->pickup_item(*si, monster_nearby))
             success = true;
         if (coinflip())
             break;
     }
     return (success);
-}                               // end handle_pickup()
+}
 
 static void _jelly_grows(monsters *monster)
 {
-    if (!silenced(you.pos())
-        && !silenced(monster->pos()))
+    if (player_can_hear(monster->pos()))
     {
         mprf(MSGCH_SOUND, "You hear a%s slurping noise.",
              mons_near(monster) ? "" : " distant");
@@ -7574,15 +7550,7 @@ static void _jelly_grows(monsters *monster)
     if (monster->hit_points > monster->max_hit_points)
         monster->max_hit_points = monster->hit_points;
 
-    if (mons_class_flag( monster->type, M_SPLITS ))
-    {
-        // and here is where the jelly might divide {dlb}
-        const int reqd = (monster->hit_dice < 6) ? 50
-                                                 : monster->hit_dice * 8;
-
-        if (monster->hit_points >= reqd)
-            _jelly_divide(monster);
-    }
+    _jelly_divide(monster);
 }
 
 static bool _mons_can_displace(const monsters *mpusher, const monsters *mpushee)
@@ -7624,14 +7592,14 @@ static bool _mons_can_displace(const monsters *mpusher, const monsters *mpushee)
 
 static bool _monster_swaps_places( monsters *mon, const coord_def& delta )
 {
-    if (delta.x == 0 && delta.y)
+    if (delta.origin())
         return (false);
 
-    int targmon = mgrd(mon->pos() + delta);
-    if (targmon == MHITNOT || targmon == MHITYOU)
+    monsters* const m2 = monster_at(mon->pos() + delta);
+
+    if (!m2)
         return (false);
 
-    monsters *m2 = &menv[targmon];
     if (!_mons_can_displace(mon, m2))
         return (false);
 
@@ -7644,7 +7612,7 @@ static bool _monster_swaps_places( monsters *mon, const coord_def& delta )
                  "Alerting monster %s at (%d,%d)",
                  m2->name(DESC_PLAIN).c_str(), m2->pos().x, m2->pos().y);
 #endif
-            behaviour_event( m2, ME_ALERT, MHITNOT );
+            behaviour_event(m2, ME_ALERT, MHITNOT);
         }
         return (false);
     }
@@ -7688,21 +7656,14 @@ static bool _do_move_monster(monsters *monster, const coord_def& delta)
 
     if (f == you.pos())
     {
-        monster_attack( monster_index(monster) );
+        monster_attack(monster);
         return (true);
     }
 
-    // XXX Is this necessary? Isn't it handled by the next case?
-    if (f == monster->pos())
+    // This includes the case where the monster attacks itself.
+    if (monsters* def = monster_at(f))
     {
-        const int mx = monster_index(monster);
-        monsters_fight( mx, mx );
-        return (true);
-    }
-
-    if (mgrd(f) != NON_MONSTER)
-    {
-        monsters_fight( monster_index(monster), mgrd(f) );
+        monsters_fight(monster, def);
         return (true);
     }
 
@@ -8451,7 +8412,7 @@ forget_it:
         // Check for attacking player.
         if (monster->pos() + mmov == you.pos())
         {
-            ret    = monster_attack( monster_index(monster) );
+            ret = monster_attack(monster);
             mmov.reset();
         }
 
@@ -8485,14 +8446,13 @@ forget_it:
         }
 
         // Check for attacking another monster.
-        int targmon = mgrd(monster->pos() + mmov);
-        if (targmon != NON_MONSTER)
+        if (monsters* targ = monster_at(monster->pos() + mmov))
         {
-            if (mons_aligned(monster_index(monster), targmon))
+            if (mons_aligned(monster->mindex(), targ->mindex()))
                 ret = _monster_swaps_places(monster, mmov);
             else
             {
-                monsters_fight(monster_index(monster), targmon);
+                monsters_fight(monster, targ);
                 ret = true;
             }
 

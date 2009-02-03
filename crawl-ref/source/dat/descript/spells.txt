@@ -336,7 +336,7 @@ This spell involves the intonation of a word of power which repels and can destr
 %%%%
 Ice Bolt
 
-This spell throws forth a chunk of ice. It is particularly effective against those creatures not immune to the effects of freezing, but the half of its destructive potential that comes from its weight and cutting edges cannot be ignored by even cold-resistant creatures. 
+This spell throws forth a chunk of ice. It is particularly effective against those creatures not immune to the effects of freezing. But as most of its destructive potential comes from strong impact and cutting edges, even cold-resistant creatures are notably affected. 
 %%%%
 Ice Form
 
@@ -456,7 +456,7 @@ This spell envenoms missile ammunition held by the caster.
 %%%%
 Poison Arrow
 
-This spell hurls a magical arrow of the most vile and noxious toxin. No living thing is completely immune to its effects. 
+This spell hurls a magical arrow coated with the most vile and noxious toxin. No living thing is completely immune to its effects, and even the undead will take damage from the physical component of the spell.
 %%%%
 Poison Weapon
 
