@@ -209,7 +209,7 @@ static weapon_def Weapon_prop[NUM_WEAPONS] =
         SK_MACES_FLAILS, HANDS_ONE,    SIZE_MEDIUM, MI_NONE, false,
         DAMV_PIERCING | DAM_BLUDGEON, 2 },
     { WPN_DIRE_FLAIL,        "dire flail",         13, -3, 14, 240,  9,
-        SK_MACES_FLAILS, HANDS_DOUBLE, SIZE_MEDIUM, MI_NONE, false,
+        SK_MACES_FLAILS, HANDS_DOUBLE, SIZE_LARGE,  MI_NONE, false,
         DAMV_PIERCING | DAM_BLUDGEON, 10 },
     { WPN_GREAT_MACE,        "great mace",         16, -4, 18, 270,  9,
         SK_MACES_FLAILS, HANDS_TWO,    SIZE_LARGE,  MI_NONE, false,
@@ -330,10 +330,10 @@ static weapon_def Weapon_prop[NUM_WEAPONS] =
 
     // Staves
     { WPN_QUARTERSTAFF,      "quarterstaff",        7,  6, 12, 180,  7,
-        SK_STAVES,       HANDS_DOUBLE, SIZE_LARGE, MI_NONE, false,
+        SK_STAVES,       HANDS_DOUBLE, SIZE_LARGE,  MI_NONE, false,
         DAMV_CRUSHING, 10 },
     { WPN_LAJATANG,          "lajatang",           14, -3, 14, 200,  3,
-        SK_STAVES,       HANDS_DOUBLE, SIZE_LARGE, MI_NONE, false,
+        SK_STAVES,       HANDS_DOUBLE, SIZE_LARGE,  MI_NONE, false,
         DAMV_SLICING, 2 },
 
     // Range weapons
@@ -2026,7 +2026,19 @@ bool check_weapon_wieldable_size( const item_def &item, size_type size )
 {
     ASSERT( item.base_type == OBJ_WEAPONS || item.base_type == OBJ_STAVES );
 
-    return (fit_weapon_wieldable_size( item, size ) == 0);
+    // Staves are currently wieldable for everyone just to be nice.
+    if (item.base_type == OBJ_STAVES || weapon_skill(item) == SK_STAVES)
+        return (true);
+
+    int fit = fit_weapon_wieldable_size( item, size );
+
+    // Adjust fit for size.
+    if (size < SIZE_SMALL && fit > 0)
+        fit--;
+    else if (size > SIZE_LARGE && fit < 0)
+        fit++;
+
+    return (fit == 0);
 }
 
 // Note that this function is used to check validity of equipment
@@ -2212,7 +2224,7 @@ launch_retval is_launched(const actor *actor, const item_def *launcher,
 //
 bool item_is_rod( const item_def &item )
 {
-    return (item.base_type == OBJ_STAVES && item.sub_type >= STAFF_SMITING);
+    return (item.base_type == OBJ_STAVES && item.sub_type >= STAFF_FIRST_ROD);
 }
 
 bool item_is_staff( const item_def &item )
@@ -2383,7 +2395,7 @@ int property( const item_def &item, int prop_type )
 }
 
 // Returns true if item is evokable.
-bool gives_ability( const item_def &item )
+bool gives_ability(const item_def &item)
 {
     if (!item_type_known(item))
         return (false);
@@ -2394,7 +2406,7 @@ bool gives_ability( const item_def &item )
     {
         // unwielded weapon
         item_def *weap = you.slot_item(EQ_WEAPON);
-        if (!weap || (*weap).slot != item.slot)
+        if (!weap || weap->slot != item.slot)
             return (false);
         break;
     }
@@ -2405,8 +2417,8 @@ bool gives_ability( const item_def &item )
             // unworn ring
             item_def *lring = you.slot_item(EQ_LEFT_RING);
             item_def *rring = you.slot_item(EQ_RIGHT_RING);
-            if ((!lring || (*lring).slot != item.slot)
-                && (!rring || (*rring).slot != item.slot))
+            if ((!lring || lring->slot != item.slot)
+                && (!rring || rring->slot != item.slot))
             {
                 return (false);
             }
@@ -2422,7 +2434,7 @@ bool gives_ability( const item_def &item )
         {
             // unworn amulet
             item_def *amul = you.slot_item(EQ_AMULET);
-            if (!amul || (*amul).slot != item.slot)
+            if (!amul || amul->slot != item.slot)
                 return (false);
 
             if (item.sub_type == AMU_RAGE)
@@ -2438,7 +2450,7 @@ bool gives_ability( const item_def &item )
 
         // unworn armour
         item_def *arm = you.slot_item(eq);
-        if (!arm || (*arm).slot != item.slot)
+        if (!arm || arm->slot != item.slot)
             return (false);
         break;
     }
@@ -2458,7 +2470,7 @@ bool gives_ability( const item_def &item )
 }
 
 // Returns true if the item confers an intrinsic that is shown on the % screen.
-bool gives_resistance( const item_def &item )
+bool gives_resistance(const item_def &item)
 {
     if (!item_type_known(item))
         return (false);
@@ -2469,19 +2481,19 @@ bool gives_resistance( const item_def &item )
     {
         // unwielded weapon
         item_def *weap = you.slot_item(EQ_WEAPON);
-        if (!weap || (*weap).slot != item.slot)
+        if (!weap || weap->slot != item.slot)
             return (false);
         break;
     }
     case OBJ_JEWELLERY:
     {
-        if (item.sub_type < NUM_RINGS)
+        if (!jewellery_is_amulet(item))
         {
             // unworn ring
-            item_def *lring = you.slot_item(EQ_LEFT_RING);
-            item_def *rring = you.slot_item(EQ_RIGHT_RING);
-            if ((!lring || (*lring).slot != item.slot)
-                && (!rring || (*rring).slot != item.slot))
+            const item_def *lring = you.slot_item(EQ_LEFT_RING);
+            const item_def *rring = you.slot_item(EQ_RIGHT_RING);
+            if ((!lring || lring->slot != item.slot)
+                && (!rring || rring->slot != item.slot))
             {
                 return (false);
             }
@@ -2499,8 +2511,8 @@ bool gives_resistance( const item_def &item )
         else
         {
             // unworn amulet
-            item_def *amul = you.slot_item(EQ_AMULET);
-            if (!amul || (*amul).slot != item.slot)
+            const item_def *amul = you.slot_item(EQ_AMULET);
+            if (!amul || amul->slot != item.slot)
                 return (false);
 
             if (item.sub_type != AMU_RAGE && item.sub_type != AMU_INACCURACY)
@@ -2516,11 +2528,11 @@ bool gives_resistance( const item_def &item )
 
         // unworn armour
         item_def *arm = you.slot_item(eq);
-        if (!arm || (*arm).slot != item.slot)
+        if (!arm || arm->slot != item.slot)
             return (false);
         break;
 
-        const int ego = get_armour_ego_type( item );
+        const int ego = get_armour_ego_type(item);
         if (ego >= SPARM_FIRE_RESISTANCE && ego <= SPARM_SEE_INVISIBLE
             || ego == SPARM_RESISTANCE || ego == SPARM_POSITIVE_ENERGY)
         {
@@ -2531,7 +2543,7 @@ bool gives_resistance( const item_def &item )
     {
         // unwielded staff
         item_def *weap = you.slot_item(EQ_WEAPON);
-        if (!weap || (*weap).slot != item.slot)
+        if (!weap || weap->slot != item.slot)
             return (false);
 
         if (item.sub_type >= STAFF_FIRE && item.sub_type <= STAFF_POISON
@@ -2724,8 +2736,7 @@ size_type item_size( const item_def &item )
         break;
 
     case OBJ_CORPSES:
-        // FIXME
-        // size = mons_size( item.plus, PSIZE_BODY );
+        // FIXME: This should depend on the original monster's size!
         size = SIZE_SMALL;
         break;
 

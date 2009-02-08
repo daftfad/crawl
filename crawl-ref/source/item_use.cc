@@ -136,8 +136,6 @@ bool can_wield(item_def *weapon, bool say_reason,
 
     // Small species wielding large weapons...
     if (player_size(PSIZE_BODY) < SIZE_MEDIUM
-        && weapon_skill(*weapon) != SK_STAVES
-        && weapon->sub_type != WPN_BOW
         && !check_weapon_wieldable_size(*weapon, player_size(PSIZE_BODY)))
     {
         SAY(mpr("That's too large for you to wield."));
@@ -1810,7 +1808,7 @@ static bool _shadow_hit_victim(bolt& beam, actor* victim, int dmg, int corpse)
 
     if (agent->atype() == ACT_PLAYER)
     {
-        hitting = you.pet_target;
+        hitting = MHITYOU;
         beh     = BEH_FRIENDLY;
     }
     else
@@ -2279,10 +2277,19 @@ bool throw_it(bolt &pbolt, int throw_2, bool teleport, int acc_bonus,
     item_def& thrown = you.inv[throw_2];
     ASSERT(is_valid_item(thrown));
 
+    // Figure out if we're thrown or launched.
+    const launch_retval projected = is_launched(&you, you.weapon(), thrown);
+
     // Making a copy of the item: changed only for venom launchers.
     item_def item = thrown;
     item.quantity = 1;
     item.slot     = index_to_letter(item.link);
+
+    // Items that get a temporary brand from a player spell lose the
+    // brand as soon as the player lets go of the item.  Can't call
+    // unwield_item() yet since the beam might get canceled.
+    if (you.duration[DUR_WEAPON_BRAND] && projected == LRET_THROWN)
+        set_item_ego_type( item, OBJ_WEAPONS, SPWPN_NORMAL );
 
     std::string ammo_name;
     setup_missile_beam(&you, pbolt, item, ammo_name, returning);
@@ -2293,9 +2300,6 @@ bool throw_it(bolt &pbolt, int throw_2, bool teleport, int acc_bonus,
     // Get the ammo/weapon type.  Convenience.
     const object_class_type wepClass = thrown.base_type;
     const int               wepType  = thrown.sub_type;
-
-    // Figure out if we're thrown or launched.
-    const launch_retval projected = is_launched(&you, you.weapon(), thrown);
 
     // Determine range.
     int max_range = 0;
@@ -2361,12 +2365,11 @@ bool throw_it(bolt &pbolt, int throw_2, bool teleport, int acc_bonus,
     // Use real range for firing.
     pbolt.range = range;
 
-    // Must unwield before making a copy in order to remove things
-    // like temporary branding.
+    bool unwielded = false;
     if (throw_2 == you.equip[EQ_WEAPON] && thrown.quantity == 1)
     {
         unwield_item();
-        canned_msg(MSG_EMPTY_HANDED);
+        unwielded = true;
     }
 
     // Now start real firing!
@@ -2993,6 +2996,8 @@ bool throw_it(bolt &pbolt, int throw_2, bool teleport, int acc_bonus,
                         << " fails to return to your pack!" << std::endl;
         }
         dec_inv_item_quantity(throw_2, 1);
+        if (unwielded)
+            canned_msg(MSG_EMPTY_HANDED);
     }
 
     // Throwing and blowguns are silent...
@@ -4857,7 +4862,7 @@ void read_scroll(int slot)
     {
         const int monster = create_monster(
                                 mgen_data(MONS_ABOMINATION_SMALL, BEH_FRIENDLY,
-                                          0, 0, you.pos(), you.pet_target,
+                                          0, 0, you.pos(), MHITYOU,
                                           MG_FORCE_BEH));
         if (monster != -1)
         {

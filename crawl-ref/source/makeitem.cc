@@ -2333,7 +2333,7 @@ static void _generate_potion_item(item_def& item, int force_type,
                                             38, POT_GAIN_DEXTERITY,
                                             38, POT_GAIN_INTELLIGENCE,
                                             13, POT_EXPERIENCE,
-                                            14, POT_MAGIC,
+                                            140, POT_MAGIC,
                                             900, POT_RESTORE_ABILITIES,
                                             648, POT_POISON,
                                             162, POT_STRONG_POISON,
@@ -2521,8 +2521,7 @@ static void _generate_staff_item(item_def& item, int force_type)
         item.sub_type = force_type;
     else
     {
-        // assumption: STAFF_SMITING is the first rod
-        item.sub_type = random2(STAFF_SMITING);
+        item.sub_type = random2(STAFF_FIRST_ROD);
 
         // rods are rare (10% of all staves)
         if (one_chance_in(10))
@@ -3152,8 +3151,32 @@ static item_make_species_type _give_weapon(monsters *mon, int level,
     case MONS_WIGHT:
     case MONS_NORRIS:
         item.base_type = OBJ_WEAPONS;
-        item.sub_type = (one_chance_in(6) ? WPN_WAR_AXE + random2(4)
-                                          : WPN_MACE + random2(12));
+
+        if (one_chance_in(6))
+        {
+            const int temp_rand = random2(4);
+            item.sub_type = ((temp_rand == 0) ? WPN_SPIKED_FLAIL :
+                             (temp_rand == 1) ? WPN_GREAT_MACE :
+                             (temp_rand == 2) ? WPN_WAR_AXE
+                                              : WPN_TRIDENT);
+        }
+        else
+        {
+            const int temp_rand = random2(12);
+            item.sub_type = ((temp_rand ==  0) ? WPN_MACE :
+                             (temp_rand ==  1) ? WPN_FLAIL :
+                             (temp_rand ==  2) ? WPN_MORNINGSTAR :
+                             (temp_rand ==  3) ? WPN_DAGGER :
+                             (temp_rand ==  4) ? WPN_SHORT_SWORD :
+                             (temp_rand ==  5) ? WPN_LONG_SWORD :
+                             (temp_rand ==  6) ? WPN_SCIMITAR :
+                             (temp_rand ==  7) ? WPN_GREAT_SWORD :
+                             (temp_rand ==  8) ? WPN_HAND_AXE :
+                             (temp_rand ==  9) ? WPN_BATTLEAXE :
+                             (temp_rand == 10) ? WPN_SPEAR
+                                               : WPN_HALBERD);
+        }
+
         if (coinflip())
         {
             force_item  = true;
@@ -3545,7 +3568,9 @@ static item_make_species_type _give_weapon(monsters *mon, int level,
     {
         force_item = true;
         item.base_type = OBJ_WEAPONS;
-        item.sub_type  = WPN_LONG_SWORD + random2(3);
+        item.sub_type = (one_chance_in(3) ? WPN_LONG_SWORD :
+                         coinflip()       ? WPN_SCIMITAR
+                                          : WPN_GREAT_SWORD);
 
         if (one_chance_in(7))
             item.sub_type = WPN_HALBERD;
@@ -3653,7 +3678,7 @@ static item_make_species_type _give_weapon(monsters *mon, int level,
         force_item = true;
         item_race = MAKE_ITEM_NO_RACE;
         item.base_type = OBJ_WEAPONS;
-        item.sub_type = coinflip()? WPN_DAGGER : WPN_SHORT_SWORD;
+        item.sub_type = coinflip() ? WPN_DAGGER : WPN_SHORT_SWORD;
         {
             const int temp_rand = random2(5);
             set_item_ego_type( item, OBJ_WEAPONS,
@@ -3968,9 +3993,9 @@ void give_shield(monsters *mon, int level)
     // If the monster is already wielding/carrying a two-handed weapon, it
     // doesn't get a shield. (Monsters always prefer raw damage to protection!)
     if (main_weap
-           && hands_reqd(*main_weap, mon->body_size(PSIZE_BODY)) == HANDS_TWO
+           && hands_reqd(*main_weap, mon->body_size()) == HANDS_TWO
         || alt_weap
-           && hands_reqd(*alt_weap, mon->body_size(PSIZE_BODY)) == HANDS_TWO)
+           && hands_reqd(*alt_weap, mon->body_size()) == HANDS_TWO)
     {
         return;
     }
@@ -4090,25 +4115,11 @@ void give_armour(monsters *mon, int level)
         {
             item.base_type = OBJ_ARMOUR;
 
-            switch (random2(8))
-            {
-            case 0:
-            case 1:
-            case 2:
-            case 3:
-                item.sub_type = ARM_LEATHER_ARMOUR;
-                break;
-            case 4:
-            case 5:
-                item.sub_type = ARM_RING_MAIL;
-                break;
-            case 6:
-                item.sub_type = ARM_SCALE_MAIL;
-                break;
-            case 7:
-                item.sub_type = ARM_CHAIN_MAIL;
-                break;
-            }
+            const int temp_rand = random2(8);
+            item.sub_type = ((temp_rand  < 4) ? ARM_LEATHER_ARMOUR :
+                             (temp_rand  < 6) ? ARM_RING_MAIL :
+                             (temp_rand == 6) ? ARM_SCALE_MAIL
+                                              : ARM_CHAIN_MAIL);
         }
         else
             return;
@@ -4122,9 +4133,16 @@ void give_armour(monsters *mon, int level)
     case MONS_EDMUND:
     case MONS_RUPERT:
     case MONS_WAYNE:
+    {
         item.base_type = OBJ_ARMOUR;
-        item.sub_type = ARM_LEATHER_ARMOUR + random2(4);
+
+        const int temp_rand = random2(4);
+        item.sub_type = ((temp_rand == 0) ? ARM_LEATHER_ARMOUR :
+                         (temp_rand == 1) ? ARM_RING_MAIL :
+                         (temp_rand == 2) ? ARM_SCALE_MAIL
+                                          : ARM_CHAIN_MAIL);
         break;
+    }
 
     case MONS_ORC_WARLORD:
     case MONS_SAINT_ROKA:
@@ -4145,9 +4163,16 @@ void give_armour(monsters *mon, int level)
     case MONS_MAUD:
     case MONS_VAMPIRE_KNIGHT:
     case MONS_VAULT_GUARD:
+    {
         item.base_type = OBJ_ARMOUR;
-        item.sub_type = ARM_CHAIN_MAIL + random2(4);
+
+        const int temp_rand = random2(4);
+        item.sub_type = ((temp_rand == 0) ? ARM_CHAIN_MAIL :
+                         (temp_rand == 1) ? ARM_SPLINT_MAIL :
+                         (temp_rand == 2) ? ARM_BANDED_MAIL
+                                          : ARM_PLATE_MAIL);
         break;
+    }
 
     case MONS_ANGEL:
     case MONS_SIGMUND:
@@ -4323,9 +4348,9 @@ jewellery_type get_random_ring_type()
     const jewellery_type j = _get_raw_random_ring_type();
     // Adjusted distribution here -- bwr
     if ((j == RING_INVISIBILITY
-            || j == RING_REGENERATION
-            || j == RING_TELEPORT_CONTROL
-            || j == RING_SLAYING)
+         || j == RING_REGENERATION
+         || j == RING_TELEPORT_CONTROL
+         || j == RING_SLAYING)
         && !one_chance_in(3))
     {
         return _get_raw_random_ring_type();
@@ -4348,53 +4373,91 @@ armour_type get_random_body_armour_type(int item_level)
 // FIXME: Need to clean up this mess.
 armour_type get_random_armour_type(int item_level)
 {
-    int armtype = random2(3);
+    // Default (lowest-level) armours.
+    const armour_type defarmours[] = { ARM_ROBE, ARM_LEATHER_ARMOUR,
+                                       ARM_RING_MAIL };
+
+    int armtype = RANDOM_ELEMENT(defarmours);
 
     if (x_chance_in_y(11 + item_level, 35))
     {
-        armtype = random2(5);
+        // Low-level armours.
+        const armour_type lowarmours[] = { ARM_ROBE, ARM_LEATHER_ARMOUR,
+                                           ARM_RING_MAIL, ARM_SCALE_MAIL,
+                                           ARM_CHAIN_MAIL };
+
+        armtype = RANDOM_ELEMENT(lowarmours);
+
         if (one_chance_in(4))
             armtype = ARM_ANIMAL_SKIN;
     }
 
     if (x_chance_in_y(11 + item_level, 60))
-        armtype = random2(ARM_SHIELD); // body armour of some kind
+    {
+        // Medium-level armours.
+        const armour_type medarmours[] = { ARM_ROBE, ARM_LEATHER_ARMOUR,
+                                           ARM_RING_MAIL, ARM_SCALE_MAIL,
+                                           ARM_CHAIN_MAIL, ARM_SPLINT_MAIL,
+                                           ARM_BANDED_MAIL, ARM_PLATE_MAIL };
+
+        armtype = RANDOM_ELEMENT(medarmours);
+    }
 
     if (one_chance_in(20) && x_chance_in_y(11 + item_level, 400))
-        armtype = ARM_DRAGON_HIDE + random2(7); // (ice) dragon/troll/crystal
+    {
+        // High-level armours, including troll and some dragon armours.
+        const armour_type hiarmours[] = { ARM_CRYSTAL_PLATE_MAIL,
+                                          ARM_TROLL_HIDE,
+                                          ARM_TROLL_LEATHER_ARMOUR,
+                                          ARM_DRAGON_HIDE, ARM_DRAGON_ARMOUR,
+                                          ARM_ICE_DRAGON_HIDE,
+                                          ARM_ICE_DRAGON_ARMOUR };
+
+        armtype = RANDOM_ELEMENT(hiarmours);
+    }
 
     if (one_chance_in(20) && x_chance_in_y(11 + item_level, 500))
     {
-        // Other dragon hides/armour or animal skin.
-        armtype = ARM_STEAM_DRAGON_HIDE + random2(11);
+        // Animal skins and high-level armours, including the rest of
+        // the dragon armours.
+        const armour_type morehiarmours[] = { ARM_ANIMAL_SKIN,
+                                              ARM_STEAM_DRAGON_HIDE,
+                                              ARM_STEAM_DRAGON_ARMOUR,
+                                              ARM_MOTTLED_DRAGON_HIDE,
+                                              ARM_MOTTLED_DRAGON_ARMOUR,
+                                              ARM_STORM_DRAGON_HIDE,
+                                              ARM_STORM_DRAGON_ARMOUR,
+                                              ARM_GOLD_DRAGON_HIDE,
+                                              ARM_GOLD_DRAGON_ARMOUR,
+                                              ARM_SWAMP_DRAGON_HIDE,
+                                              ARM_SWAMP_DRAGON_ARMOUR };
+
+        armtype = RANDOM_ELEMENT(morehiarmours);
 
         if (armtype == ARM_ANIMAL_SKIN && one_chance_in(20))
             armtype = ARM_CRYSTAL_PLATE_MAIL;
     }
 
-    // secondary armours:
+    // Secondary armours.
     if (one_chance_in(5))
     {
-        // same chance each
-        switch (random2(5))
-        {
-        case 0: armtype = ARM_SHIELD; break;
-        case 1: armtype = ARM_CLOAK;  break;
-        case 2: armtype = ARM_HELMET; break;
-        case 3: armtype = ARM_GLOVES; break;
-        case 4: armtype = ARM_BOOTS;  break;
-        }
+        const armour_type secarmours[] = { ARM_SHIELD, ARM_CLOAK, ARM_HELMET,
+                                           ARM_GLOVES, ARM_BOOTS };
+
+        armtype = RANDOM_ELEMENT(secarmours);
 
         if (armtype == ARM_HELMET && one_chance_in(3))
         {
-            armtype = ARM_HELMET + random2(3);
+            const armour_type hats[] = { ARM_CAP, ARM_WIZARD_HAT, ARM_HELMET };
+
+            armtype = RANDOM_ELEMENT(hats);
         }
-        else if (armtype == ARM_SHIELD)            // 33.3%
+        else if (armtype == ARM_SHIELD)
         {
-            if (coinflip())
-                armtype = ARM_BUCKLER;             // 50.0%
-            else if (one_chance_in(3))
-                armtype = ARM_LARGE_SHIELD;        // 16.7%
+            armtype = random_choose_weighted(333, ARM_SHIELD,
+                                             500, ARM_BUCKLER,
+                                             167, ARM_LARGE_SHIELD,
+                                             0);
         }
     }
 

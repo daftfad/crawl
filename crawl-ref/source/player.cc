@@ -87,8 +87,8 @@ std::string pronoun_you(description_level_type desc)
     }
 }
 
-/* Contains functions which return various player state vars,
-   and other stuff related to the player. */
+// Contains functions which return various player state vars, and other
+// stuff related to the player.
 
 static void _attribute_increase();
 
@@ -412,9 +412,9 @@ bool player_likes_water(bool permanently)
     return (player_can_swim() || (!permanently && beogh_water_walk()));
 }
 
-bool player_is_swimming(void)
+bool player_is_swimming()
 {
-    return you.swimming();
+    return (you.swimming());
 }
 
 bool player_under_penance(void)
@@ -785,7 +785,7 @@ bool player_weapon_wielded()
 
     if (!check_weapon_wieldable_size( you.inv[wpn], player_size() ))
         return (false);
-     */
+    */
 
     return (true);
 }
@@ -1296,6 +1296,11 @@ bool player_can_smell()
     return (you.species != SP_MUMMY);
 }
 
+bool player_likes_chunks()
+{
+    return (you.omnivorous() || player_mutation_level(MUT_CARNIVOROUS) > 0);
+}
+
 // If temp is set to false, temporary sources or resistance won't be counted.
 int player_res_fire(bool calc_unid, bool temp, bool items)
 {
@@ -1303,14 +1308,14 @@ int player_res_fire(bool calc_unid, bool temp, bool items)
 
     if (items)
     {
-        /* rings of fire resistance/fire */
+        // rings of fire resistance/fire
         rf += player_equip( EQ_RINGS, RING_PROTECTION_FROM_FIRE, calc_unid );
         rf += player_equip( EQ_RINGS, RING_FIRE, calc_unid );
 
-        /* rings of ice */
+        // rings of ice
         rf -= player_equip( EQ_RINGS, RING_ICE, calc_unid );
 
-        /* Staves */
+        // Staves
         rf += player_equip( EQ_STAFF, STAFF_FIRE, calc_unid );
 
         // body armour:
@@ -1663,7 +1668,7 @@ int player_spec_death()
 {
     int sd = 0;
 
-    /* Staves */
+    // Staves
     sd += player_equip( EQ_STAFF, STAFF_DEATH );
 
     // body armour:
@@ -1726,7 +1731,7 @@ int player_spec_earth()
 {
     int se = 0;
 
-    /* Staves */
+    // Staves
     se += player_equip( EQ_STAFF, STAFF_EARTH );
 
     if (you.attribute[ATTR_TRANSFORMATION] == TRAN_AIR)
@@ -1739,7 +1744,7 @@ int player_spec_air()
 {
     int sa = 0;
 
-    /* Staves */
+    // Staves
     sa += player_equip( EQ_STAFF, STAFF_AIR );
 
     //jmf: this was too good
@@ -1752,7 +1757,7 @@ int player_spec_conj()
 {
     int sc = 0;
 
-    /* Staves */
+    // Staves
     sc += player_equip( EQ_STAFF, STAFF_CONJURATION );
 
     // armour of the Archmagi
@@ -1766,7 +1771,7 @@ int player_spec_ench()
 {
     int se = 0;
 
-    /* Staves */
+    // Staves
     se += player_equip( EQ_STAFF, STAFF_ENCHANTMENT );
 
     // armour of the Archmagi
@@ -1780,7 +1785,7 @@ int player_spec_summ()
 {
     int ss = 0;
 
-    /* Staves */
+    // Staves
     ss += player_equip( EQ_STAFF, STAFF_SUMMONING );
 
     // armour of the Archmagi
@@ -1794,7 +1799,7 @@ int player_spec_poison()
 {
     int sp = 0;
 
-    /* Staves */
+    // Staves
     sp += player_equip( EQ_STAFF, STAFF_POISON );
 
     if (you.weapon()
@@ -1959,7 +1964,7 @@ int player_movement_speed(void)
         if (you.duration[DUR_SWIFTNESS] > 0 && !player_in_water())
             mv -= (you.flight_mode() == FL_FLY ? 4 : 2);
 
-        /* Mutations: -2, -3, -4, unless innate and shapechanged */
+        // Mutations: -2, -3, -4, unless innate and shapechanged.
         if (player_mutation_level(MUT_FAST) > 0
             && (!you.demon_pow[MUT_FAST] || !player_is_shapechanged()) )
         {
@@ -2590,10 +2595,10 @@ int player_mag_abil(bool is_weighted)
 
     ma += 3 * player_equip( EQ_RINGS, RING_WIZARDRY );
 
-    /* Staves */
+    // Staves
     ma += 4 * player_equip( EQ_STAFF, STAFF_WIZARDRY );
 
-    /* armour of the Archmagi (checks body armour only) */
+    // armour of the Archmagi (checks body armour only)
     ma += 2 * player_equip_ego_type( EQ_BODY_ARMOUR, SPARM_ARCHMAGI );
 
     return ((is_weighted) ? ((ma * you.intel) / 10) : ma);
@@ -2647,7 +2652,7 @@ int player_see_invis(bool calc_unid)
 
     si += player_equip( EQ_RINGS, RING_SEE_INVISIBLE, calc_unid );
 
-    /* armour: (checks head armour only) */
+    // armour: (checks head armour only)
     si += player_equip_ego_type( EQ_HELMET, SPARM_SEE_INVISIBLE );
 
     if (player_mutation_level(MUT_ACUTE_VISION) > 0)
@@ -2657,7 +2662,7 @@ int player_see_invis(bool calc_unid)
     if (you.duration[DUR_SEE_INVISIBLE] > 0)
         si++;
 
-    /* randart wpns */
+    // randart wpns
     int artefacts = scan_randarts(RAP_EYESIGHT, calc_unid);
 
     if (artefacts > 0)
@@ -3905,14 +3910,14 @@ void display_char_status()
                 attrib.push_back("significantly resist cold");
                 attrib.push_back("strongly resist negative energy");
                 attrib.push_back("resist torment");
-                attrib.push_back("do not heal!");
+                attrib.push_back("do not heal.");
                 break;
             case HS_NEAR_STARVING:
                 attrib.push_back("resist poison");
                 attrib.push_back("significantly resist cold");
                 attrib.push_back("strongly resist negative energy");
                 attrib.push_back("have an extremely slow metabolism");
-                attrib.push_back("heal slowly!");
+                attrib.push_back("heal slowly.");
                 break;
             case HS_HUNGRY:
             case HS_VERY_HUNGRY:
@@ -3923,7 +3928,7 @@ void display_char_status()
                     attrib.push_back("have a slow metabolism");
                 else
                     attrib.push_back("have a very slow metabolism");
-                attrib.push_back("heal slowly!");
+                attrib.push_back("heal slowly.");
                 break;
             case HS_SATIATED:
                 attrib.push_back("resist negative energy.");
@@ -4105,7 +4110,7 @@ void display_char_status()
     if (you.duration[DUR_PETRIFIED])
         mpr("You are petrified.");
     if (you.duration[DUR_SLEEP])
-        mpr("You are asleep." );
+        mpr("You are asleep.");
 
     if (you.duration[DUR_EXHAUSTED])
         mpr("You are exhausted.");
@@ -4437,7 +4442,7 @@ bool extrinsic_amulet_effect(jewellery_type amulet)
 
 bool wearing_amulet(jewellery_type amulet, bool calc_unid)
 {
-    if ( extrinsic_amulet_effect(amulet) )
+    if (extrinsic_amulet_effect(amulet))
         return (true);
 
     if (you.equip[EQ_AMULET] == -1)
@@ -4650,8 +4655,9 @@ bool items_give_ability(const int slot, randart_prop_type abil)
     return (false);
 }                               // end items_give_ability()
 
-/* Checks each equip slot for a randart, and adds up all of those with
-   a given property. Slow if any randarts are worn, so avoid where possible. */
+// Checks each equip slot for a randart, and adds up all of those with
+// a given property. Slow if any randarts are worn, so avoid where
+// possible.
 int scan_randarts(randart_prop_type which_property, bool calc_unid)
 {
     int retval = 0;
@@ -5268,7 +5274,7 @@ bool confuse_player(int amount, bool resistable)
     return (true);
 }
 
-bool curare_hits_player(int agent, int amount)
+bool curare_hits_player(int death_source, int amount)
 {
     ASSERT(!crawl_state.arena);
 
@@ -5289,7 +5295,8 @@ bool curare_hits_player(int agent, int amount)
         if (hurted)
         {
             mpr("You have difficulty breathing.");
-            ouch(hurted, agent, KILLED_BY_CURARE, "curare-induced apnoea");
+            ouch(hurted, death_source, KILLED_BY_CURARE,
+                 "curare-induced apnoea");
         }
 
         potion_effect(POT_SLOWING, 2 + random2(4 + amount));
@@ -6151,7 +6158,7 @@ int player::body_weight() const
         return 0;
 
     int weight = 0;
-    switch(body_size(PSIZE_BODY))
+    switch (body_size(PSIZE_BODY))
     {
     case SIZE_TINY:
         weight = 150;
@@ -6356,7 +6363,7 @@ bool player::can_wield(const item_def& item, bool ignore_curse,
 bool player::could_wield(const item_def &item, bool ignore_brand,
                          bool /* ignore_transform */) const
 {
-    if (!check_weapon_wieldable_size(item, body_size(PSIZE_BODY)))
+    if (!check_weapon_wieldable_size(item, body_size()))
         return (false);
 
     if (!ignore_brand)
@@ -6366,7 +6373,7 @@ bool player::could_wield(const item_def &item, bool ignore_brand,
     }
 
 #if 0
-    if (!ignore_transform  && !transform_can_equip_type( EQ_WEAPON ))
+    if (!ignore_transform && !transform_can_equip_type(EQ_WEAPON))
         return (false);
 #endif
 
@@ -6560,7 +6567,7 @@ void player::attacking(actor *other)
     {
         const monsters *mon = dynamic_cast<monsters*>(other);
         if (!mons_friendly(mon) && !mons_neutral(mon))
-            pet_target = monster_index(mon);
+            pet_target = mon->mindex();
     }
 
     if (player_mutation_level(MUT_BERSERK)
@@ -6857,11 +6864,11 @@ int player::res_sticky_flame() const
 
 int player::res_holy_energy(const actor *attacker) const
 {
-    if (player_is_unholy())
-        return (-2);
-
     if (is_evil_god(you.religion))
         return (-1);
+
+    if (player_is_unholy())
+        return (-2);
 
     if (is_good_god(you.religion))
         return (1);
@@ -7039,7 +7046,7 @@ bool player::rot(actor *who, int amount, int immediate, bool quiet)
     return (true);
 }
 
-bool player::drain_exp(actor *who, bool quiet)
+bool player::drain_exp(actor *who, bool quiet, int pow)
 {
     return (::drain_exp());
 }

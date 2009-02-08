@@ -1057,7 +1057,7 @@ std::string item_def::name_aux( description_level_type desc,
             buff << " ";
         }
 
-        if (is_artefact( *this ) && !dbname)
+        if (is_artefact(*this) && !dbname)
         {
             buff << get_artefact_name(*this);
             break;
@@ -1199,7 +1199,7 @@ std::string item_def::name_aux( description_level_type desc,
             buff << "pair of ";
 
         // When asking for the base item name, randartism is ignored.
-        if (is_random_artefact( *this ) && !basename && !dbname)
+        if (is_random_artefact(*this) && !basename && !dbname)
         {
             buff << get_artefact_name(*this);
             break;
@@ -1439,14 +1439,14 @@ std::string item_def::name_aux( description_level_type desc,
 
         if (know_curse)
         {
-            if (item_cursed( *this ))
+            if (item_cursed(*this))
                 buff << "cursed ";
             else if (Options.show_uncursed && !terse
                      && (!is_randart || !know_type)
                      && (!ring_has_pluses(*this) || !know_pluses)
                      // If the item is worn, its curse status is known,
                      // no need to belabour the obvious.
-                     && get_equip_slot( this ) == -1)
+                     && get_equip_slot(this) == -1)
             {
                 buff << "uncursed ";
             }
@@ -1588,26 +1588,19 @@ std::string item_def::name_aux( description_level_type desc,
         if (!know_type)
         {
             if (!basename)
-            buff << staff_secondary_string(this->special / 4)
-                 << staff_primary_string(this->special % 4);
+            {
+                buff << staff_secondary_string(this->special / 4)
+                     << staff_primary_string(this->special % 4);
+            }
 
-            buff << (item_is_rod( *this ) ? "rod" : "staff");
+            buff << (item_is_rod(*this) ? "rod" : "staff");
         }
         else
         {
-            buff << (item_is_rod( *this ) ? "rod" : "staff")
+            buff << (item_is_rod(*this) ? "rod" : "staff")
                  << " of " << staff_type_name(item_typ);
-
-            if (item_is_rod(*this) && know_pluses
-                && !basename && !qualname && !dbname)
-            {
-                buff << " (" << (this->plus / ROD_CHARGE_MULT)
-                     << "/" << (this->plus2 / ROD_CHARGE_MULT)
-                     << ")";
-            }
         }
         break;
-
 
     // rearranged 15 Apr 2000 {dlb}:
     case OBJ_ORBS:
@@ -1656,11 +1649,11 @@ std::string item_def::name_aux( description_level_type desc,
 
     // One plural to rule them all.
     if (need_plural && this->quantity > 1 && !basename && !qualname)
-        buff.str( pluralise(buff.str()) );
+        buff.str(pluralise(buff.str()));
 
-    // Disambiguation
+    // Disambiguation.
     if (!terse && !basename && !dbname && know_type &&
-        !is_random_artefact( *this ))
+        !is_random_artefact(*this))
     {
         switch (this->base_type)
         {
@@ -1701,9 +1694,20 @@ std::string item_def::name_aux( description_level_type desc,
                 buff << " [ice]";
                 break;
             }
+            break;
+
         default:
             break;
         }
+    }
+
+    // Rod charges.
+    if (item_is_rod(*this) && know_type && know_pluses
+        && !basename && !qualname && !dbname)
+    {
+        buff << " (" << (this->plus / ROD_CHARGE_MULT)
+             << "/"  << (this->plus2 / ROD_CHARGE_MULT)
+             << ")";
     }
 
     // debugging output -- oops, I probably block it above ... dang! {dlb}
@@ -1890,15 +1894,17 @@ bool item_names( const item_def *it1,
            < it2->name(DESC_PLAIN, false, false, false);
 }
 
-void check_item_knowledge()
+bool check_item_knowledge(bool quiet)
 {
     std::vector<const item_def*> items;
+    bool rc = true;
 
     const object_class_type idx_to_objtype[5] = { OBJ_WANDS, OBJ_SCROLLS,
                                                   OBJ_JEWELLERY, OBJ_POTIONS,
                                                   OBJ_STAVES };
     const int idx_to_maxtype[5] = { NUM_WANDS, NUM_SCROLLS,
                                     NUM_JEWELLERY, NUM_POTIONS, NUM_STAVES };
+
 
     for (int i = 0; i < 5; i++)
     {
@@ -1920,9 +1926,14 @@ void check_item_knowledge()
     }
 
     if (items.empty())
-        mpr("You don't recognise anything yet!");
+    {
+        rc = false;
+        if (!quiet)
+            mpr("You don't recognise anything yet!");
+    }
     else
     {
+        rc = true;
         std::sort(items.begin(), items.end(), item_names);
         InvMenu menu;
         menu.set_title("You recognise:");
@@ -1935,7 +1946,9 @@ void check_item_knowledge()
               iter != items.end(); ++iter )
             delete *iter;
     }
-}                               // end check_item_knowledge()
+
+    return (rc);
+}
 
 
 // Used for: Pandemonium demonlords, shopkeepers, scrolls, random artefacts
@@ -2671,11 +2684,8 @@ static const std::string _item_prefix(const item_def &item, bool temp,
             prefixes.push_back("unidentified");
     }
 
-    if (good_god_dislikes_item_handling(item)
-        || god_dislikes_item_handling(item))
-    {
+    if (good_god_hates_item_handling(item) || god_hates_item_handling(item))
         prefixes.push_back("evil_item");
-    }
 
     if (is_emergency_item(item))
         prefixes.push_back("emergency_item");

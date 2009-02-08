@@ -14,6 +14,7 @@ REVISION("$Rev$");
 #include "monplace.h"
 #include "version.h"
 
+#include <errno.h>
 #include <string.h>
 #include <string>
 #include <stdlib.h>
@@ -776,7 +777,7 @@ static void _write_tagged_file( FILE *outf, int fileType,
     // all other tags
     for (int i = 1; i < NUM_TAGS; i++)
         if (tags[i] == 1)
-            tag_write((tag_type)i, outf);
+            tag_write(static_cast<tag_type>(i), outf);
 }
 
 bool travel_load_map( branch_type branch, int absdepth )
@@ -1108,6 +1109,10 @@ bool load( dungeon_feature_type stair_taken, load_mode_type load_mode,
     }
 #endif
 
+    // Clear the show grid, to prevent us noticing things
+    // which were within the old LOS by new coordinates.
+    env.show.init(0);
+
     // Try to open level savefile.
 #ifdef DEBUG_LEVEL_LOAD
     mprf(MSGCH_DIAGNOSTICS, "Try to open file %s", cha_fil.c_str());
@@ -1211,8 +1216,8 @@ bool load( dungeon_feature_type stair_taken, load_mode_type load_mode,
     crawl_view.set_player_at(you.pos(), load_mode != LOAD_VISITOR);
 
     // This should fix the "monster occurring under the player" bug?
-    if (make_changes && mgrd(you.pos()) != NON_MONSTER)
-        monster_teleport(&menv[mgrd(you.pos())], true, true);
+    if (make_changes && monster_at(you.pos()))
+        monster_teleport(monster_at(you.pos()), true, true);
 
     // Actually "move" the followers if applicable.
     if (level_type_allows_followers(you.level_type)

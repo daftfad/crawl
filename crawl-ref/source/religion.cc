@@ -108,21 +108,21 @@ static const char *_Sacrifice_Messages[NUM_GODS][NUM_PIETY_GAIN] =
     },
     // Zin
     {
-         " <>barely glow%</> and disappear%.",
-         " <>glow% silver</> and disappear%.",
-         " <>glow% blindingly silver</> and disappear%.",
+        " <>barely glow%</> and disappear%.",
+        " <>glow% silver</> and disappear%.",
+        " <>glow% blindingly silver</> and disappear%.",
     },
     // TSO
     {
-         " faintly glow% and disappear%.",
-         " glow% a golden colour and disappear%.",
-         " glow% a brilliant golden colour and disappear%.",
+        " faintly glow% and disappear%.",
+        " glow% a golden colour and disappear%.",
+        " glow% a brilliant golden colour and disappear%.",
     },
     // Kikubaaqudgha
     {
-         " slowly rot% away.",
-         " rot% away.",
-         " rot% away in an instant.",
+        " slowly rot% away.",
+        " rot% away.",
+        " rot% away in an instant.",
     },
     // Yredelemnul
     {
@@ -138,39 +138,39 @@ static const char *_Sacrifice_Messages[NUM_GODS][NUM_PIETY_GAIN] =
     },
     // Vehumet
     {
-         " fade% into nothingness.",
-         " burn% into nothingness.",
-         " explode% into nothingness.",
+        " fade% into nothingness.",
+        " burn% into nothingness.",
+        " explode% into nothingness.",
     },
     // Okawaru
     {
-         " slowly burn% to ash.",
-         " & consumed by flame.",
-         " & consumed in a burst of flame.",
+        " slowly burn% to ash.",
+        " & consumed by flame.",
+        " & consumed in a burst of flame.",
     },
     // Makhleb
     {
-         " disappear% without a sign.",
-         " flare% red and disappear%.",
-         " flare% blood-red and disappear%.",
+        " disappear% without a sign.",
+        " flare% red and disappear%.",
+        " flare% blood-red and disappear%.",
     },
     // Sif Muna
     {
-         " & gone without a glow.",
-         " glow% faintly for a moment, and & gone.",
-         " glow% for a moment, and & gone.",
+        " & gone without a glow.",
+        " glow% faintly for a moment, and & gone.",
+        " glow% for a moment, and & gone.",
     },
     // Trog
     {
-         " & slowly consumed by flames.",
-         " & consumed in a column of flame.",
-         " & consumed in a roaring column of flame.",
+        " & slowly consumed by flames.",
+        " & consumed in a column of flame.",
+        " & consumed in a roaring column of flame.",
     },
     // Nemelex
     {
-         " disappear% without a glow.",
-         " glow% slightly and disappear%.",
-         " glow% with a rainbow of weird colours and disappear%.",
+        " disappear% without a glow.",
+        " glow% slightly and disappear%.",
+        " glow% with a rainbow of weird colours and disappear%.",
     },
     // Elyvilon (no sacrifices, but used for weapon destruction)
     {
@@ -180,15 +180,15 @@ static const char *_Sacrifice_Messages[NUM_GODS][NUM_PIETY_GAIN] =
     },
     // Lugonu
     {
-         " & disappears into the void.",
-         " & consumed by the void.",
-         " & voraciously consumed by the void.",
+        " & disappears into the void.",
+        " & consumed by the void.",
+        " & voraciously consumed by the void.",
     },
     // Beogh
     {
-         " slowly crumble% into the ground.",
-         " crumble% into the ground.",
-         " disintegrate% into the ground.",
+        " slowly crumble% into the ground.",
+        " crumble% into the ground.",
+        " disintegrate% into the ground.",
     }
 };
 
@@ -376,6 +376,7 @@ static bool _beogh_idol_revenge();
 static void _tso_blasts_cleansing_flame(const char *message = NULL);
 static bool _tso_holy_revenge();
 static void _altar_prayer();
+static bool _god_likes_item(god_type god, const item_def& item);
 static void _dock_piety(int piety_loss, int penance);
 static bool _make_god_gifts_disappear(bool level_only = true);
 static bool _make_holy_god_gifts_good_neutral(bool level_only = true);
@@ -512,6 +513,13 @@ std::string get_god_likes(god_type which_god, bool verbose)
 
     switch (which_god)
     {
+    case GOD_ZIN:
+        snprintf(info, INFO_SIZE, "you donate money%s",
+                 verbose ? " (by praying at an altar)" : "");
+
+        likes.push_back(info);
+        break;
+
     case GOD_SHINING_ONE:
         snprintf(info, INFO_SIZE, "you sacrifice evil items%s",
                  verbose ? " (by dropping them on an altar and praying)" : "");
@@ -519,16 +527,16 @@ std::string get_god_likes(god_type which_god, bool verbose)
         likes.push_back(info);
         break;
 
-    case GOD_NEMELEX_XOBEH:
-        snprintf(info, INFO_SIZE, "you sacrifice items%s",
-                 verbose ? " (by standing over them and <w>p</w>raying)" : "");
+    case GOD_BEOGH:
+        snprintf(info, INFO_SIZE, "you bless dead orcs%s",
+                 verbose ? " (by standing over their corpses and <w>p</w>raying)" : "");
+
         likes.push_back(info);
         break;
 
-    case GOD_ZIN:
-        snprintf(info, INFO_SIZE, "you donate money%s",
-                 verbose ? " (by praying at an altar)" : "");
-
+    case GOD_NEMELEX_XOBEH:
+        snprintf(info, INFO_SIZE, "you sacrifice items%s",
+                 verbose ? " (by standing over them and <w>p</w>raying)" : "");
         likes.push_back(info);
         break;
 
@@ -944,8 +952,7 @@ static int _yred_random_servants(int threshold, bool force_hostile = false)
         how_many = 2 + random2(4);
 
     mgen_data mg(mon, !force_hostile ? BEH_FRIENDLY : BEH_HOSTILE,
-                 0, 0, you.pos(), !force_hostile ? you.pet_target : MHITYOU,
-                 0, GOD_YREDELEMNUL);
+                 0, 0, you.pos(), MHITYOU, 0, GOD_YREDELEMNUL);
 
     int created = 0;
     if (force_hostile)
@@ -1533,7 +1540,7 @@ static void _beogh_reinf_callback(const mgen_data &mg, int &midx, int placed)
 
 // If you don't currently have any followers, send a small band to help
 // you out.
-static void _beogh_blessing_reinforcement()
+static void _beogh_blessing_reinforcements()
 {
     // Possible reinforcement.
     const monster_type followers[] = {
@@ -1562,7 +1569,7 @@ static void _beogh_blessing_reinforcement()
 
         _delayed_monster(
             mgen_data(follower_type, BEH_FRIENDLY, 0, 0,
-                      you.pos(), you.pet_target, 0, GOD_BEOGH),
+                      you.pos(), MHITYOU, 0, GOD_BEOGH),
             _beogh_reinf_callback);
     }
 }
@@ -1637,12 +1644,12 @@ bool bless_follower(monsters *follower,
                 if (!follower)
                 {
                     // If no follower was found, attempt to send
-                    // reinforcement.
-                    _beogh_blessing_reinforcement();
+                    // reinforcements.
+                    _beogh_blessing_reinforcements();
 
-                    // Possibly send more reinforcement.
+                    // Possibly send more reinforcements.
                     if (coinflip())
-                        _beogh_blessing_reinforcement();
+                        _beogh_blessing_reinforcements();
 
                     _delayed_monster_done("Beogh blesses you with "
                                          "reinforcements.", "");
@@ -2050,7 +2057,7 @@ static bool _is_risky_sacrifice(const item_def& item)
     return item.base_type == OBJ_ORBS || is_rune(item);
 }
 
-static bool _confirm_pray_sacrifice()
+static bool _confirm_pray_sacrifice(god_type god)
 {
     if (Options.stash_tracking == STM_EXPLICIT && is_stash(you.pos()))
     {
@@ -2058,18 +2065,21 @@ static bool _confirm_pray_sacrifice()
         return (false);
     }
 
-    for ( stack_iterator si(you.pos()); si; ++si )
+    for (stack_iterator si(you.pos()); si; ++si)
     {
-        if ( _is_risky_sacrifice(*si)
-             || has_warning_inscription(*si, OPER_PRAY) )
+        if (_god_likes_item(god, *si)
+            && (_is_risky_sacrifice(*si)
+                || has_warning_inscription(*si, OPER_PRAY)))
         {
             std::string prompt = "Really sacrifice stack with ";
             prompt += si->name(DESC_NOCAP_A);
             prompt += " in it?";
-            if ( !yesno(prompt.c_str(), false, 'n') )
+
+            if (!yesno(prompt.c_str(), false, 'n'))
                 return (false);
         }
     }
+
     return (true);
 }
 
@@ -2080,7 +2090,6 @@ std::string god_prayer_reaction()
         result += " was ";
     else
         result += " is ";
-
     result +=
         (you.piety > 130) ? "exalted by your worship" :
         (you.piety > 100) ? "extremely pleased with you" :
@@ -2089,9 +2098,9 @@ std::string god_prayer_reaction()
         (you.piety >  20) ? "pleased with you" :
         (you.piety >   5) ? "noncommittal"
                           : "displeased";
-
     result += ".";
-    return result;
+
+    return (result);
 }
 
 static bool _god_accepts_prayer(god_type god)
@@ -2115,6 +2124,7 @@ static bool _god_accepts_prayer(god_type god)
     case GOD_YREDELEMNUL:
         return (yred_injury_mirror(false));
 
+    case GOD_BEOGH:
     case GOD_NEMELEX_XOBEH:
         return (true);
 
@@ -2160,7 +2170,8 @@ void pray()
                 mpr("Sorry, a being of your status cannot worship here.");
                 return;
             }
-            god_pitch( grid_altar_god(grd(you.pos())) );
+
+            god_pitch(grid_altar_god(grd(you.pos())));
             return;
         }
     }
@@ -2181,10 +2192,11 @@ void pray()
         return;
     }
 
-    // Nemelexites can abort out now instead of offering something
-    // they don't want to lose.
-    if (you.religion == GOD_NEMELEX_XOBEH && altar_god == GOD_NO_GOD
-        && !_confirm_pray_sacrifice())
+    // Beoghites and Nemelexites can abort out now instead of offering
+    // something they don't want to lose.
+    if (altar_god == GOD_NO_GOD
+        && (you.religion == GOD_BEOGH ||  you.religion == GOD_NEMELEX_XOBEH)
+        && !_confirm_pray_sacrifice(you.religion))
     {
         you.turn_is_over = false;
         return;
@@ -2194,9 +2206,12 @@ void pray()
          was_praying ? "renew your" : "offer a",
          god_name(you.religion).c_str());
 
-    // ...otherwise, they offer what they're standing on
-    if (you.religion == GOD_NEMELEX_XOBEH && altar_god == GOD_NO_GOD)
+    // Beoghites and Nemelexites offer the items they're standing on.
+    if (altar_god == GOD_NO_GOD
+        && (you.religion == GOD_BEOGH ||  you.religion == GOD_NEMELEX_XOBEH))
+    {
         offer_items();
+    }
 
     you.duration[DUR_PRAYER] = 9 + (random2(you.piety) / 20)
                                  + (random2(you.piety) / 20);
@@ -2205,7 +2220,7 @@ void pray()
         simple_god_message(" demands penance!");
     else
     {
-        mpr( god_prayer_reaction().c_str(), MSGCH_PRAY, you.religion );
+        mpr(god_prayer_reaction().c_str(), MSGCH_PRAY, you.religion);
 
         if (you.piety > 130)
             you.duration[DUR_PRAYER] *= 3;
@@ -2213,10 +2228,15 @@ void pray()
             you.duration[DUR_PRAYER] *= 2;
     }
 
-    if (you.religion == GOD_ZIN || you.religion == GOD_NEMELEX_XOBEH)
+    if (you.religion == GOD_ZIN || you.religion == GOD_BEOGH
+        || you.religion == GOD_NEMELEX_XOBEH)
+    {
         you.duration[DUR_PRAYER] = 1;
+    }
     else if (you.religion == GOD_YREDELEMNUL || you.religion == GOD_ELYVILON)
+    {
         you.duration[DUR_PRAYER] = 20;
+    }
 
     if (!was_praying)
         _do_god_gift(true);
@@ -3338,7 +3358,7 @@ void gain_piety(int pgn)
 
     if (you.religion == GOD_BEOGH)
     {
-        // every piety level change also affects AC from orcish gear
+        // Every piety level change also affects AC from orcish gear.
         you.redraw_armour_class = true;
     }
 
@@ -3577,9 +3597,9 @@ bool is_chaotic_spellbook(const item_def& item)
     return (is_spellbook_type(item, false, is_chaotic_spell));
 }
 
-bool god_dislikes_spellbook(const item_def& item)
+bool god_hates_spellbook(const item_def& item)
 {
-    return (is_spellbook_type(item, false, god_dislikes_spell_type));
+    return (is_spellbook_type(item, false, god_hates_spell_type));
 }
 
 bool is_holy_rod(const item_def& item)
@@ -3597,22 +3617,19 @@ bool is_chaotic_rod(const item_def& item)
     return (is_spellbook_type(item, true, is_chaotic_spell));
 }
 
-bool god_dislikes_rod(const item_def& item)
+bool god_hates_rod(const item_def& item)
 {
-    return (is_spellbook_type(item, true, god_dislikes_spell_type));
+    return (is_spellbook_type(item, true, god_hates_spell_type));
 }
 
-bool good_god_dislikes_item_handling(const item_def &item)
+bool good_god_hates_item_handling(const item_def &item)
 {
     return (is_good_god(you.religion) && is_evil_item(item)
             && (is_demonic(item) || item_type_known(item)));
 }
 
-bool god_dislikes_item_handling(const item_def &item)
+bool god_hates_item_handling(const item_def &item)
 {
-    if (you.religion == GOD_XOM)
-        return (false);
-
     switch (you.religion)
     {
     case GOD_ZIN:
@@ -3672,18 +3689,17 @@ bool god_dislikes_item_handling(const item_def &item)
         break;
     }
 
-    if (god_dislikes_spellbook(item) || god_dislikes_rod(item))
+    if (god_hates_spellbook(item) || god_hates_rod(item))
         return (true);
 
     return (false);
 }
 
-bool god_dislikes_spell_type(spell_type spell, god_type god)
+bool god_hates_spell_type(spell_type spell, god_type god)
 {
     if (is_good_god(god) && is_evil_spell(spell))
         return (true);
 
-    unsigned int flags       = get_spell_flags(spell);
     unsigned int disciplines = get_spell_disciplines(spell);
 
     switch (god)
@@ -3694,16 +3710,39 @@ bool god_dislikes_spell_type(spell_type spell, god_type god)
         break;
 
     case GOD_SHINING_ONE:
-        // TSO dislikes using poison, but is fine with curing it, resisting
-        // it or destroying it.
-        if ((disciplines & SPTYP_POISON) && spell != SPELL_CURE_POISON_I
+        // TSO hates using poison, but is fine with curing it, resisting
+        // it, or destroying it.
+        if ((disciplines & SPTYP_POISON)     && spell != SPELL_CURE_POISON_I
             && spell != SPELL_CURE_POISON_II && spell != SPELL_RESIST_POISON
             && spell != SPELL_IGNITE_POISON)
         {
             return (true);
         }
 
-        // He probably also wouldn't like spells which would put enemies
+    case GOD_YREDELEMNUL:
+        if (is_holy_spell(spell))
+            return (true);
+        break;
+
+    default:
+        break;
+    }
+
+    return (false);
+}
+
+bool god_dislikes_spell_type(spell_type spell, god_type god)
+{
+    if (god_hates_spell_type(spell, god))
+        return (true);
+
+    unsigned int flags       = get_spell_flags(spell);
+    unsigned int disciplines = get_spell_disciplines(spell);
+
+    switch (god)
+    {
+    case GOD_SHINING_ONE:
+        // TSO probably wouldn't like spells which would put enemies
         // into a state where attacking them would be unchivalrous.
         if (spell == SPELL_CAUSE_FEAR || spell == SPELL_PARALYSE
             || spell == SPELL_CONFUSE || spell == SPELL_MASS_CONFUSION
@@ -3711,11 +3750,6 @@ bool god_dislikes_spell_type(spell_type spell, god_type god)
         {
             return (true);
         }
-        break;
-
-    case GOD_YREDELEMNUL:
-        if (is_holy_spell(spell))
-            return (true);
         break;
 
     case GOD_XOM:
@@ -3961,12 +3995,8 @@ bool trog_burn_spellbooks()
                 continue;
             }
 
-            int durat = 4 + count + random2(rarity/2);
-
-            if (durat > 23)
-                durat = 23;
-
-            place_cloud(CLOUD_FIRE, *ri, durat, KC_YOU);
+            const int duration = std::min(4 + count + random2(rarity/2), 23);
+            place_cloud(CLOUD_FIRE, *ri, duration, KC_YOU);
 
             mpr(count == 1 ? "The book bursts into flames."
                            : "The books burst into flames.", MSGCH_GOD);
@@ -4556,8 +4586,23 @@ static bool _beogh_retribution()
 
         for (int i = 0; i < num_to_create; ++i)
         {
+            const int temp_rand = random2(13);
+            int wpn_type = ((temp_rand ==  0) ? WPN_CLUB :
+                            (temp_rand ==  1) ? WPN_MACE :
+                            (temp_rand ==  2) ? WPN_FLAIL :
+                            (temp_rand ==  3) ? WPN_MORNINGSTAR :
+                            (temp_rand ==  4) ? WPN_DAGGER :
+                            (temp_rand ==  5) ? WPN_SHORT_SWORD :
+                            (temp_rand ==  6) ? WPN_LONG_SWORD :
+                            (temp_rand ==  7) ? WPN_SCIMITAR :
+                            (temp_rand ==  8) ? WPN_GREAT_SWORD :
+                            (temp_rand ==  9) ? WPN_HAND_AXE :
+                            (temp_rand == 10) ? WPN_BATTLEAXE :
+                            (temp_rand == 11) ? WPN_SPEAR
+                                              : WPN_HALBERD);
+
             // Create item.
-            int slot = items(0, OBJ_WEAPONS, WPN_CLUB + random2(13),
+            int slot = items(0, OBJ_WEAPONS, wpn_type,
                              true, you.experience_level,
                              am_orc ? MAKE_ITEM_NO_RACE : MAKE_ITEM_ORCISH,
                              0, 0, GOD_BEOGH);
@@ -4916,8 +4961,10 @@ static bool _holy_beings_on_level_attitude_change()
                 }
             }
             // If you don't worship a good god, you make all friendly
-            // and good neutral holy beings hostile.
-            else if (!is_good_god(you.religion) && mons_wont_attack(monster))
+            // and good neutral holy beings that worship a good god
+            // hostile.
+            else if (!is_good_god(you.religion) && mons_wont_attack(monster)
+                && is_good_god(monster->god))
             {
                 monster->attitude = ATT_HOSTILE;
                 monster->del_ench(ENCH_CHARM, true);
@@ -5509,7 +5556,7 @@ static void _print_good_god_holy_being_speech(bool neutral,
 }
 
 // Holy monsters may turn good neutral when encountering followers of
-// the good gods.
+// the good gods, and be made worshippers of TSO if necessary.
 void good_god_holy_attitude_change(monsters *holy)
 {
     ASSERT(mons_is_holy(holy));
@@ -5529,6 +5576,10 @@ void good_god_holy_attitude_change(monsters *holy)
     // The monster is not really *created* neutral, but should it become
     // hostile later on, it won't count as a good kill.
     holy->flags |= MF_WAS_NEUTRAL;
+
+    // If the holy being was previously worshipping a different god,
+    // make it worship TSO.
+    holy->god = GOD_SHINING_ONE;
 
     // Avoid immobile "followers".
     behaviour_event(holy, ME_ALERT, MHITNOT);
@@ -5697,6 +5748,8 @@ static void _print_converted_orc_speech(const std::string key,
     }
 }
 
+// Orcs may turn friendly when encountering followers of Beogh, and be
+// made gifts of Beogh.
 void beogh_convert_orc(monsters *orc, bool emergency,
                        bool converted_by_follower)
 {
@@ -5736,8 +5789,9 @@ void beogh_convert_orc(monsters *orc, bool emergency,
     // become hostile later on, it won't count as a good kill.
     orc->flags |= MF_CREATED_FRIENDLY;
 
-    // Prevent assertion if the orc was previously worshipping a different
-    // god rather than already worhsipping Beogh or being an athiest.
+    // Prevent assertion if the orc was previously worshipping a
+    // different god, rather than already worshipping Beogh or being an
+    // atheist.
     orc->god = GOD_NO_GOD;
 
     mons_make_god_gift(orc, GOD_BEOGH);
@@ -5926,7 +5980,7 @@ void excommunication(god_type new_god)
     }
 
     // When you start worshipping a non-good god, or no god, you make
-    // all non-hostile holy beings hostile.
+    // all non-hostile holy beings that worship a good god hostile.
     if (!is_good_god(new_god) && _holy_beings_attitude_change())
         mpr("The divine host forsakes you.", MSGCH_MONSTER_ENCHANT);
 
@@ -6115,7 +6169,7 @@ bool god_likes_items(god_type god)
 {
     switch (god)
     {
-    case GOD_ZIN: case GOD_SHINING_ONE: case GOD_NEMELEX_XOBEH:
+    case GOD_ZIN: case GOD_SHINING_ONE: case GOD_BEOGH: case GOD_NEMELEX_XOBEH:
         return (true);
 
     case GOD_NO_GOD: case NUM_GODS: case GOD_RANDOM:
@@ -6132,14 +6186,19 @@ static bool _god_likes_item(god_type god, const item_def& item)
 
     switch (god)
     {
-    case GOD_NEMELEX_XOBEH:
-        return !is_deck(item);
+    case GOD_ZIN:
+        return (item.base_type == OBJ_GOLD);
 
     case GOD_SHINING_ONE:
-        return is_evil_item(item);
+        return (is_evil_item(item));
 
-    case GOD_ZIN:
-        return item.base_type == OBJ_GOLD;
+    case GOD_BEOGH:
+        return (item.base_type == OBJ_CORPSES
+                   && item.sub_type == CORPSE_BODY
+                   && mons_species(item.plus) == MONS_ORC);
+
+    case GOD_NEMELEX_XOBEH:
+        return !is_deck(item);
 
     default:
         return (false);
@@ -6174,7 +6233,7 @@ static void _give_sac_group_feedback(int which)
 
 // God effects of sacrificing one item from a stack (e.g., a weapon, one
 // out of 20 arrows, etc.) Does not modify the actual item in any way.
-static piety_gain_t _sacrifice_one_item_noncount( const item_def& item)
+static piety_gain_t _sacrifice_one_item_noncount(const item_def& item)
 {
     piety_gain_t relative_piety_gain = PIETY_NONE;
     // item_value() multiplies by quantity
@@ -6182,6 +6241,26 @@ static piety_gain_t _sacrifice_one_item_noncount( const item_def& item)
 
     switch (you.religion)
     {
+    case GOD_SHINING_ONE:
+        gain_piety(1);
+        relative_piety_gain = PIETY_SOME;
+        break;
+
+    case GOD_BEOGH:
+    {
+        const int item_orig = item.orig_monnum - 1;
+
+        if ((item_orig == MONS_SAINT_ROKA && x_chance_in_y(7, 10))
+            || (item_orig == MONS_ORC_HIGH_PRIEST && coinflip())
+            || (item_orig == MONS_ORC_PRIEST && x_chance_in_y(3, 10))
+            || one_chance_in(10))
+        {
+            gain_piety(1);
+            relative_piety_gain = PIETY_SOME;
+        }
+        break;
+    }
+
     case GOD_NEMELEX_XOBEH:
         if (you.attribute[ATTR_CARD_COUNTDOWN] && x_chance_in_y(value, 800))
         {
@@ -6226,14 +6305,10 @@ static piety_gain_t _sacrifice_one_item_noncount( const item_def& item)
             you.sacrifice_value[item.base_type] += value;
         break;
 
-    case GOD_SHINING_ONE:
-        gain_piety(1);
-        relative_piety_gain = PIETY_SOME;
-        break;
-
     default:
         break;
     }
+
     return (relative_piety_gain);
 }
 
@@ -6309,7 +6384,6 @@ void offer_items()
 
         std::string result = "You feel that " + god_name(GOD_ZIN)
                            + " will soon be ";
-
         result +=
             (estimated_piety > 130) ? "exalted by your worship" :
             (estimated_piety > 100) ? "extremely pleased with you" :
@@ -6318,7 +6392,6 @@ void offer_items()
             (estimated_piety >  20) ? "pleased with you" :
             (estimated_piety >   5) ? "noncommittal"
                                     : "displeased";
-
         result += (donation >= 30 && you.piety <= 170) ? "!" : ".";
 
         mpr(result.c_str());
@@ -6356,8 +6429,9 @@ void offer_items()
             continue;
         }
 
-        if (_is_risky_sacrifice(item)
-            || item.inscription.find("=p") != std::string::npos)
+        if (_god_likes_item(you.religion, item)
+            && (_is_risky_sacrifice(item)
+                || item.inscription.find("=p") != std::string::npos))
         {
             const std::string msg =
                   "Really sacrifice " + item.name(DESC_NOCAP_A) + "?";
@@ -6369,7 +6443,7 @@ void offer_items()
             }
         }
 
-        piety_gain_t relative_piety_gain = PIETY_NONE;
+        piety_gain_t relative_gain = PIETY_NONE;
 
 #if DEBUG_DIAGNOSTICS || DEBUG_SACRIFICE
         mprf(MSGCH_DIAGNOSTICS, "Sacrifice item value: %d",
@@ -6383,14 +6457,14 @@ void offer_items()
             // Update piety gain if necessary.
             if (gain != PIETY_NONE)
             {
-                if (relative_piety_gain == PIETY_NONE)
-                    relative_piety_gain = gain;
+                if (relative_gain == PIETY_NONE)
+                    relative_gain = gain;
                 else            // some + some = lots
-                    relative_piety_gain = PIETY_LOTS;
+                    relative_gain = PIETY_LOTS;
             }
         }
 
-        _print_sacrifice_message(you.religion, mitm[i], relative_piety_gain);
+        _print_sacrifice_message(you.religion, mitm[i], relative_gain);
         item_was_destroyed(mitm[i]);
         destroy_item(i);
         i = next;
@@ -6412,11 +6486,12 @@ void offer_items()
     {
         // Zin was handled above, and the other gods don't care about
         // sacrifices.
-
-        if (you.religion == GOD_NEMELEX_XOBEH)
-            simple_god_message(" expects you to use your decks, not offer them!", you.religion);
-        else if (you.religion == GOD_SHINING_ONE)
-            simple_god_message(" only cares about evil items!", you.religion);
+        if (you.religion == GOD_SHINING_ONE)
+            simple_god_message(" only cares about evil items!");
+        else if (you.religion == GOD_BEOGH)
+            simple_god_message(" only cares about orc corpses!");
+        else if (you.religion == GOD_NEMELEX_XOBEH)
+            simple_god_message(" expects you to use your decks, not offer them!");
     }
 }
 

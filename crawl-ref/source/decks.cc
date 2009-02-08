@@ -1085,7 +1085,7 @@ bool deck_triple_draw()
         card_type     card = _draw_top_card(deck, false, _flags);
 
         draws.push_back(card);
-        flags.push_back(_flags | CFLAG_SEEN | CFLAG_MARKED);
+        flags.push_back(_flags);
     }
 
     mpr("You draw... (choose one card)");
@@ -1109,8 +1109,21 @@ bool deck_triple_draw()
 
     // Note how many cards were removed from the deck.
     deck.plus2 += num_to_draw;
+
+    // Don't forget to update the number of marked ones, too.
+    // But don't reduce the number of non-brownie draws.
+    char num_marked_left = deck.props["num_marked"].get_byte();
     for (int i = 0; i < num_to_draw; ++i)
+    {
         _remember_drawn_card(deck, draws[i], false);
+        if (flags[i] & CFLAG_MARKED)
+        {
+            ASSERT(num_marked_left > 0);
+            --num_marked_left;
+        }
+    }
+    deck.props["num_marked"] = num_marked_left;
+
     you.wield_change = true;
 
     // Make deck disappear *before* the card effect, since we
@@ -1126,7 +1139,8 @@ bool deck_triple_draw()
     }
 
     // Note that card_effect() might cause you to unwield the deck.
-    card_effect(draws[selected], rarity, flags[selected], false);
+    card_effect(draws[selected], rarity,
+                flags[selected] | CFLAG_SEEN | CFLAG_MARKED, false);
 
     return (true);
 }
@@ -1726,27 +1740,15 @@ static int _drain_monsters(coord_def where, int pow, int, actor *)
     {
         const int mnstr = mgrd(where);
         if (mnstr == NON_MONSTER)
-            return 0;
+            return (0);
 
         monsters& mon = menv[mnstr];
 
-        if (mons_res_negative_energy(&mon))
+        if (!mon.drain_exp(&you, false, pow / 50))
             simple_monster_message(&mon, " is unaffected.");
-        else
-        {
-            simple_monster_message(&mon, " is drained.");
-
-            if (x_chance_in_y(pow / 60, 20))
-            {
-                mon.hit_dice--;
-                mon.experience = 0;
-            }
-
-            mon.max_hit_points -= 2 + random2(pow/50);
-            mon.hurt(&you, 2 + random2(50), BEAM_NEG);
-        }
     }
-    return 1;
+
+    return (1);
 }
 
 static void _mass_drain(int pow)
@@ -2029,7 +2031,13 @@ static void _potion_card(int power, deck_rarity_type rarity)
         pot = (coinflip() ? POT_CURE_MUTATION : POT_MUTATION);
 
     if (power_level >= 2 && one_chance_in(5))
-        pot = POT_MAGIC;
+    {
+        // +1 to a random stat.
+        const potion_type gain_stat_pots[] = {
+            POT_GAIN_STRENGTH, POT_GAIN_DEXTERITY, POT_GAIN_INTELLIGENCE
+        };
+        pot = RANDOM_ELEMENT(gain_stat_pots);
+    }
 
     potion_effect(pot, random2(power/4));
 }
@@ -2510,7 +2518,7 @@ static bool _trowel_card(int power, deck_rarity_type rarity)
             if (create_monster(
                     mgen_data(RANDOM_ELEMENT(golems),
                               BEH_FRIENDLY, 5, 0,
-                              you.pos(), you.pet_target)) != -1)
+                              you.pos(), MHITYOU)) != -1)
             {
                 mpr("You construct a golem!");
                 num_made++;
@@ -2694,7 +2702,7 @@ static void _summon_demon_card(int power, deck_rarity_type rarity)
     create_monster(
         mgen_data(summon_any_demon(dct), BEH_FRIENDLY,
                   std::min(power / 50, 6), 0,
-                  you.pos(), you.pet_target));
+                  you.pos(), MHITYOU));
 }
 
 static void _summon_any_monster(int power, deck_rarity_type rarity)
@@ -2748,7 +2756,7 @@ static void _summon_any_monster(int power, deck_rarity_type rarity)
                   friendly ? BEH_FRIENDLY : BEH_HOSTILE,
                   3, 0,
                   chosen_spot,
-                  friendly ? you.pet_target : MHITYOU));
+                  MHITYOU));
 }
 
 static void _summon_dancing_weapon(int power, deck_rarity_type rarity)
@@ -2760,8 +2768,7 @@ static void _summon_dancing_weapon(int power, deck_rarity_type rarity)
         create_monster(
             mgen_data(MONS_DANCING_WEAPON,
                       friendly ? BEH_FRIENDLY : BEH_HOSTILE,
-                      power_level + 3, 0, you.pos(),
-                      friendly ? you.pet_target : MHITYOU));
+                      power_level + 3, 0, you.pos(), MHITYOU));
 
     // Given the abundance of Nemelex decks, not setting hard reset
     // leaves a trail of weapons behind, most of which just get
@@ -2833,8 +2840,7 @@ static void _summon_flying(int power, deck_rarity_type rarity)
             mgen_data(result,
                       friendly ? BEH_FRIENDLY : BEH_HOSTILE,
                       std::min(power / 50, 6), 0,
-                      you.pos(),
-                      friendly ? you.pet_target : MHITYOU));
+                      you.pos(), MHITYOU));
     }
 }
 
@@ -2851,8 +2857,7 @@ static void _summon_skeleton(int power, deck_rarity_type rarity)
             skeltypes[power_level],
             friendly ? BEH_FRIENDLY : BEH_HOSTILE,
             std::min(power / 50, 6), 0,
-            you.pos(),
-            friendly ? you.pet_target : MHITYOU));
+            you.pos(), MHITYOU));
 }
 
 static void _summon_ugly(int power, deck_rarity_type rarity)
@@ -2871,8 +2876,7 @@ static void _summon_ugly(int power, deck_rarity_type rarity)
         mgen_data(ugly,
                   friendly ? BEH_FRIENDLY : BEH_HOSTILE,
                   std::min(power / 50, 6), 0,
-                  you.pos(),
-                  friendly ? you.pet_target : MHITYOU));
+                  you.pos(), MHITYOU));
 }
 
 static int _card_power(deck_rarity_type rarity)

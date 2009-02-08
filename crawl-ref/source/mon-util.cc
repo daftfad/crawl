@@ -584,10 +584,7 @@ bool mons_is_native_in_branch(const monsters *monster,
 
 bool mons_is_chaotic(const monsters *mon)
 {
-    if (mons_is_shapeshifter(mon))
-        return (true);
-
-    if (mon->has_spell(SPELL_POLYMORPH_OTHER))
+    if (mons_is_shapeshifter(mon) || mon->has_spell(SPELL_POLYMORPH_OTHER))
         return (true);
 
     const int attk_flavour = mons_attack_spec(mon, 0).flavour;
@@ -1388,7 +1385,7 @@ int mons_res_miasma(const monsters *mon)
     if (mons_holiness(mon) != MH_NATURAL
         || mon->type == MONS_DEATH_DRAKE)
     {
-        return (3);
+        return (1);
     }
 
     return (0);
@@ -1400,7 +1397,7 @@ int mons_res_negative_energy(const monsters *mon)
         || mon->type == MONS_SHADOW_DRAGON
         || mon->type == MONS_DEATH_DRAKE)
     {
-        return (3);  // to match the value for players
+        return (3);
     }
 
     int u = 0;
@@ -2501,11 +2498,6 @@ int mons_base_damage_brand(const monsters *m)
     return (SPWPN_NORMAL);
 }
 
-size_type mons_size(const monsters *m)
-{
-    return m->body_size();
-}
-
 mon_attitude_type monsters::temp_attitude() const
 {
     if (has_ench(ENCH_CHARM))
@@ -2724,6 +2716,24 @@ bool mons_should_fire(struct bolt &beam)
          beam.friend_info.count, beam.friend_info.power,
          beam.foe_ratio, beam.smart_monster ? "yes" : "no");
 #endif
+
+    // Friendly monsters shouldn't be targetting you: this will happen
+    // often because the default behaviour for charmed monsters is to
+    // have you as a target. While foe_ratio will handle this, we
+    // don't want a situation where a friendly dragon breathes through
+    // you to hit other creatures...it should target the other
+    // creatures, and coincidentally hit you.
+    //
+    // FIXME: this can cause problems with reflection, bounces, etc.
+    // It would be better to have the monster fire logic never reach
+    // this point for friendlies.
+    if (!invalid_monster_index(beam.beam_source))
+    {
+        monsters& m = menv[beam.beam_source];
+        if (m.alive() && mons_friendly(&m) && beam.target == you.pos())
+            return (false);
+    }
+
     // Use of foeRatio:
     // The higher this number, the more monsters will _avoid_ collateral
     // damage to their friends.
@@ -3905,7 +3915,7 @@ bool monsters::could_wield(const item_def &item, bool ignore_brand,
         return (false);
 
     // Wimpy monsters (e.g. kobold, goblin) can't use halberds, etc.
-    if (!check_weapon_wieldable_size(item, body_size(PSIZE_BODY)))
+    if (!check_weapon_wieldable_size(item, body_size()))
         return (false);
 
     if (!ignore_brand)
@@ -3926,12 +3936,16 @@ bool monsters::could_wield(const item_def &item, bool ignore_brand,
 
         // Holy monsters and monsters that are gifts of good gods won't
         // use evil weapons.
-        if ((mons_is_holy(this) || is_good_god(god)) && is_evil_item(item))
+        if ((mons_is_holy(this) || is_good_god(god))
+            && is_evil_item(item))
+        {
             return (false);
+        }
 
-        // Holy monsters that aren't gifts of Xom and monsters that are
-        // gifts of good gods won't use chaotic weapons.
-        if (((mons_is_holy(this) && this->god != GOD_XOM) || is_good_god(god))
+        // Holy monsters that aren't gifts of chaotic gods and monsters
+        // that are gifts of good gods won't use chaotic weapons.
+        if (((mons_is_holy(this) && !is_chaotic_god(this->god))
+                || is_good_god(god))
             && is_chaotic_item(item))
         {
             return (false);
@@ -4321,9 +4335,21 @@ bool monsters::pickup(item_def &item, int slot, int near, bool force_merge)
     // (Monsters will always favour damage over protection.)
     if ((slot == MSLOT_WEAPON || slot == MSLOT_ALT_WEAPON)
         && inv[MSLOT_SHIELD] != NON_ITEM
-        && hands_reqd(item, body_size(PSIZE_BODY)) == HANDS_TWO)
+        && hands_reqd(item, body_size()) == HANDS_TWO)
     {
         if (!drop_item(MSLOT_SHIELD, near))
+            return (false);
+    }
+
+    // Similarly, monsters won't pick up shields if they're
+    // wielding (or alt-wielding) a two-handed weapon.
+    if (slot == MSLOT_SHIELD)
+    {
+        const item_def* wpn = mslot_item(MSLOT_WEAPON);
+        const item_def* alt = mslot_item(MSLOT_ALT_WEAPON);
+        if (wpn && hands_reqd(*wpn, body_size()) == HANDS_TWO)
+            return (false);
+        if (alt && hands_reqd(*alt, body_size()) == HANDS_TWO)
             return (false);
     }
 
@@ -4623,7 +4649,7 @@ bool monsters::wants_weapon(const item_def &weap) const
     // Monsters capable of dual-wielding will always prefer two weapons
     // to a single two-handed one, however strong.
     if (mons_wields_two_weapons(this)
-        && hands_reqd(weap, body_size(PSIZE_BODY)) == HANDS_TWO)
+        && hands_reqd(weap, body_size()) == HANDS_TWO)
     {
         return (false);
     }
@@ -4653,14 +4679,14 @@ bool monsters::wants_armour(const item_def &item) const
     if (is_shield(item)
         && (mons_wields_two_weapons(this)
             || mslot_item(MSLOT_WEAPON)
-               && hands_reqd(*mslot_item(MSLOT_WEAPON), body_size(PSIZE_BODY))
+               && hands_reqd(*mslot_item(MSLOT_WEAPON), body_size())
                       == HANDS_TWO))
     {
         return (false);
     }
 
     // Returns whether this armour is the monster's size.
-    return (check_armour_size(item, mons_size(this)));
+    return (check_armour_size(item, body_size()));
 }
 
 mon_inv_type equip_slot_to_mslot(equipment_type eq)
@@ -5809,11 +5835,11 @@ int monsters::res_sticky_flame() const
 
 int monsters::res_holy_energy(const actor *attacker) const
 {
-    if (mons_is_unholy(this))
-        return (-2);
-
     if (mons_is_evil(this))
         return (-1);
+
+    if (mons_is_unholy(this))
+        return (-2);
 
     if (is_good_god(god)
            || mons_is_holy(this)
@@ -5911,7 +5937,7 @@ god_type monsters::deity() const
     return (god);
 }
 
-bool monsters::drain_exp(actor *agent, bool quiet)
+bool monsters::drain_exp(actor *agent, bool quiet, int pow)
 {
     if (x_chance_in_y(res_negative_energy(), 3))
         return (false);
@@ -5920,17 +5946,17 @@ bool monsters::drain_exp(actor *agent, bool quiet)
         mprf("%s is drained!", name(DESC_CAP_THE).c_str());
 
     // If quiet, don't clean up the monster in order to credit properly.
-    hurt(agent, 2 + random2(3), BEAM_NEG, !quiet);
+    hurt(agent, 2 + random2(pow), BEAM_NEG, !quiet);
 
     if (alive())
     {
-        if (one_chance_in(5))
+        if (x_chance_in_y(pow, 15))
         {
             hit_dice--;
             experience = 0;
         }
 
-        max_hit_points -= 2 + random2(3);
+        max_hit_points -= 2 + random2(pow);
         hit_points = std::min(max_hit_points, hit_points);
     }
 
@@ -7917,13 +7943,16 @@ item_type_id_state_type monsters::drink_potion_effect(potion_type ptype)
         break;
     }
 
-    return ident;
+    return (ident);
 }
 
 void monsters::react_to_damage(int damage, beam_type flavour)
 {
+    if (!alive())
+        return;
+
     // The royal jelly objects to taking damage and will SULK. :-)
-    if (type == MONS_ROYAL_JELLY && flavour != BEAM_TORMENT_DAMAGE && alive()
+    if (type == MONS_ROYAL_JELLY && flavour != BEAM_TORMENT_DAMAGE
         && damage > 8 && x_chance_in_y(damage, 50))
     {
         mon_acting mact(this);

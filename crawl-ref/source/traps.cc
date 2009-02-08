@@ -911,8 +911,8 @@ static int damage_or_escape_net(int hold)
     if (x_chance_in_y(player_evasion(), 20))
         escape++;
 
-    // Monsters around you add urgency.
-    if (!i_feel_safe())
+    // Dangerous monsters around you add urgency.
+    if (there_are_monsters_nearby(true))
     {
         damage++;
         escape++;
@@ -981,7 +981,7 @@ void free_self_from_net()
         if (you.duration[DUR_BERSERKER])
             damage *= 2;
 
-        // Medium sized characters are at disadvantage and sometimes
+        // Medium sized characters are at a disadvantage and sometimes
         // get a bonus.
         if (you.body_size(PSIZE_BODY) == SIZE_MEDIUM)
             damage += coinflip();
@@ -1030,7 +1030,7 @@ void free_self_from_net()
         if (you.duration[DUR_HASTE]) // extra bonus, also Berserk
             escape++;
 
-        // Medium sized characters are at disadvantage and sometimes
+        // Medium sized characters are at a disadvantage and sometimes
         // get a bonus.
         if (you.body_size(PSIZE_BODY) == SIZE_MEDIUM)
             escape += coinflip();

@@ -320,6 +320,7 @@ melee_attack::melee_attack(actor *attk, actor *defn,
       did_hit(false), perceived_attack(false), obvious_effect(false),
       needs_message(false), attacker_visible(false), defender_visible(false),
       attacker_invisible(false), defender_invisible(false),
+      defender_starting_attitude(ATT_HOSTILE),
       unarmed_ok(allow_unarmed),
       attack_number(which_attack),
       to_hit(0), base_damage(0), potential_damage(0), damage_done(0),
@@ -377,6 +378,17 @@ void melee_attack::init_attack()
     defender_invisible = (!defender_visible && defender
                           && see_grid(defender->pos()));
     needs_message      = (attacker_visible || defender_visible);
+
+    if (defender && defender->atype() == ACT_MONSTER)
+    {
+        defender_starting_attitude = defender_as_monster()->temp_attitude();
+    }
+    else
+    {
+        // Not really, but this is used for god conducts,
+        // so hostile is fine.
+        defender_starting_attitude = ATT_HOSTILE;
+    }
 
     if (defender && defender->submerged())
         unarmed_ok = false;
@@ -1949,6 +1961,14 @@ void melee_attack::_monster_die(monsters* monster, killer_type killer,
     if (chaos)
         def_copy = new monsters(*monster);
 
+    // The monster is about to die, so restore its original attitude
+    // for the cleanup effects (god reactions.) This could be a
+    // problem if the "killing" is actually an Abyss banishment - we
+    // don't want to create permafriendlies this way - so don't do it
+    // then.
+    if (monster == defender && killer != KILL_RESET)
+        monster->attitude = defender_starting_attitude;
+
     monster_die(monster, killer, killer_index);
 
     if (chaos)
@@ -1963,6 +1983,7 @@ static bool is_boolean_resist(beam_type flavour)
     switch (flavour)
     {
     case BEAM_ELECTRICITY:
+    case BEAM_MIASMA:
     case BEAM_NAPALM:
         return (true);
     default:
@@ -2338,8 +2359,7 @@ void melee_attack::chaos_affects_defender()
         defender_as_monster()->add_ench(one_chance_in(3) ?
             ENCH_GLOWING_SHAPESHIFTER : ENCH_SHAPESHIFTER);
         // Immediately polymorph monster, just to make the effect obvious.
-        monster_polymorph(defender_as_monster(),
-                          RANDOM_MONSTER, PPT_SAME, true);
+        monster_polymorph(defender_as_monster(), RANDOM_MONSTER);
         break;
 
     case CHAOS_MISCAST:

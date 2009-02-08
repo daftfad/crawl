@@ -132,43 +132,41 @@ static species_type old_species_order[] = {
     SP_DEEP_DWARF
 };
 
-// Fantasy staples and humanoid creatures come first, then dimunitive and
+// Fantasy staples and humanoid creatures come first, then diminutive and
 // stealthy creatures, then monstrous creatures, then planetouched and after
 // all living creatures finally the undead. (MM)
 static species_type new_species_order[] = {
     // comparatively human-like looks
-    SP_HUMAN,       SP_HIGH_ELF,
-    SP_GREY_ELF,    SP_DEEP_ELF,
-    SP_SLUDGE_ELF,  SP_MOUNTAIN_DWARF,
-    SP_DEEP_DWARF,  SP_HILL_ORC,
+    SP_HUMAN,         SP_HIGH_ELF,
+    SP_GREY_ELF,      SP_DEEP_ELF,
+    SP_SLUDGE_ELF,    SP_MOUNTAIN_DWARF,
+    SP_DEEP_DWARF,    SP_HILL_ORC,
     SP_MERFOLK,
     // small species
-    SP_HALFLING,    SP_GNOME,
-    SP_KOBOLD,      SP_SPRIGGAN,
-    // significantly different body type than human
-    SP_NAGA,        SP_CENTAUR,
-    SP_OGRE,        SP_TROLL,
-    SP_MINOTAUR,    SP_KENKU,
+    SP_HALFLING,      SP_GNOME,
+    SP_KOBOLD,        SP_SPRIGGAN,
+    // significantly different body type from human
+    SP_NAGA,          SP_CENTAUR,
+    SP_OGRE,          SP_TROLL,
+    SP_MINOTAUR,      SP_KENKU,
     SP_RED_DRACONIAN,
     // celestial species
-    SP_DEMIGOD,     SP_DEMONSPAWN,
+    SP_DEMIGOD,       SP_DEMONSPAWN,
     // undead species
-    SP_MUMMY,       SP_GHOUL,
+    SP_MUMMY,         SP_GHOUL,
     SP_VAMPIRE
 };
 
 static species_type _random_draconian_species()
 {
-    const int num_drac = SP_PALE_DRACONIAN - SP_RED_DRACONIAN + 1;
+    const int num_drac = SP_BASE_DRACONIAN - SP_RED_DRACONIAN;
     return static_cast<species_type>(SP_RED_DRACONIAN + random2(num_drac));
 }
 
 static species_type _get_species(const int index)
 {
     if (index < 0 || (unsigned int) index >= ARRAYSZ(old_species_order))
-    {
         return (SP_UNKNOWN);
-    }
 
     return (Options.use_old_selection_order ? old_species_order[index]
                                             : new_species_order[index]);
@@ -222,7 +220,7 @@ static job_type new_jobs_order[] = {
 static job_type _get_class(const int index)
 {
     if (index < 0 || (unsigned int) index >= ARRAYSZ(old_jobs_order))
-       return JOB_UNKNOWN;
+       return (JOB_UNKNOWN);
 
     return (Options.use_old_selection_order? old_jobs_order[index]
                                            : new_jobs_order[index]);
@@ -249,7 +247,7 @@ int get_species_index_by_abbrev( const char *abbrev )
         if (tolower( abbrev[0] ) == tolower( Species_Abbrev_List[sp][0] )
             && tolower( abbrev[1] ) == tolower( Species_Abbrev_List[sp][1] ))
         {
-            return i;
+            return (i);
         }
     }
 
@@ -2811,55 +2809,54 @@ static void _jobs_stat_init(job_type which_job)
     int i = 0;   // intelligence mod
     int d = 0;   // dexterity mod
     int hp = 0;  // HP base
-    int mp = 0;  // MP base
 
     // Note:  Wanderers are correct, they're a challenging class. -- bwr
     switch (which_job)
     {
-    case JOB_FIGHTER:           s =  7; i =  0; d =  3; hp = 15; mp = 0; break;
-    case JOB_BERSERKER:         s =  7; i = -1; d =  4; hp = 15; mp = 0; break;
-    case JOB_GLADIATOR:         s =  6; i =  0; d =  4; hp = 14; mp = 0; break;
-    case JOB_PALADIN:           s =  6; i =  2; d =  2; hp = 14; mp = 0; break;
+    case JOB_FIGHTER:           s =  7; i =  0; d =  3; hp = 15; break;
+    case JOB_BERSERKER:         s =  7; i = -1; d =  4; hp = 15; break;
+    case JOB_GLADIATOR:         s =  6; i =  0; d =  4; hp = 14; break;
+    case JOB_PALADIN:           s =  6; i =  2; d =  2; hp = 14; break;
 
-    case JOB_CRUSADER:          s =  4; i =  3; d =  3; hp = 13; mp = 1; break;
-    case JOB_DEATH_KNIGHT:      s =  4; i =  3; d =  3; hp = 13; mp = 1; break;
-    case JOB_CHAOS_KNIGHT:      s =  4; i =  3; d =  3; hp = 13; mp = 1; break;
+    case JOB_CRUSADER:          s =  4; i =  3; d =  3; hp = 13; break;
+    case JOB_DEATH_KNIGHT:      s =  4; i =  3; d =  3; hp = 13; break;
+    case JOB_CHAOS_KNIGHT:      s =  4; i =  3; d =  3; hp = 13; break;
 
-    case JOB_REAVER:            s =  4; i =  4; d =  2; hp = 13; mp = 1; break;
-    case JOB_HEALER:            s =  4; i =  4; d =  2; hp = 13; mp = 1; break;
-    case JOB_PRIEST:            s =  4; i =  4; d =  2; hp = 12; mp = 1; break;
+    case JOB_REAVER:            s =  4; i =  4; d =  2; hp = 13; break;
+    case JOB_HEALER:            s =  4; i =  4; d =  2; hp = 13; break;
+    case JOB_PRIEST:            s =  4; i =  4; d =  2; hp = 12; break;
 
-    case JOB_ASSASSIN:          s =  2; i =  2; d =  6; hp = 12; mp = 0; break;
-    case JOB_THIEF:             s =  3; i =  2; d =  5; hp = 13; mp = 0; break;
-    case JOB_STALKER:           s =  2; i =  3; d =  5; hp = 12; mp = 1; break;
+    case JOB_ASSASSIN:          s =  2; i =  2; d =  6; hp = 12; break;
+    case JOB_THIEF:             s =  3; i =  2; d =  5; hp = 13; break;
+    case JOB_STALKER:           s =  2; i =  3; d =  5; hp = 12; break;
 
-    case JOB_HUNTER:            s =  3; i =  3; d =  4; hp = 13; mp = 0; break;
-    case JOB_WARPER:            s =  3; i =  4; d =  3; hp = 12; mp = 1; break;
+    case JOB_HUNTER:            s =  3; i =  3; d =  4; hp = 13; break;
+    case JOB_WARPER:            s =  3; i =  4; d =  3; hp = 12; break;
 
-    case JOB_MONK:              s =  2; i =  2; d =  6; hp = 13; mp = 0; break;
-    case JOB_TRANSMUTER:        s =  2; i =  4; d =  4; hp = 12; mp = 1; break;
+    case JOB_MONK:              s =  2; i =  2; d =  6; hp = 13; break;
+    case JOB_TRANSMUTER:        s =  2; i =  4; d =  4; hp = 12; break;
 
-    case JOB_WIZARD:            s = -1; i =  8; d =  3; hp =  8; mp = 5; break;
-    case JOB_CONJURER:          s =  0; i =  6; d =  4; hp = 10; mp = 3; break;
-    case JOB_ENCHANTER:         s =  0; i =  6; d =  4; hp = 10; mp = 3; break;
-    case JOB_FIRE_ELEMENTALIST: s =  0; i =  6; d =  4; hp = 10; mp = 3; break;
-    case JOB_ICE_ELEMENTALIST:  s =  0; i =  6; d =  4; hp = 10; mp = 3; break;
-    case JOB_AIR_ELEMENTALIST:  s =  0; i =  6; d =  4; hp = 10; mp = 3; break;
-    case JOB_EARTH_ELEMENTALIST:s =  0; i =  6; d =  4; hp = 10; mp = 3; break;
-    case JOB_SUMMONER:          s =  0; i =  6; d =  4; hp = 10; mp = 3; break;
-    case JOB_VENOM_MAGE:        s =  0; i =  6; d =  4; hp = 10; mp = 3; break;
-    case JOB_NECROMANCER:       s =  0; i =  6; d =  4; hp = 10; mp = 3; break;
+    case JOB_WIZARD:            s = -1; i =  8; d =  3; hp =  8; break;
+    case JOB_CONJURER:          s =  0; i =  6; d =  4; hp = 10; break;
+    case JOB_ENCHANTER:         s =  0; i =  6; d =  4; hp = 10; break;
+    case JOB_FIRE_ELEMENTALIST: s =  0; i =  6; d =  4; hp = 10; break;
+    case JOB_ICE_ELEMENTALIST:  s =  0; i =  6; d =  4; hp = 10; break;
+    case JOB_AIR_ELEMENTALIST:  s =  0; i =  6; d =  4; hp = 10; break;
+    case JOB_EARTH_ELEMENTALIST:s =  0; i =  6; d =  4; hp = 10; break;
+    case JOB_SUMMONER:          s =  0; i =  6; d =  4; hp = 10; break;
+    case JOB_VENOM_MAGE:        s =  0; i =  6; d =  4; hp = 10; break;
+    case JOB_NECROMANCER:       s =  0; i =  6; d =  4; hp = 10; break;
 
-    case JOB_WANDERER:          s =  2; i =  2; d =  2; hp = 11; mp = 1; break;
+    case JOB_WANDERER:          s =  2; i =  2; d =  2; hp = 11; break;
 
-    case JOB_ARTIFICER:         s =  2; i =  3; d =  4; hp = 13; mp = 0; break;
-    default:                    s =  0; i =  0; d =  0; hp = 10; mp = 0; break;
+    case JOB_ARTIFICER:         s =  2; i =  3; d =  4; hp = 13; break;
+    default:                    s =  0; i =  0; d =  0; hp = 10; break;
     }
 
     modify_all_stats( s, i, d );
 
-    set_hp( hp, true );
-    set_mp( mp, true );
+    set_hp(hp, true);
+    set_mp(0, true);
 }
 
 void give_basic_mutations(species_type speci)
@@ -5124,14 +5121,9 @@ bool _give_items_skills()
         {
             _print_character_info();
 
-            textcolor( CYAN );
+            textcolor(CYAN);
             cprintf(EOL "From where do you draw your power?" EOL);
-
-            if (_necromancy_okay())
-                textcolor(LIGHTGREY);
-            else
-                textcolor(DARKGREY);
-
+            textcolor(_necromancy_okay() ? LIGHTGREY : DARKGREY);
             cprintf("a - Necromantic magic" EOL);
 
             // Yredelemnul is an okay choice for everyone.
@@ -5238,7 +5230,6 @@ bool _give_items_skills()
             you.piety = 28;
             you.inv[0].plus  = 1 + random2(2);
             you.inv[0].plus2 = 3 - you.inv[0].plus;
-            you.inv[2].quantity = 0;
             you.skills[SK_INVOCATIONS] = 3;
             break;
         }

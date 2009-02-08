@@ -97,7 +97,8 @@ static monster_type _pick_undead_summon()
 
 static void _do_high_level_summon(monsters *monster, bool monsterNearby,
                                   spell_type spell_cast,
-                                  monster_type (*mpicker)(), int nsummons)
+                                  monster_type (*mpicker)(), int nsummons,
+                                  god_type god)
 {
     if (_mons_abjured(monster, monsterNearby))
         return;
@@ -113,7 +114,8 @@ static void _do_high_level_summon(monsters *monster, bool monsterNearby,
 
         create_monster(
             mgen_data(which_mons, SAME_ATTITUDE(monster),
-                      duration, spell_cast, monster->pos(), monster->foe));
+                      duration, spell_cast, monster->pos(), monster->foe, 0,
+                      god));
     }
 }
 
@@ -176,6 +178,15 @@ void mons_cast(monsters *monster, bolt &pbolt, spell_type spell_cast,
     if (do_noise)
         mons_cast_noise(monster, pbolt, spell_cast);
 
+    // If the monster's a priest, assume summons come from priestly
+    // abilities, in which case they'll have the same god.  If the
+    // monster is neither a priest nor a wizard, assume summons come
+    // from intrinsic abilities, in which case they'll also have the
+    // same god.
+    const bool priest = mons_class_flag(monster->type, M_PRIEST);
+    const bool wizard = mons_class_flag(monster->type, M_ACTUAL_SPELLS);
+    god_type god = (priest || !(priest || wizard)) ? monster->god : GOD_NO_GOD;
+
     switch (spell_cast)
     {
     default:
@@ -217,7 +228,7 @@ void mons_cast(monsters *monster, bolt &pbolt, spell_type spell_cast,
 
             create_monster(
                 mgen_data(mon, SAME_ATTITUDE(monster),
-                          5, spell_cast, monster->pos(), monster->foe));
+                          5, spell_cast, monster->pos(), monster->foe, 0, god));
         }
         return;
 
@@ -231,7 +242,7 @@ void mons_cast(monsters *monster, bolt &pbolt, spell_type spell_cast,
         {
             create_monster(
                 mgen_data(RANDOM_MONSTER, SAME_ATTITUDE(monster),
-                          5, spell_cast, monster->pos(), monster->foe));
+                          5, spell_cast, monster->pos(), monster->foe, 0, god));
         }
         return;
 
@@ -244,8 +255,8 @@ void mons_cast(monsters *monster, bolt &pbolt, spell_type spell_cast,
         for (sumcount = 0; sumcount < sumcount2; sumcount++)
         {
             create_monster(
-                mgen_data(MONS_WATER_ELEMENTAL, SAME_ATTITUDE(monster), 3,
-                          spell_cast, monster->pos(), monster->foe));
+                mgen_data(MONS_WATER_ELEMENTAL, SAME_ATTITUDE(monster),
+                          3, spell_cast, monster->pos(), monster->foe, 0, god));
         }
         return;
 
@@ -256,7 +267,7 @@ void mons_cast(monsters *monster, bolt &pbolt, spell_type spell_cast,
         {
             create_monster(
                 mgen_data(MONS_RAKSHASA_FAKE, SAME_ATTITUDE(monster),
-                          3, spell_cast, monster->pos(), monster->foe));
+                          3, spell_cast, monster->pos(), monster->foe, 0, god));
         }
         return;
 
@@ -272,7 +283,7 @@ void mons_cast(monsters *monster, bolt &pbolt, spell_type spell_cast,
             create_monster(
                 mgen_data(summon_any_demon(DEMON_COMMON),
                           SAME_ATTITUDE(monster), duration, spell_cast,
-                          monster->pos(), monster->foe));
+                          monster->pos(), monster->foe, 0, god));
         }
         return;
 
@@ -291,14 +302,15 @@ void mons_cast(monsters *monster, bolt &pbolt, spell_type spell_cast,
 
             create_monster(
                 mgen_data(mon, SAME_ATTITUDE(monster),
-                          duration, spell_cast, monster->pos(), monster->foe));
+                          duration, spell_cast, monster->pos(), monster->foe, 0,
+                          god));
         }
         return;
 
     case SPELL_ANIMATE_DEAD:
         // see special handling in monstuff::handle_spell() {dlb}
         animate_dead(monster, 5 + random2(5), SAME_ATTITUDE(monster),
-                     monster->foe);
+                     monster->foe, god);
         return;
 
     case SPELL_CALL_IMP: // class 5 demons
@@ -310,7 +322,8 @@ void mons_cast(monsters *monster, bolt &pbolt, spell_type spell_cast,
             create_monster(
                 mgen_data(summon_any_demon(DEMON_LESSER),
                           SAME_ATTITUDE(monster),
-                          duration, spell_cast, monster->pos(), monster->foe));
+                          duration, spell_cast, monster->pos(), monster->foe, 0,
+                          god));
         }
         return;
 
@@ -325,7 +338,8 @@ void mons_cast(monsters *monster, bolt &pbolt, spell_type spell_cast,
         {
             create_monster(
                 mgen_data(MONS_SCORPION, SAME_ATTITUDE(monster),
-                          duration, spell_cast, monster->pos(), monster->foe));
+                          duration, spell_cast, monster->pos(), monster->foe, 0,
+                          god));
         }
         return;
 
@@ -338,20 +352,21 @@ void mons_cast(monsters *monster, bolt &pbolt, spell_type spell_cast,
         {
             create_monster(
                 mgen_data(MONS_UFETUBUS, SAME_ATTITUDE(monster),
-                          duration, spell_cast, monster->pos(), monster->foe));
+                          duration, spell_cast, monster->pos(), monster->foe, 0,
+                          god));
         }
         return;
 
     case SPELL_SUMMON_BEAST:       // Geryon
         create_monster(
             mgen_data(MONS_BEAST, SAME_ATTITUDE(monster),
-                      4, spell_cast, monster->pos(), monster->foe));
+                      4, spell_cast, monster->pos(), monster->foe, 0, god));
         return;
 
     case SPELL_SUMMON_ICE_BEAST:
         create_monster(
             mgen_data(MONS_ICE_BEAST, SAME_ATTITUDE(monster),
-                      5, spell_cast, monster->pos(), monster->foe));
+                      5, spell_cast, monster->pos(), monster->foe, 0, god));
         return;
 
     case SPELL_SUMMON_MUSHROOMS:   // Summon swarms of icky crawling fungi.
@@ -365,18 +380,19 @@ void mons_cast(monsters *monster, bolt &pbolt, spell_type spell_cast,
         {
             create_monster(
                 mgen_data(MONS_WANDERING_MUSHROOM, SAME_ATTITUDE(monster),
-                          duration, spell_cast, monster->pos(), monster->foe));
+                          duration, spell_cast, monster->pos(), monster->foe, 0,
+                          god));
         }
         return;
 
     case SPELL_SUMMON_WRAITHS:
         _do_high_level_summon(monster, monsterNearby, spell_cast,
-                              _pick_random_wraith, random_range(3, 6));
+                              _pick_random_wraith, random_range(3, 6), god);
         return;
 
     case SPELL_SUMMON_HORRIBLE_THINGS:
         _do_high_level_summon(monster, monsterNearby, spell_cast,
-                              _pick_horrible_thing, random_range(3, 5));
+                              _pick_horrible_thing, random_range(3, 5), god);
         return;
 
     case SPELL_CONJURE_BALL_LIGHTNING:
@@ -386,7 +402,7 @@ void mons_cast(monsters *monster, bolt &pbolt, spell_type spell_cast,
         {
             create_monster(
                 mgen_data(MONS_BALL_LIGHTNING, SAME_ATTITUDE(monster),
-                          2, spell_cast, monster->pos(), monster->foe));
+                          2, spell_cast, monster->pos(), monster->foe, 0, god));
         }
         return;
     }
@@ -395,7 +411,7 @@ void mons_cast(monsters *monster, bolt &pbolt, spell_type spell_cast,
         _do_high_level_summon(monster, monsterNearby, spell_cast,
                               _pick_undead_summon,
                               2 + random2(2)
-                                + random2(monster->hit_dice / 4 + 1));
+                                + random2(monster->hit_dice / 4 + 1), god);
         return;
 
     case SPELL_SYMBOL_OF_TORMENT:
@@ -417,7 +433,8 @@ void mons_cast(monsters *monster, bolt &pbolt, spell_type spell_cast,
             create_monster(
                 mgen_data(summon_any_demon(DEMON_GREATER),
                           SAME_ATTITUDE(monster),
-                          duration, spell_cast, monster->pos(), monster->foe));
+                          duration, spell_cast, monster->pos(), monster->foe,
+                          0, god));
         }
         return;
 
@@ -452,7 +469,7 @@ void mons_cast(monsters *monster, bolt &pbolt, spell_type spell_cast,
                 create_monster(
                     mgen_data(monsters[i], SAME_ATTITUDE(monster),
                               duration, spell_cast,
-                              monster->pos(), monster->foe));
+                              monster->pos(), monster->foe, 0, god));
             }
         }
         return;
@@ -521,6 +538,9 @@ void mons_cast(monsters *monster, bolt &pbolt, spell_type spell_cast,
     }
     }
 
+    // If a monster just came into view and immediately cast a spell,
+    // we need to refresh the screen before drawing the beam.
+    viewwindow(true, false);
     if (spell_is_direct_explosion(spell_cast))
     {
         const actor *foe = monster->get_foe();
@@ -1519,6 +1539,10 @@ bool mons_throw(struct monsters *monster, struct bolt &pbolt, int hand_used)
         really_returns = false;
 
     pbolt.drop_item = !really_returns;
+
+    // Redraw the screen before firing, in case the monster just
+    // came into view and the screen hasn't been updated yet.
+    viewwindow(true, false);
     pbolt.fire();
 
     // The item can be destroyed before returning.
@@ -1990,13 +2014,13 @@ bolt mons_spells( monsters *mons, spell_type spell_cast, int power )
 
     case SPELL_MEPHITIC_CLOUD:          // swamp drake, player ghost
         beam.name     = "foul vapour";
-        beam.damage   = dice_def( 3, 2 + power / 25 );
+        beam.damage   = dice_def(1,0);
         beam.colour   = GREEN;
-        // FIXME: Players don't get the poison effect, only monsters
-        // do. This should be changed (probably by changing monsters).
-        beam.flavour  = BEAM_POISON;
+        // Well, it works, even if the name isn't quite intuitive.
+        beam.flavour  = BEAM_POTION_STINKING_CLOUD;
         beam.hit      = 14 + power / 30;
-        beam.is_beam  = true;
+        beam.ench_power = power; // probably meaningless
+        beam.is_explosion = true;
         beam.is_big_cloud = true;
         break;
 

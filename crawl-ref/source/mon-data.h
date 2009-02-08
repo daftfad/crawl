@@ -125,21 +125,21 @@
      MONUSE_WEAPONS_ARMOUR,
      MONUSE_MAGIC_ITEMS
 
-    From MONUSE_STARTING_EQUIPMENT on, monsters are capable of handling items.
-    Contrary to what one might expect MONUSE_WEAPONS_ARMOUR also means a
-    monster is capable of using wands and will also pick them up, something
-    that those with MONUSE_STARTING_EQUIPMENT won't do.
-    MONUSE_MAGIC_ITEMS is currently never used anywhere.
+    From MONUSE_STARTING_EQUIPMENT on, monsters are capable of handling
+    items.  Contrary to what one might expect, MONUSE_WEAPONS_ARMOUR
+    also means a monster is capable of using wands and will also pick
+    them up, something that those with MONUSE_STARTING_EQUIPMENT won't
+    do.  MONUSE_MAGIC_ITEMS is currently never used anywhere.
 
    size:
-     SIZE_TINY,              // rat/bat
-     SIZE_LITTLE,            // spriggan
-     SIZE_SMALL,             // halfling/kobold/gnome
-     SIZE_MEDIUM,            // human/elf/dwarf
-     SIZE_LARGE,             // troll/ogre/centaur/naga
-     SIZE_BIG,               // large quadrupeds
-     SIZE_GIANT,             // giant
-     SIZE_HUGE,              // dragon
+     SIZE_TINY,              // rats/bats
+     SIZE_LITTLE,            // spriggans
+     SIZE_SMALL,             // halflings/kobolds/gnomes
+     SIZE_MEDIUM,            // humans/elves/dwarves
+     SIZE_LARGE,             // trolls/ogres
+     SIZE_BIG,               // large quadrupeds/centaurs/nagas
+     SIZE_GIANT,             // giants
+     SIZE_HUGE,              // dragons
 
  */
 
@@ -1033,7 +1033,7 @@ static monsterentry mondata[] = {
     M_EVIL,
     MR_RES_POISON | MR_RES_COLD,
     500, 12, MONS_GHOUL, MONS_GHOUL, MH_UNDEAD, -5,
-    { {AT_CLAW, AF_ROT, 9}, AT_NO_ATK, AT_NO_ATK, AT_NO_ATK },
+    { {AT_CLAW, AF_ROT, 8}, {AT_HIT, AF_PLAIN, 4}, AT_NO_ATK, AT_NO_ATK },
     { 4, 3, 5, 0 },
     4, 10, MST_NO_SPELLS, CE_HCL, Z_NOZOMBIE, S_SILENT, I_NORMAL,
     HT_LAND, 10, DEFAULT_ENERGY, MONUSE_WEAPONS_ARMOUR, SIZE_MEDIUM
@@ -1615,7 +1615,7 @@ static monsterentry mondata[] = {
 
 {
     MONS_SKELETAL_WARRIOR, 'z', CYAN, "skeletal warrior",
-    M_FIGHTER | M_SPELLCASTER | M_ACTUAL_SPELLS | M_EVIL,
+    M_FIGHTER | M_SPELLCASTER | M_EVIL,
     MR_RES_POISON | MR_RES_COLD,
     0, 10, MONS_SKELETAL_WARRIOR, MONS_SKELETAL_WARRIOR, MH_UNDEAD, -7,
     { {AT_HIT, AF_PLAIN, 25}, AT_NO_ATK, AT_NO_ATK, AT_NO_ATK },
@@ -2395,7 +2395,7 @@ static monsterentry mondata[] = {
     750, 10, MONS_NAGA, MONS_NAGA, MH_NATURAL, -6,
     { {AT_HIT, AF_PLAIN, 17}, AT_NO_ATK, AT_NO_ATK, AT_NO_ATK },
     { 5, 3, 5, 0 },
-    6, 10, MST_NAGA, CE_POISONOUS, Z_SMALL, S_SHOUT, I_NORMAL,
+    6, 10, MST_NAGA, CE_POISONOUS, Z_BIG, S_SHOUT, I_NORMAL,
     HT_LAND, 8, ACTION_ENERGY(8), MONUSE_WEAPONS_ARMOUR, SIZE_BIG
 },
 
@@ -2406,7 +2406,7 @@ static monsterentry mondata[] = {
     350, 10, MONS_NAGA, MONS_GUARDIAN_NAGA, MH_NATURAL, -6,
     { {AT_HIT, AF_PLAIN, 26}, AT_NO_ATK, AT_NO_ATK, AT_NO_ATK },
     { 8, 3, 5, 0 },
-    6, 14, MST_GUARDIAN_NAGA, CE_MUTAGEN_RANDOM, Z_SMALL, S_SHOUT, I_HIGH,
+    6, 14, MST_GUARDIAN_NAGA, CE_MUTAGEN_RANDOM, Z_BIG, S_SHOUT, I_HIGH,
     HT_LAND, 15, DEFAULT_ENERGY, MONUSE_OPEN_DOORS, SIZE_BIG
 },
 
@@ -2722,7 +2722,8 @@ static monsterentry mondata[] = {
     M_SPELLCASTER | M_SEE_INVIS | M_EVIL | M_SPEAKS | M_BLOOD_SCENT,
     MR_RES_POISON | MR_RES_COLD,
     0, 11, MONS_VAMPIRE, MONS_VAMPIRE, MH_UNDEAD, -6,
-    { {AT_BITE, AF_VAMPIRIC, 22}, AT_NO_ATK, AT_NO_ATK, AT_NO_ATK },
+    { {AT_BITE, AF_VAMPIRIC, 15}, {AT_HIT, AF_PLAIN, 7}, AT_NO_ATK,
+       AT_NO_ATK },
     { 6, 3, 5, 0 },
     10, 10, MST_VAMPIRE, CE_NOCORPSE, Z_NOZOMBIE, S_SILENT, I_NORMAL,
     HT_LAND, 10, DEFAULT_ENERGY, MONUSE_WEAPONS_ARMOUR, SIZE_MEDIUM
@@ -2747,7 +2748,8 @@ static monsterentry mondata[] = {
         | M_BLOOD_SCENT,
     MR_RES_POISON | MR_RES_COLD,
     0, 15, MONS_VAMPIRE, MONS_VAMPIRE, MH_UNDEAD, -6,
-    { {AT_BITE, AF_VAMPIRIC, 22}, AT_NO_ATK, AT_NO_ATK, AT_NO_ATK },
+    { {AT_BITE, AF_VAMPIRIC, 15}, {AT_HIT, AF_PLAIN, 7}, AT_NO_ATK,
+       AT_NO_ATK },
     { 8, 3, 4, 0 },
     10, 10, MST_VAMPIRE_MAGE, CE_NOCORPSE, Z_NOZOMBIE, S_SILENT, I_HIGH,
     HT_LAND, 10, DEFAULT_ENERGY, MONUSE_WEAPONS_ARMOUR, SIZE_MEDIUM
@@ -3813,8 +3815,8 @@ static monsterentry mondata[] = {
     MONS_BALL_LIGHTNING, '*', LIGHTCYAN, "ball lightning",
     M_FLIES | M_CONFUSED | M_SPELLCASTER | M_SPECIAL_ABILITY
         | M_INSUBSTANTIAL,
-    mrd(MR_RES_ELEC | MR_RES_POISON | MR_RES_FIRE | MR_RES_COLD
-        | MR_RES_STICKY_FLAME, 3),
+    mrd(MR_RES_ELEC | MR_RES_POISON | MR_RES_FIRE | MR_RES_COLD, 3)
+        | MR_RES_STICKY_FLAME,
     0, 20, MONS_BALL_LIGHTNING, MONS_BALL_LIGHTNING, MH_NONLIVING, MAG_IMMUNE,
     { {AT_HIT, AF_PLAIN, 5}, AT_NO_ATK, AT_NO_ATK, AT_NO_ATK },
     { 12, 0, 0, 1 },

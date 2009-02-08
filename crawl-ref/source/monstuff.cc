@@ -1120,22 +1120,22 @@ int monster_die(monsters *monster, killer_type killer,
         if (you.religion == GOD_TROG
             && !player_under_penance() && you.piety > random2(1000))
         {
-            int bonus = 3 + random2avg( 10, 2 );
+            const int bonus = 3 + random2avg( 10, 2 );
 
             you.duration[DUR_BERSERKER] += bonus;
             you.duration[DUR_MIGHT] += bonus;
-            haste_player( bonus );
+            haste_player(bonus);
 
             mpr("You feel the power of Trog in you as your rage grows.",
                 MSGCH_GOD, GOD_TROG);
         }
-        else if (wearing_amulet( AMU_RAGE ) && one_chance_in(30))
+        else if (wearing_amulet(AMU_RAGE) && one_chance_in(30))
         {
-            int bonus = 2 + random2(4);
+            const int bonus = 2 + random2(4);
 
             you.duration[DUR_BERSERKER] += bonus;
             you.duration[DUR_MIGHT] += bonus;
-            haste_player( bonus );
+            haste_player(bonus);
 
             mpr("Your amulet glows a violent red.");
         }
@@ -1240,7 +1240,7 @@ int monster_die(monsters *monster, killer_type killer,
                                 && (killer_index == ANON_FRIENDLY_MONSTER
                                     || !invalid_monster_index(killer_index)));
 
-                if ( passive )
+                if (passive)
                 {
                     mprf(MSGCH_MONSTER_DAMAGE, MDAM_DEAD, "%s is %s!",
                          monster->name(DESC_CAP_THE).c_str(),
@@ -1292,6 +1292,7 @@ int monster_die(monsters *monster, killer_type killer,
                                     monster->hit_dice, true, monster);
                 }
 
+                // Zin hates chaotic beings.
                 if (mons_is_chaotic(monster))
                 {
                     did_god_conduct(DID_KILL_CHAOTIC,
@@ -1377,7 +1378,7 @@ int monster_die(monsters *monster, killer_type killer,
                     const int spectre =
                         create_monster(
                             mgen_data(MONS_SPECTRAL_THING, BEH_FRIENDLY,
-                                0, 0, monster->pos(), you.pet_target,
+                                0, 0, monster->pos(), MHITYOU,
                                 0, static_cast<god_type>(you.attribute[ATTR_DIVINE_DEATH_CHANNEL]),
                                 spectre_type, monster->number));
 
@@ -5267,8 +5268,6 @@ static bool _handle_special_ability(monsters *monster, bolt & beem)
 {
     bool used = false;
 
-    FixedArray < unsigned int, 19, 19 > show;
-
     const monster_type mclass = (mons_genus( monster->type ) == MONS_DRACONIAN)
                                   ? draco_subspecies( monster )
                                   : static_cast<monster_type>( monster->type );
@@ -7083,11 +7082,7 @@ static void _handle_monster_move(monsters *monster)
                 || one_chance_in(5))
             && expose_items_to_element(BEAM_STEAL_FOOD, monster->pos(), 10))
         {
-            if (mons_near(monster) && player_monster_visible(monster))
-            {
-                simple_monster_message(monster,
-                                       " eats something on the ground.");
-            }
+            simple_monster_message(monster, " eats something on the ground.");
             monster->speed_increment -= non_move_energy;
             continue;
         }
@@ -7110,10 +7105,13 @@ static void _handle_monster_move(monsters *monster)
             }
         }
 
-        if (mons_is_lurking(monster) || mons_is_submerged(monster))
+        // Lurking monsters only stop lurking if their target is right
+        // next to them, otherwise they just sit there.
+        // However, if the monster is involuntarily submerged but
+        // still alive (e.g., nonbreathing which had water poured
+        // on top of it), this doesn't apply.
+        if (mons_is_lurking(monster) || monster->has_ench(ENCH_SUBMERGED))
         {
-            // Lurking monsters only stop lurking if their target is right
-            // next to them, otherwise they just sit there.
             if (monster->foe != MHITNOT
                 && grid_distance(monster->target, monster->pos()) <= 1)
             {
@@ -7162,8 +7160,6 @@ static void _handle_monster_move(monsters *monster)
                 || monster->type == MONS_AIR_ELEMENTAL
                    && mons_is_submerged(monster))
             {
-                std::vector<coord_def> moves;
-
                 mmov.reset();
                 int pfound = 0;
                 for (adjacent_iterator ai(monster->pos(), false); ai; ++ai)
@@ -7211,7 +7207,7 @@ static void _handle_monster_move(monsters *monster)
             && !monster->has_ench(ENCH_BERSERK))
         {
             bolt beem;
-            
+
             beem.source      = monster->pos();
             beem.target      = monster->target;
             beem.beam_source = monster->mindex();
@@ -7764,20 +7760,13 @@ static int _estimated_trap_damage(trap_type trap)
 {
     switch (trap)
     {
-        case TRAP_BLADE:
-           return (10 + random2(30));
-        case TRAP_DART:
-           return (random2(4));
-        case TRAP_ARROW:
-           return (random2(7));
-        case TRAP_SPEAR:
-           return (random2(10));
-        case TRAP_BOLT:
-           return (random2(13));
-        case TRAP_AXE:
-           return (random2(15));
-        default:
-           return (0);
+        case TRAP_BLADE: return (10 + random2(30));
+        case TRAP_DART:  return (random2(4));
+        case TRAP_ARROW: return (random2(7));
+        case TRAP_SPEAR: return (random2(10));
+        case TRAP_BOLT:  return (random2(13));
+        case TRAP_AXE:   return (random2(15));
+        default:         return (0);
     }
 }
 
@@ -8083,12 +8072,11 @@ static bool _mon_can_move_to_pos(const monsters *monster,
             return (false); // blocks square
         }
 
-        const int thismonster = monster_index(monster),
+        const int thismonster = monster->mindex(),
                   targmonster = mgrd(targ);
 
-        if (mons_aligned(thismonster, targmonster)
-            && targmonster != MHITNOT
-            && targmonster != MHITYOU
+        if (!invalid_monster_index(targmonster)
+            && mons_aligned(thismonster, targmonster)
             && !_mons_can_displace(monster, &menv[targmonster]))
         {
             return (false);

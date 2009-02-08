@@ -88,46 +88,33 @@ static void _create_monster_hide(int mons_class)
     if (o == NON_ITEM)
         return;
 
+    item_def& item = mitm[o];
+
     // These values are common to all: {dlb}
-    mitm[o].base_type = OBJ_ARMOUR;
-    mitm[o].quantity  = 1;
-    mitm[o].plus      = 0;
-    mitm[o].plus2     = 0;
-    mitm[o].special   = 0;
-    mitm[o].flags     = 0;
-    mitm[o].colour    = mons_class_colour(mons_class);
+    item.base_type = OBJ_ARMOUR;
+    item.quantity  = 1;
+    item.plus      = 0;
+    item.plus2     = 0;
+    item.special   = 0;
+    item.flags     = 0;
+    item.colour    = mons_class_colour(mons_class);
 
     // These values cannot be set by a reasonable formula: {dlb}
     switch (mons_class)
     {
-    case MONS_DRAGON:
-        mitm[o].sub_type = ARM_DRAGON_HIDE;
-        break;
-    case MONS_TROLL:
-        mitm[o].sub_type = ARM_TROLL_HIDE;
-        break;
-    case MONS_ICE_DRAGON:
-        mitm[o].sub_type = ARM_ICE_DRAGON_HIDE;
-        break;
-    case MONS_STEAM_DRAGON:
-        mitm[o].sub_type = ARM_STEAM_DRAGON_HIDE;
-        break;
-    case MONS_MOTTLED_DRAGON:
-        mitm[o].sub_type = ARM_MOTTLED_DRAGON_HIDE;
-        break;
-    case MONS_STORM_DRAGON:
-        mitm[o].sub_type = ARM_STORM_DRAGON_HIDE;
-        break;
-    case MONS_GOLDEN_DRAGON:
-        mitm[o].sub_type = ARM_GOLD_DRAGON_HIDE;
-        break;
-    case MONS_SWAMP_DRAGON:
-        mitm[o].sub_type = ARM_SWAMP_DRAGON_HIDE;
-        break;
+    case MONS_DRAGON:         item.sub_type = ARM_DRAGON_HIDE;         break;
+    case MONS_TROLL:          item.sub_type = ARM_TROLL_HIDE;          break;
+    case MONS_ICE_DRAGON:     item.sub_type = ARM_ICE_DRAGON_HIDE;     break;
+    case MONS_STEAM_DRAGON:   item.sub_type = ARM_STEAM_DRAGON_HIDE;   break;
+    case MONS_MOTTLED_DRAGON: item.sub_type = ARM_MOTTLED_DRAGON_HIDE; break;
+    case MONS_STORM_DRAGON:   item.sub_type = ARM_STORM_DRAGON_HIDE;   break;
+    case MONS_GOLDEN_DRAGON:  item.sub_type = ARM_GOLD_DRAGON_HIDE;    break;
+    case MONS_SWAMP_DRAGON:   item.sub_type = ARM_SWAMP_DRAGON_HIDE;   break;
+
     case MONS_SHEEP:
     case MONS_YAK:
     default:
-        mitm[o].sub_type = ARM_ANIMAL_SKIN;
+        item.sub_type = ARM_ANIMAL_SKIN;
         break;
     }
 
@@ -1002,7 +989,7 @@ void split_potions_into_decay( int obj, int amount, bool need_msg )
         item.special     = 0;
         item.flags       = 0;
         item.colour      = potion.colour;
-        item.inscription = "";
+        item.inscription.clear();
         item.pos.set(-1, -1);
 
         you.inv[obj].quantity -= amount;
@@ -1477,6 +1464,8 @@ static int runes_in_pack()
 
 bool check_annotation_exclusion_warning()
 {
+    // Players might not realize the implications of teleport
+    // mutations in the labyrinth.
     if (grd(you.pos()) == DNGN_ENTER_LABYRINTH
         && player_mutation_level(MUT_TELEPORT))
     {
@@ -1698,21 +1687,20 @@ void up_stairs(dungeon_feature_type force_stair,
     if (!player_is_airborne()
         && you.confused()
         && old_level_type == LEVEL_DUNGEON
-        && stair_find >= DNGN_STONE_STAIRS_UP_I
-        && stair_find <= DNGN_STONE_STAIRS_UP_III
-        && random2(100) > you.dex)
+        && !grid_is_escape_hatch(stair_find)
+        && coinflip())
     {
-        mpr("In your confused state, you trip and fall back down the stairs.");
+        const char* fall_where = "down the stairs";
+        if (!grid_is_staircase(stair_find))
+            fall_where = "through the gate";
 
-        ouch(roll_dice(3 + you.burden_state, 5), NON_MONSTER,
-             KILLED_BY_FALLING_DOWN_STAIRS);
-
+        mprf("In your confused state, you trip and fall back %s.", fall_where);
+        ouch(1, NON_MONSTER, KILLED_BY_FALLING_DOWN_STAIRS);
         you.turn_is_over = true;
         return;
     }
 
-    if (you.burden_state == BS_OVERLOADED
-        && !grid_is_escape_hatch(stair_find))
+    if (you.burden_state == BS_OVERLOADED && !grid_is_escape_hatch(stair_find))
     {
         mpr("You are carrying too much to climb upwards.");
         you.turn_is_over = true;
@@ -1779,20 +1767,11 @@ void up_stairs(dungeon_feature_type force_stair,
     {
         switch (old_level_id.branch)
         {
-        case BRANCH_COCYTUS:
-            stair_find = DNGN_ENTER_COCYTUS;
-            break;
-        case BRANCH_DIS:
-            stair_find = DNGN_ENTER_DIS;
-            break;
-        case BRANCH_GEHENNA:
-            stair_find = DNGN_ENTER_GEHENNA;
-            break;
-        case BRANCH_TARTARUS:
-            stair_find = DNGN_ENTER_TARTARUS;
-            break;
-        default:
-            break;
+        case BRANCH_COCYTUS:  stair_find = DNGN_ENTER_COCYTUS;  break;
+        case BRANCH_DIS:      stair_find = DNGN_ENTER_DIS;      break;
+        case BRANCH_GEHENNA:  stair_find = DNGN_ENTER_GEHENNA;  break;
+        case BRANCH_TARTARUS: stair_find = DNGN_ENTER_TARTARUS; break;
+        default: break;
         }
     }
 
@@ -2099,7 +2078,7 @@ void down_stairs( int old_level, dungeon_feature_type force_stair,
             switch (NUMBER_OF_RUNES_NEEDED)
             {
             case 1:
-                mpr("You need one more Rune to enter this place.");
+                mpr("You need a Rune to enter this place.");
                 break;
 
             default:
@@ -2193,20 +2172,16 @@ void down_stairs( int old_level, dungeon_feature_type force_stair,
         && you.confused()
         && !grid_is_escape_hatch(stair_find)
         && force_stair != DNGN_ENTER_ABYSS
-        && random2(100) > you.dex)
+        && coinflip())
     {
-        std::string fall_where = "down the stairs";
-
+        const char* fall_where = "down the stairs";
         if (!grid_is_staircase(stair_find))
             fall_where = "through the gate";
 
-        mprf("In your confused state, you trip and fall %s.",
-             fall_where.c_str());
-
-        // Nastier than when climbing stairs, but you'll aways get to
-        // your destination. -- bwr
-        ouch(roll_dice(6 + you.burden_state, 10), NON_MONSTER,
-             KILLED_BY_FALLING_DOWN_STAIRS);
+        mprf("In your confused state, you trip and fall %s.", fall_where);
+        // Note that this only does damage; it doesn't cancel the level
+        // transition.
+        ouch(1, NON_MONSTER, KILLED_BY_FALLING_DOWN_STAIRS);
     }
 
     dungeon_feature_type stair_taken = stair_find;

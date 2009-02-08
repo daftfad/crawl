@@ -501,8 +501,7 @@ static bool _is_chaos_upgradeable(const item_def &item,
     if (item.flags & ISFLAG_SUMMONED)
         return (false);
 
-    // Don't know how to downgrade blessed blades to normal blades.
-    // Can be justified as good gods protecting blessed blades.
+    // Blessed blades are protected, being gifts from good gods.
     if (is_blessed_blade(item))
         return (false);
 
@@ -564,19 +563,19 @@ static bool _choose_chaos_upgrade(const monsters* mon)
         return (false);
 
     // Holy beings are presumably protected by another god, unless
-    // they're gifts from Xom.
-    if (mons_is_holy(mon) && mon->god != GOD_XOM)
+    // they're gifts from a chaotic god.
+    if (mons_is_holy(mon) && !is_chaotic_god(mon->god))
         return (false);
 
     // God gifts from good gods will be protected by their god from
     // being given chaos weapons, while other gods won't mind the help
     // in their servants killing the player.
-    if (mon->god != GOD_NO_GOD && is_good_god(mon->god))
+    if (is_good_god(mon->god))
        return (false);
 
     // Beogh presumably doesn't want Xom messing with his orcs, even if
     // it would give them a better weapon.
-    if (mons_genus(mon->type) == MONS_ORC)
+    if (mons_species(mon->type) == MONS_ORC)
         return (false);
 
     mon_inv_type slots[] = {MSLOT_WEAPON, MSLOT_ALT_WEAPON, MSLOT_MISSILE};
@@ -657,12 +656,14 @@ static void _do_chaos_upgrade(item_def &item, const monsters* mon)
     if (is_random_artefact(item))
     {
         randart_set_property(item, RAP_BRAND, brand);
+
         if (seen)
             randart_wpn_learn_prop(item, RAP_BRAND);
     }
     else
     {
         item.special = brand;
+
         if (seen)
             set_ident_flags(item, ISFLAG_KNOW_TYPE);
 
@@ -815,7 +816,7 @@ static bool _xom_send_allies(int sever)
             create_monster(
                 mgen_data(monster, BEH_FRIENDLY,
                           3, MON_SUMM_AID,
-                          you.pos(), you.pet_target,
+                          you.pos(), MHITYOU,
                           MG_FORCE_BEH, GOD_XOM));
 
         if (summons[i] != -1)
@@ -898,20 +899,16 @@ static bool _xom_send_one_ally(int sever)
     bool different = !is_demonic;
 
     beh_type beha = BEH_FRIENDLY;
-    unsigned short hitting = you.pet_target;
 
     // There's a chance that a non-demon may be hostile.
     if (different && one_chance_in(4))
-    {
         beha = BEH_HOSTILE;
-        hitting = MHITYOU;
-    }
 
     const int summons =
         create_monster(
             mgen_data(mon, beha,
                       6, MON_SUMM_AID,
-                      you.pos(), hitting,
+                      you.pos(), MHITYOU,
                       MG_FORCE_BEH, GOD_XOM));
 
     if (summons != -1)
@@ -941,19 +938,15 @@ static bool _xom_polymorph_nearby_monster(bool helpful)
                                           : "bad monster polymorph");
             god_speaks(GOD_XOM, _get_xom_speech(lookup).c_str());
 
-            bool made_shifter = false;
-
             if (one_chance_in(8) && !mons_is_shapeshifter(mon))
             {
                 mon->add_ench(one_chance_in(3) ? ENCH_GLOWING_SHAPESHIFTER
                                                : ENCH_SHAPESHIFTER);
-                made_shifter = true;
             }
 
             const bool powerup = !(mons_wont_attack(mon) ^ helpful);
             monster_polymorph(mon, RANDOM_MONSTER,
-                              powerup ? PPT_MORE : PPT_LESS,
-                              made_shifter);
+                              powerup ? PPT_MORE : PPT_LESS);
 
             rc = true;
         }
@@ -1046,20 +1039,15 @@ static bool _xom_send_major_ally(int sever)
     const bool is_demonic = (mons_class_holiness(mon) == MH_DEMONIC);
 
     beh_type beha = BEH_FRIENDLY;
-    unsigned short hitting = you.pet_target;
 
     // There's a chance that a non-demon may be hostile.
     if (!is_demonic && one_chance_in(4))
-    {
         beha = BEH_HOSTILE;
-        hitting = MHITYOU;
-    }
 
     const int summons =
         create_monster(
             mgen_data(_xom_random_demon(sever, one_chance_in(8)), beha,
-                      0, 0, you.pos(), hitting,
-                      MG_FORCE_BEH, GOD_XOM));
+                      0, 0, you.pos(), MHITYOU, MG_FORCE_BEH, GOD_XOM));
 
     if (summons != -1)
     {
@@ -1893,9 +1881,9 @@ static void _handle_accidental_death(const int orig_hp,
     const char orig_stats[],
     const FixedVector<unsigned char, NUM_MUTATIONS> &orig_mutation)
 {
-    // Did ouch() return early because the player died from the Xom effect
-    // even though neither is the player under penance nor is Xom bored?
-
+    // Did ouch() return early because the player died from the Xom
+    // effect, even though neither is the player under penance nor is
+    // Xom bored?
     if (!you.did_escape_death()
         && you.escaped_death_aux.empty()
         && !_player_is_dead())

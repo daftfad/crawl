@@ -68,7 +68,7 @@ Lugonu the Unformed revels in the chaos of the Abyss. Followers are sent out to 
 %%%%
 Beogh
 
-Beogh is the deity worshipped by the cave orcs native to parts of the dungeon. Only orcs may devote their service to Beogh, and must prove their devotion by bloodshed. Devout followers of Beogh can smite their foes, and especially fervent devotees of Beogh may even gain followers of their own, for the orcs still look for their Messiah.
+Beogh is the deity worshipped by the cave orcs native to parts of the dungeon. Only orcs may devote their service to Beogh, and must prove their devotion by bloodshed and the blessing of dead orcs. Devout followers of Beogh can smite their foes, and especially fervent devotees of Beogh may even gain followers of their own, for the orcs still look for their Messiah.
 %%%%
 Zin powers
 
@@ -84,7 +84,7 @@ Kikubaaqudgha offers the power to recall your undead followers to your near surr
 %%%%
 Yredelemnul powers
 
-Yredelemnul gives you the power to raise corpses to fight on your side, to recall your undead followers to your vicinity, and to drain the life force of living creatures. Eventually, you'll gain the power to bind a monster's soul, and make it fight for you instead. Yredelemnul will sporadically gift you with stronger undead servants. Under prayer, with sufficient piety, Yredelemnul will mirror any injury you have to suffer onto the attacker.
+Yredelemnul gives you the power to raise skeletons and corpses to fight on your side, to recall your undead followers to your vicinity, and to heal hit points by draining the life force of living creatures. Eventually, you'll gain the power to bind a monster's soul, and make it fight for you instead. Yredelemnul will sporadically gift you with stronger undead servants. Under prayer, with sufficient piety, Yredelemnul will mirror any injury you have to suffer onto the attacker.
 %%%%
 Xom powers
 
@@ -114,7 +114,7 @@ The Trickster's followers gain various ways to influence fate when playing cards
 %%%%
 Elyvilon powers
 
-The healer god offers followers various means to heal themselves and others, including ones to rid their body from effects surpassing those of simple damage. Elyvilon will occasionally directly intervene to save a follower's life, and is almost certain to do so during prayer. At high enough piety, the latter becomes certain, but at a cost of piety.
+The healer god offers followers means to heal themselves from damage and other ill effects. Elyvilon also allows healing of hostile monsters, trying to turn them neutral. The healer god may directly intervene to save a follower's life, at a cost of piety. Praying and highly pious followers can be sure of such aid.
 %%%%
 Lugonu powers
 

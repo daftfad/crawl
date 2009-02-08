@@ -1093,8 +1093,8 @@ static bool _do_ability(const ability_def& abil)
     {
     case ABIL_MUMMY_RESTORATION:
     {
-        mpr( "You infuse your body with magical energy." );
-        bool did_restore = restore_stat( STAT_ALL, 0, false );
+        mpr("You infuse your body with magical energy.");
+        bool did_restore = restore_stat(STAT_ALL, 0, false);
 
         const int oldhpmax = you.hp_max;
         unrot_hp( 100 );
@@ -1216,7 +1216,7 @@ static bool _do_ability(const ability_def& abil)
         else
         {
             beam.range = _calc_breath_ability_range(abil.ability);
-            if (!spell_direction(abild, beam, DIR_NONE, TARG_ENEMY, beam.range))
+            if (!spell_direction(abild, beam))
                 return (false);
         }
 
@@ -1388,8 +1388,7 @@ static bool _do_ability(const ability_def& abil)
         break;
 
     case ABIL_RAISE_DEAD:
-        animate_dead(&you, you.experience_level * 5, BEH_FRIENDLY,
-                     you.pet_target);
+        animate_dead(&you, you.experience_level * 5, BEH_FRIENDLY, MHITYOU);
         break;
 
     case ABIL_CONTROL_DEMON:
@@ -1421,7 +1420,7 @@ static bool _do_ability(const ability_def& abil)
     case ABIL_THROW_FROST:
         // Taking ranges from the equivalent spells.
         beam.range = (abil.ability == ABIL_THROW_FLAME ? 7 : 8);
-        if (!spell_direction(abild, beam, DIR_NONE, TARG_ENEMY, beam.range))
+        if (!spell_direction(abild, beam))
             return (false);
 
         if (!zapping((abil.ability == ABIL_THROW_FLAME ? ZAP_FLAME : ZAP_FROST),
@@ -1434,7 +1433,7 @@ static bool _do_ability(const ability_def& abil)
     case ABIL_BOLT_OF_DRAINING:
         // Taking range from Bolt of Draining.
         beam.range = 6;
-        if (!spell_direction(abild, beam, DIR_NONE, TARG_ENEMY, beam.range))
+        if (!spell_direction(abild, beam))
             return (false);
 
         if (!zapping(ZAP_NEGATIVE_ENERGY, you.experience_level * 6, beam, true))
@@ -1534,7 +1533,7 @@ static bool _do_ability(const ability_def& abil)
     case ABIL_KIKU_ENSLAVE_UNDEAD:
     {
         god_acting gdact;
-        beam.range = 8;
+        beam.range = LOS_RADIUS;
         if (!spell_direction(spd, beam))
             return (false);
 
@@ -1563,7 +1562,7 @@ static bool _do_ability(const ability_def& abil)
         mpr("You attempt to give life to the dead...");
 
         if (animate_remains(you.pos(), CORPSE_BODY, BEH_FRIENDLY,
-                            you.pet_target, GOD_YREDELEMNUL) < 0)
+                            MHITYOU, GOD_YREDELEMNUL) < 0)
         {
             mpr("There are no remains here to animate!");
         }
@@ -1579,7 +1578,7 @@ static bool _do_ability(const ability_def& abil)
         mpr("You call on the dead to walk for you...");
 
         animate_dead(&you, 1 + you.skills[SK_INVOCATIONS], BEH_FRIENDLY,
-                     you.pet_target, GOD_YREDELEMNUL);
+                     MHITYOU, GOD_YREDELEMNUL);
         exercise(SK_INVOCATIONS, 2 + random2(4));
         break;
 
@@ -1591,7 +1590,7 @@ static bool _do_ability(const ability_def& abil)
     case ABIL_YRED_ENSLAVE_SOUL:
     {
         god_acting gdact;
-        beam.range = 8;
+        beam.range = LOS_RADIUS;
         if (!spell_direction(spd, beam))
             return (false);
 
@@ -1623,7 +1622,7 @@ static bool _do_ability(const ability_def& abil)
         break;
 
     case ABIL_MAKHLEB_MINOR_DESTRUCTION:
-        if (!spell_direction(spd, beam, DIR_NONE, TARG_ENEMY, 8))
+        if (!spell_direction(spd, beam))
             return (false);
 
         power = you.skills[SK_INVOCATIONS]
@@ -1728,7 +1727,7 @@ static bool _do_ability(const ability_def& abil)
         break;
 
     case ABIL_ELYVILON_LESSER_HEALING:
-        if (!cast_healing(3 + (you.skills[SK_INVOCATIONS] / 6)))
+        if (cast_healing(3 + (you.skills[SK_INVOCATIONS] / 6), true) < 0)
             return (false);
 
         exercise(SK_INVOCATIONS, 1);
@@ -1740,7 +1739,7 @@ static bool _do_ability(const ability_def& abil)
         break;
 
     case ABIL_ELYVILON_GREATER_HEALING:
-        if (!cast_healing(10 + (you.skills[SK_INVOCATIONS] / 3)))
+        if (cast_healing(10 + (you.skills[SK_INVOCATIONS] / 3), true) < 0)
             return (false);
 
         exercise(SK_INVOCATIONS, 3 + random2(5));
@@ -1776,7 +1775,8 @@ static bool _do_ability(const ability_def& abil)
         break;
 
     case ABIL_LUGONU_BANISH:
-        if (!spell_direction(spd, beam, DIR_NONE, TARG_ENEMY))
+        beam.range = LOS_RADIUS;
+        if (!spell_direction(spd, beam))
             return (false);
 
         if (beam.target == you.pos())
@@ -1784,7 +1784,6 @@ static bool _do_ability(const ability_def& abil)
             mpr("You cannot banish yourself!");
             return (false);
         }
-        beam.range = 8;
         if (!zapping(ZAP_BANISHMENT, 16 + you.skills[SK_INVOCATIONS] * 8, beam,
                      true))
         {

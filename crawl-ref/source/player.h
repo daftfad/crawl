@@ -174,6 +174,7 @@ bool player_item_conserve(bool calc_unid = true);
 int player_mental_clarity(bool calc_unid = true, bool items = true);
 
 bool player_can_smell();
+bool player_likes_chunks();
 bool player_can_swim();
 bool player_likes_water(bool permanently = false);
 
@@ -421,7 +422,7 @@ void contaminate_player(int change, bool controlled = false,
 
 bool confuse_player(int amount, bool resistable = true);
 
-bool curare_hits_player(int agent, int degree);
+bool curare_hits_player(int death_source, int amount);
 bool poison_player(int amount, bool force = false);
 void dec_poison_player();
 void reduce_poison_player(int amount);

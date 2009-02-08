@@ -915,7 +915,7 @@ const zap_info zap_data[] = {
         false,
         BEAM_MMISSILE,
         DCHAR_FIRED_DEBUG,
-        true,
+        false,
         false,
         false
     },
@@ -2413,9 +2413,7 @@ static bool _monster_resists_mass_enchantment(monsters *monster,
 bool mass_enchantment( enchant_type wh_enchant, int pow, int origin,
                        int *m_succumbed, int *m_attempted )
 {
-    int i;                      // loop variable {dlb}
     bool msg_generated = false;
-    monsters *monster;
 
     if (m_succumbed)
         *m_succumbed = 0;
@@ -2424,16 +2422,18 @@ bool mass_enchantment( enchant_type wh_enchant, int pow, int origin,
 
     viewwindow(false, false);
 
-    if (pow > 200)
-        pow = 200;
+    pow = std::min(pow, 200);
 
     const kill_category kc = (origin == MHITYOU ? KC_YOU : KC_OTHER);
 
-    for (i = 0; i < MAX_MONSTERS; i++)
+    for (int i = 0; i < MAX_MONSTERS; i++)
     {
-        monster = &menv[i];
+        monsters* const monster = &menv[i];
 
-        if (monster->type == -1 || !mons_near(monster))
+        if (!monster->alive())
+            continue;
+
+        if (!mons_near(monster))
             continue;
 
         if (monster->has_ench(wh_enchant))
@@ -2450,35 +2450,23 @@ bool mass_enchantment( enchant_type wh_enchant, int pow, int origin,
             if (m_succumbed)
                 ++*m_succumbed;
 
-            if (player_monster_visible( monster ))
+            // Do messaging.
+            const char* msg;
+            switch (wh_enchant)
             {
-                // turn message on
-                msg_generated = true;
-                switch (wh_enchant)
-                {
-                case ENCH_FEAR:
-                    simple_monster_message(monster,
-                                           " looks frightened!");
-                    break;
-                case ENCH_CONFUSION:
-                    simple_monster_message(monster,
-                                           " looks rather confused.");
-                    break;
-                case ENCH_CHARM:
-                    simple_monster_message(monster,
-                                           " submits to your will.");
-                    break;
-                default:
-                    // oops, I guess not!
-                    msg_generated = false;
-                }
+            case ENCH_FEAR:      msg = " looks frightened!";      break;
+            case ENCH_CONFUSION: msg = " looks rather confused."; break;
+            case ENCH_CHARM:     msg = " submits to your will.";  break;
+            default:             msg = NULL;                      break;
             }
+            if (msg)
+                msg_generated = simple_monster_message(monster, msg);
 
             // Extra check for fear (monster needs to reevaluate behaviour).
             if (wh_enchant == ENCH_FEAR)
-                behaviour_event( monster, ME_SCARE, origin );
+                behaviour_event(monster, ME_SCARE, origin);
         }
-    }                           // end "for i"
+    }
 
     if (!msg_generated)
         canned_msg(MSG_NOTHING_HAPPENS);
@@ -2814,8 +2802,7 @@ void bolt::affect_endpoint()
     // They don't explode in tracers: why not?
     if  (name == "orb of electricity"
         || name == "metal orb"
-        || name == "great blast of cold"
-        || name == "ball of vapour")
+        || name == "great blast of cold")
     {
         target = pos();
         refine_for_explosion();
@@ -2827,9 +2814,9 @@ void bolt::affect_endpoint()
 
     if (name == "foul vapour")
     {
-        const cloud_type cl_type = (flavour == BEAM_MIASMA) ? CLOUD_MIASMA
-                                                            : CLOUD_STINK;
-        big_cloud(cl_type, whose_kill(), killer(), pos(), 0, 9);
+        // death drake; swamp drakes handled earlier
+        ASSERT(flavour == BEAM_MIASMA);
+        big_cloud(CLOUD_MIASMA, whose_kill(), killer(), pos(), 0, 9);
     }
 
     if (name == "freezing blast")
@@ -2841,17 +2828,7 @@ void bolt::affect_endpoint()
 
 bool bolt::stop_at_target() const
 {
-    if (is_explosion
-        || is_big_cloud
-        || aimed_at_spot
-        || name == "blast of poison"
-        || name == "foul vapour"
-        || name == "ball of vapour")
-    {
-        return (true);
-    }
-
-    return (false);
+    return (is_explosion || is_big_cloud || aimed_at_spot);
 }
 
 void bolt::drop_object()
@@ -3562,7 +3539,6 @@ void bolt::affect_player_enchantment()
         }
         else
             canned_msg( MSG_NOTHING_HAPPENS );
-
         break;
 
     case BEAM_SLOW:
@@ -3999,7 +3975,7 @@ void bolt::tracer_enchantment_affect_monster(monsters* mon)
         friend_info.count++;
         friend_info.power += mons_power(mon->type);
     }
-        
+
     handle_stop_attack_prompt(mon);
     if (!beam_cancelled)
     {
@@ -4867,7 +4843,7 @@ mon_resist_type bolt::apply_enchantment_to_monster(monsters* mon)
     case BEAM_HEALING:
         if (YOU_KILL(thrower))
         {
-            if (cast_healing(5 + damage.roll(), mon->pos()) > 0)
+            if (cast_healing(5 + damage.roll(), false, mon->pos()) > 0)
                 obvious_effect = true;
             msg_generated = true; // to avoid duplicate "nothing happens"
         }
@@ -5103,7 +5079,7 @@ void bolt::refine_for_explosion()
         hearMsg    = "You hear a gentle \'poof\'.";
     }
 
-    if (name == "ball of vapour")
+    if (name == "foul vapour")
     {
         seeMsg     = "The ball expands into a vile cloud!";
         hearMsg    = "You hear a gentle \'poof\'.";

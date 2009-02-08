@@ -66,7 +66,6 @@ void init_monsters_seens();
 void beogh_follower_convert(monsters *monster, bool orc_hit = false);
 bool mons_near(const monsters *monster, unsigned short foe = MHITYOU);
 bool mon_enemies_around(const monsters *monster);
-void item(void);
 
 void find_features(const std::vector<coord_def>& features,
         unsigned char feature, std::vector<coord_def> *found);
@@ -78,7 +77,6 @@ void losight(env_show_grid &sh, feature_grid &gr,
 
 bool magic_mapping(int map_radius, int proportion, bool suppress_msg,
                    bool force = false);
-
 
 bool noisy(int loudness, const coord_def& where, const char *msg = NULL,
            bool mermaid = false);
@@ -135,6 +133,10 @@ bool is_sanctuary( const coord_def& p );
 bool is_bloodcovered( const coord_def& p );
 
 bool is_envmap_detected_item(int x, int y);
+inline bool is_envmap_detected_item(const coord_def& c) {
+    return is_envmap_detected_item(c.x, c.y);
+}
+
 bool is_envmap_detected_mons(int x, int y);
 inline bool is_envmap_detected_mons(const coord_def& c) {
     return is_envmap_detected_mons(c.x, c.y);

@@ -450,29 +450,36 @@ static void _describe_monster(const monsters *mon);
 // TODO: Allow sorting of items lists.
 void full_describe_view()
 {
-    const coord_def start = view2grid(coord_def(1,1));
-    const coord_def end = start + crawl_view.viewsz - coord_def(1,1);
-
     std::vector<const monsters*> list_mons;
     std::vector<item_def> list_items;
 
-    // Iterate over viewport and grab all items known (or thought)
-    // to be in the stashes in view.
-    for (rectangle_iterator ri(start, end); ri; ++ri)
+    // Grab all items known (or thought) to be in the stashes in view.
+    for (radius_iterator ri(you.pos(), LOS_RADIUS); ri; ++ri)
     {
-        if (!in_bounds(*ri) || !see_grid(*ri))
-            continue;
-
         const int oid = igrd(*ri);
-
         if (oid == NON_ITEM)
             continue;
 
-        std::vector<item_def> items = item_list_in_stash(*ri);
-        if (items.empty())
-            continue;
+        if (StashTracker::is_level_untrackable())
+        {
+            // On levels with no stashtracker, you can still see the top
+            // item.
+            list_items.push_back(mitm[oid]);
+        }
+        else
+        {
+            const std::vector<item_def> items = item_list_in_stash(*ri);
 
-        list_items.insert(list_items.end(), items.begin(), items.end());
+#ifdef DEBUG_DIAGNOSTICS
+            if (items.empty())
+            {
+                mprf(MSGCH_ERROR, "No items found in stash, but top item is %s",
+                     mitm[oid].name(DESC_PLAIN).c_str());
+                more();
+            }
+#endif
+            list_items.insert(list_items.end(), items.begin(), items.end());
+        }
     }
 
     // Get monsters via the monster_pane_info, sorted by difficulty.
@@ -2853,9 +2860,8 @@ std::string _mon_enchantments_string(const monsters* mon)
 static void _describe_monster(const monsters *mon)
 {
     // First print type and equipment.
-    const int numcols = get_number_of_cols();
     std::string text = get_monster_desc(mon) + ".";
-    print_formatted_paragraph(text, numcols);
+    print_formatted_paragraph(text);
 
     if (player_mesmerised_by(mon))
         mpr("You are mesmerised by her song.", MSGCH_EXAMINE);
@@ -2956,7 +2962,7 @@ static void _describe_monster(const monsters *mon)
 
     text = _mon_enchantments_string(mon);
     if (!text.empty())
-        print_formatted_paragraph(text, numcols);
+        print_formatted_paragraph(text);
 }
 
 // This method is called in two cases:
@@ -3122,7 +3128,7 @@ static void _describe_cell(const coord_def& where, bool in_range)
 #else
             msg = "(Press <w>v</w> for more information.)";
 #endif
-            print_formatted_paragraph(msg, get_number_of_cols());
+            print_formatted_paragraph(msg);
         }
     }
 
@@ -3202,7 +3208,7 @@ static void _describe_cell(const coord_def& where, bool in_range)
 #else
         feature_desc += " (Press <w>v</w> for more information.)";
 #endif
-        print_formatted_paragraph(feature_desc, get_number_of_cols());
+        print_formatted_paragraph(feature_desc);
     }
     else
     {

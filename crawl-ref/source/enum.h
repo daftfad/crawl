@@ -1497,13 +1497,12 @@ enum killer_type                       // monster_die(), thing_thrown
     KILL_DISMISSED                     // only on new game startup
 };
 
-// This should be in order from the worst flight status to the best.
-// See mons_flies().
 enum flight_type
 {
     FL_NONE = 0,
-    FL_LEVITATE,
-    FL_FLY
+    FL_LEVITATE,                       // doesn't require physical effort
+    FL_FLY                             // wings, etc... paralysis == fall
+
 };
 
 enum level_area_type                   // you.level_type
@@ -2072,13 +2071,6 @@ enum mon_attitude_type
     ATT_FRIENDLY                       // created friendly (or tamed?)
 };
 
-enum mon_flight_type
-{
-    FLY_NOT,
-    FLY_POWERED,                        // wings, etc... paralysis == fall
-    FLY_LEVITATION                      // doesn't require physical effort
-};
-
 // These are now saved in an unsigned long in the monsters struct.
 enum monster_flag_type
 {
@@ -2516,14 +2508,14 @@ enum shop_type // (unsigned char) env.sh_type[], item_in_shop(), in_a_shop()
 // These are often addressed relative to each other (esp. delta SIZE_MEDIUM).
 enum size_type
 {
-    SIZE_TINY,              // rat/bat
-    SIZE_LITTLE,            // spriggan
-    SIZE_SMALL,             // halfling/kobold/gnome
-    SIZE_MEDIUM,            // human/elf/dwarf
-    SIZE_LARGE,             // troll/ogre/centaur/naga
-    SIZE_BIG,               // large quadrupeds
-    SIZE_GIANT,             // giant
-    SIZE_HUGE,              // dragon
+    SIZE_TINY,              // rats/bats
+    SIZE_LITTLE,            // spriggans
+    SIZE_SMALL,             // halflings/kobolds/gnomes
+    SIZE_MEDIUM,            // humans/elves/dwarves
+    SIZE_LARGE,             // trolls/ogres
+    SIZE_BIG,               // large quadrupeds/centaurs/nagas
+    SIZE_GIANT,             // giants
+    SIZE_HUGE,              // dragons
     NUM_SIZE_LEVELS,
     SIZE_CHARACTER          // transformations that don't change size
 };

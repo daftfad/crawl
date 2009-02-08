@@ -19,10 +19,7 @@ REVISION("$Rev$");
 #include <time.h>
 #include <ctype.h>
 #include <algorithm>
-
-#ifdef UNIX
 #include <errno.h>
-#endif
 
 #ifdef DOS
 #include <conio.h>
@@ -78,6 +75,7 @@ REVISION("$Rev$");
 #include "spl-cast.h"
 #include "spl-mis.h"
 #include "spl-util.h"
+#include "stash.h"
 #include "state.h"
 #include "stuff.h"
 #include "terrain.h"
@@ -1327,8 +1325,13 @@ void wizard_create_spec_object()
         // orig_monnum is used in corpses for things like the Animate
         // Dead spell, so leave it alone.
         if (class_wanted != OBJ_CORPSES)
-            origin_acquired( mitm[thing_created], AQ_WIZMODE );
-        canned_msg( MSG_SOMETHING_APPEARS );
+            origin_acquired(mitm[thing_created], AQ_WIZMODE);
+        canned_msg(MSG_SOMETHING_APPEARS);
+
+        // Tell the stash tracker.
+        StashTrack.update_visible_stashes(
+            Options.stash_tracking == STM_ALL ? StashTracker::ST_AGGRESSIVE
+                                              : StashTracker::ST_PASSIVE);
     }
 }
 
@@ -3582,9 +3585,7 @@ void debug_item_statistics( void )
 
     if (!ostat)
     {
-#ifndef DOS
         mprf(MSGCH_ERROR, "Can't write items.stat: %s", strerror(errno));
-#endif
         return;
     }
 
@@ -4469,12 +4470,7 @@ static bool debug_fight_sim(int mindex, int missile_slot,
     FILE *ostat = fopen("fight.stat", "a");
     if (!ostat)
     {
-        // I'm not sure what header provides errno on djgpp,
-        // and it's insufficiently important for a wizmode-only
-        // feature.
-#ifndef DOS
         mprf(MSGCH_ERROR, "Can't write fight.stat: %s", strerror(errno));
-#endif
         return (false);
     }
 
@@ -6256,7 +6252,7 @@ static void _dump_player(FILE *file)
         if (!is_valid_spell(spell))
         {
             fprintf(file, "    spell slot #%d: invalid spell #%d" EOL,
-                    i, (int) spell);
+                    (int)i, (int)spell);
             continue;
         }
 
@@ -6264,13 +6260,13 @@ static void _dump_player(FILE *file)
 
         if (flags & SPFLAG_MONSTER)
             fprintf(file, "    spell slot #%d: monster only spell %s" EOL,
-                    i, spell_title(spell));
+                    (int)i, spell_title(spell));
         else if (flags & SPFLAG_TESTING)
             fprintf(file, "    spell slot #%d: testing spell %s" EOL,
-                    i, spell_title(spell));
+                    (int)i, spell_title(spell));
         else if (count_bits(get_spell_disciplines(spell)) == 0)
             fprintf(file, "    spell slot #%d: school-less spell %s" EOL,
-                    i, spell_title(spell));
+                    (int)i, spell_title(spell));
     }
     fprintf(file, EOL);
 
