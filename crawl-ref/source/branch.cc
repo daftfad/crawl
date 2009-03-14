@@ -221,7 +221,7 @@ Branch branches[] = {
       NULL, NULL, NULL, NULL,
       10, 'P', false, true },
 
-    { BRANCH_HIVE, BRANCH_MAIN_DUNGEON, 4, 15, 0, 0,
+    { BRANCH_HIVE, BRANCH_MAIN_DUNGEON, 2, 15, 0, 0,
       DNGN_ENTER_HIVE, DNGN_RETURN_FROM_HIVE,
       "Hive", "the Hive", "Hive",
       "You hear a buzzing sound coming from all directions.",
@@ -258,7 +258,7 @@ Branch branches[] = {
       NULL, NULL, NULL, NULL,
       5, 'C', false, false },
 
-    { BRANCH_TOMB, BRANCH_CRYPT, 3, 5, 0, 0,
+    { BRANCH_TOMB, BRANCH_CRYPT, 3, 5, BFLAG_ISLANDED, 0,
       DNGN_ENTER_TOMB, DNGN_RETURN_FROM_TOMB,
       "Tomb", "the Tomb of the Ancients", "Tomb",
       NULL,

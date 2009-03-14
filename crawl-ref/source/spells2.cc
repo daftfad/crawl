@@ -48,12 +48,11 @@ REVISION("$Rev$");
 #include "view.h"
 #include "xom.h"
 
-int detect_traps( int pow )
+int detect_traps(int pow)
 {
-    int traps_found = 0;
+    pow = std::min(50, pow);
 
-    if (pow > 50)
-        pow = 50;
+    int traps_found = 0;
 
     const int range = 8 + random2(8) + pow;
 
@@ -76,14 +75,13 @@ int detect_traps( int pow )
     return (traps_found);
 }
 
-int detect_items( int pow )
+int detect_items(int pow)
 {
     int items_found = 0;
-    const int map_radius  = 8 + random2(8) + pow;
+    const int map_radius = 8 + random2(8) + pow;
 
-    for ( radius_iterator ri(you.pos(), map_radius, true, false); ri; ++ri )
+    for (radius_iterator ri(you.pos(), map_radius, true, false); ri; ++ri)
     {
-
         // Don't expose new dug out areas:
         // Note: assumptions are being made here about how
         // terrain can change (eg it used to be solid, and
@@ -115,10 +113,9 @@ static void _fuzz_detect_creatures(int pow, int *fuzz_radius, int *fuzz_chance)
     mprf(MSGCH_DIAGNOSTICS, "dc_fuzz: Power is %d", pow);
 #endif
 
-    if (pow < 1)
-        pow = 1;
+    pow = std::max(1, pow);
 
-    *fuzz_radius = pow >= 50? 1 : 2;
+    *fuzz_radius = pow >= 50 ? 1 : 2;
 
     // Fuzz chance starts off at 100% and declines to a low of 10% for
     // obscenely powerful castings (pow caps around the 60 mark).
@@ -146,8 +143,8 @@ static bool _mark_detected_creature(coord_def where, const monsters *mon,
         // the monster where it really is (and may fail).
         for (int itry = 0; itry < 5; ++itry)
         {
-            place.set( where.x + random2(fuzz_diam) - fuzz_radius,
-                       where.y + random2(fuzz_diam) - fuzz_radius );
+            place.set(where.x + random2(fuzz_diam) - fuzz_radius,
+                      where.y + random2(fuzz_diam) - fuzz_radius);
 
             // If the player would be able to see a monster at this location
             // don't place it there.
@@ -182,13 +179,13 @@ static bool _mark_detected_creature(coord_def where, const monsters *mon,
     return (found_good);
 }
 
-int detect_creatures( int pow, bool telepathic )
+int detect_creatures(int pow, bool telepathic)
 {
     int fuzz_radius = 0, fuzz_chance = 0;
     if (!telepathic)
         _fuzz_detect_creatures(pow, &fuzz_radius, &fuzz_chance);
 
-    int creatures_found  = 0;
+    int creatures_found = 0;
     const int map_radius = 8 + random2(8) + pow;
 
     // Clear the map so detect creatures is more useful and the detection
@@ -198,9 +195,8 @@ int detect_creatures( int pow, bool telepathic )
 
     for (radius_iterator ri(you.pos(), map_radius, true, false); ri; ++ri)
     {
-        if (mgrd(*ri) != NON_MONSTER)
+        if (monsters *mon = monster_at(*ri))
         {
-            monsters *mon = &menv[ mgrd(*ri) ];
             creatures_found++;
 
             _mark_detected_creature(*ri, mon, fuzz_chance, fuzz_radius);
@@ -349,22 +345,23 @@ bool brand_weapon(brand_type which_brand, int power)
         msg += " glows silver and feels heavier.";
         duration_affected = 7;
         break;
+
     default:
         break;
     }
 
-    if ( !temp_brand )
+    if (!temp_brand)
     {
-        set_item_ego_type( weapon, OBJ_WEAPONS, which_brand );
+        set_item_ego_type(weapon, OBJ_WEAPONS, which_brand);
         you.wield_change = true;
     }
 
-    if ( emit_special_message )
+    if (emit_special_message)
         mpr(msg.c_str());
     else
         mprf("%s flashes.", weapon.name(DESC_CAP_YOUR).c_str());
 
-    const int dur_change = duration_affected + roll_dice( 2, power );
+    const int dur_change = duration_affected + roll_dice(2, power);
 
     you.duration[DUR_WEAPON_BRAND] += dur_change;
 
@@ -455,45 +452,6 @@ bool restore_stat(unsigned char which_stat, unsigned char stat_gain,
     return (stat_restored);
 }
 
-void turn_undead(int pow)
-{
-    mpr("You attempt to repel the undead.");
-
-    for (int i = 0; i < MAX_MONSTERS; i++)
-    {
-        monsters* const monster = &menv[i];
-
-        if (monster->type == -1 || !mons_near(monster))
-            continue;
-
-        // Used to inflict random2(5) + (random2(pow) / 20) damage,
-        // in addition. {dlb}
-        if (mons_holiness(monster) == MH_UNDEAD)
-        {
-            if (check_mons_resist_magic( monster, pow ))
-            {
-                simple_monster_message( monster, mons_immune_magic(monster) ?
-                                        " is unaffected." : " resists." );
-                continue;
-            }
-
-            if (!monster->add_ench(ENCH_FEAR))
-                continue;
-
-            simple_monster_message( monster, " is repelled!" );
-
-            //mv: Must be here to work.
-            behaviour_event( monster, ME_SCARE, MHITYOU );
-
-            // Reduce power based on monster turned.
-            pow -= monster->hit_dice * 3;
-            if (pow <= 0)
-                break;
-
-        }
-    }
-}
-
 typedef std::pair<const monsters*,int> counted_monster;
 typedef std::vector<counted_monster> counted_monster_list;
 static void _record_monster_by_name(counted_monster_list &list,
@@ -508,7 +466,7 @@ static void _record_monster_by_name(counted_monster_list &list,
             return;
         }
     }
-    list.push_back( counted_monster(mons, 1) );
+    list.push_back(counted_monster(mons, 1));
 }
 
 static int _monster_count(const counted_monster_list &list)
@@ -534,14 +492,14 @@ static std::string _describe_monsters(const counted_monster_list &list)
         if (i != list.begin())
         {
             ++i;
-            out << (i == list.end()? " and " : ", ");
+            out << (i == list.end() ? " and " : ", ");
         }
         else
             ++i;
 
         const std::string name =
-            cm.second > 1? pluralise(cm.first->name(desc))
-            : cm.first->name(desc);
+            cm.second > 1 ? pluralise(cm.first->name(desc))
+                          : cm.first->name(desc);
         out << name;
     }
     return (out.str());
@@ -720,14 +678,13 @@ void drain_life(int pow)
     {
         monsters* monster = &menv[i];
 
-        if (monster->type == -1)
+        if (!monster->alive()
+            || mons_holiness(monster) != MH_NATURAL
+            || mons_res_negative_energy(monster)
+            || mons_is_summoned(monster))
+        {
             continue;
-
-        if (mons_holiness(monster) != MH_NATURAL)
-            continue;
-
-        if (mons_res_negative_energy(monster))
-            continue;
+        }
 
         if (mons_near(monster))
         {
@@ -758,15 +715,13 @@ void drain_life(int pow)
 
 bool vampiric_drain(int pow, const dist &vmove)
 {
-    int mgr = mgrd(you.pos() + vmove.delta);
+    monsters *monster = monster_at(you.pos() + vmove.delta);
 
-    if (mgr == NON_MONSTER)
+    if (monster == NULL)
     {
         mpr("There isn't anything there!");
         return (false);
     }
-
-    monsters *monster = &menv[mgr];
 
     god_conduct_trigger conducts[3];
     disable_attack_conducts(conducts);
@@ -784,6 +739,12 @@ bool vampiric_drain(int pow, const dist &vmove)
 
     if (success)
     {
+        if (!monster->alive())
+        {
+            canned_msg(MSG_NOTHING_HAPPENS);
+            return (false);
+        }
+
         if (mons_is_unholy(monster))
         {
             mpr("Aaaarggghhhhh!");
@@ -791,52 +752,55 @@ bool vampiric_drain(int pow, const dist &vmove)
             return (false);
         }
 
-        if (mons_res_negative_energy(monster) || mons_is_summoned(monster))
+        if (mons_holiness(monster) != MH_NATURAL
+            || mons_res_negative_energy(monster)
+            || mons_is_summoned(monster))
         {
             canned_msg(MSG_NOTHING_HAPPENS);
             return (false);
         }
 
-        // The practical maximum of this is about 25 (pow @ 100).  -- bwr
-        int inflicted = 3 + random2avg(9, 2) + random2(pow) / 7;
+        // The practical maximum of this is about 25 (pow @ 100). - bwr
+        int hp_gain = 3 + random2avg(9, 2) + random2(pow) / 7;
 
-        inflicted = std::min(monster->hit_points, inflicted);
-        inflicted = std::min(you.hp_max - you.hp, inflicted);
+        hp_gain = std::min(monster->hit_points, hp_gain);
+        hp_gain = std::min(you.hp_max - you.hp, hp_gain);
 
-        if (inflicted == 0)
+        if (!hp_gain)
         {
             canned_msg(MSG_NOTHING_HAPPENS);
             return (false);
         }
 
-        mprf("You feel life coursing from %s into your body!",
-             monster->name(DESC_NOCAP_THE).c_str());
-
-        monster->hurt(&you, inflicted);
+        monster->hurt(&you, hp_gain);
 
         if (monster->alive())
             print_wounds(monster);
 
-        inc_hp(inflicted / 2, false);
+        hp_gain /= 2;
+
+        if (hp_gain)
+        {
+            mprf("You feel life coursing from %s into your body!",
+                 monster->name(DESC_NOCAP_THE).c_str());
+            inc_hp(hp_gain, false);
+        }
     }
 
     return (success);
 }
 
-bool burn_freeze(int pow, beam_type flavour, int targetmon)
+bool burn_freeze(int pow, beam_type flavour, monsters *monster)
 {
     pow = std::min(25, pow);
 
-    if (targetmon == NON_MONSTER)
+    if (monster == NULL)
     {
         mpr("There isn't anything close enough!");
         // If there's no monster there, you still pay the costs in
-        // order to prevent locating invisible monsters, unless
-        // you know that you see invisible.
-        return (!player_see_invis(false));
+        // order to prevent locating invisible monsters.
+        return (true);
     }
-
-    monsters *monster = &menv[targetmon];
 
     god_conduct_trigger conducts[3];
     disable_attack_conducts(conducts);
@@ -934,8 +898,7 @@ bool summon_animals(int pow)
         if (create_monster(
                 mgen_data(mon,
                           friendly ? BEH_FRIENDLY : BEH_HOSTILE,
-                          4, 0, you.pos(),
-                          friendly ? you.pet_target : MHITYOU)) != -1)
+                          4, 0, you.pos(), MHITYOU)) != -1)
         {
             success = true;
         }
@@ -955,7 +918,7 @@ bool cast_summon_butterflies(int pow, god_type god)
         if (create_monster(
                 mgen_data(MONS_BUTTERFLY, BEH_FRIENDLY,
                           3, SPELL_SUMMON_BUTTERFLIES,
-                          you.pos(), you.pet_target,
+                          you.pos(), MHITYOU,
                           0, god)) != -1)
         {
             success = true;
@@ -1015,7 +978,7 @@ bool cast_summon_small_mammals(int pow, god_type god)
         if (create_monster(
                 mgen_data(mon, BEH_FRIENDLY,
                           3, SPELL_SUMMON_SMALL_MAMMALS,
-                          you.pos(), you.pet_target,
+                          you.pos(), MHITYOU,
                           0, god)) != -1)
         {
             success = true;
@@ -1047,10 +1010,9 @@ bool cast_sticks_to_snakes(int pow, god_type god)
     monster_type mon = MONS_PROGRAM_BUG;
 
     const int dur = std::min(3 + random2(pow) / 20, 5);
-    int how_many_max = 1 + random2(1 + you.skills[SK_TRANSMUTATION]) / 4;
+    int how_many_max = 1 + random2(1 + you.skills[SK_TRANSMUTATIONS]) / 4;
     const bool friendly = (!item_cursed(wpn));
     const beh_type beha = (friendly) ? BEH_FRIENDLY : BEH_HOSTILE;
-    const unsigned short hitting = (friendly) ? you.pet_target : MHITYOU;
 
     int count = 0;
 
@@ -1073,7 +1035,7 @@ bool cast_sticks_to_snakes(int pow, god_type god)
             if (create_monster(
                     mgen_data(mon, beha,
                               dur, SPELL_STICKS_TO_SNAKES,
-                              you.pos(), hitting,
+                              you.pos(), MHITYOU,
                               0, god)) != -1)
             {
                 count++;
@@ -1121,7 +1083,7 @@ bool cast_sticks_to_snakes(int pow, god_type god)
         if (create_monster(
                 mgen_data(mon, beha,
                           dur, SPELL_STICKS_TO_SNAKES,
-                          you.pos(), hitting,
+                          you.pos(), MHITYOU,
                           0, god)) != -1)
         {
             count++;
@@ -1161,8 +1123,7 @@ bool cast_summon_scorpions(int pow, god_type god)
                 mgen_data(MONS_SCORPION,
                           friendly ? BEH_FRIENDLY : BEH_HOSTILE,
                           3, SPELL_SUMMON_SCORPIONS,
-                          you.pos(),
-                          friendly ? you.pet_target : MHITYOU,
+                          you.pos(), MHITYOU,
                           0, god)) != -1)
         {
             success = true;
@@ -1182,72 +1143,29 @@ bool cast_summon_swarm(int pow, god_type god,
                        bool permanent)
 {
     bool success = false;
-
-    monster_type mon = MONS_PROGRAM_BUG;
-
-    const int dur = !permanent ? std::min(2 + (random2(pow) / 4), 6) : 0;
-
+    const int dur = permanent ? 0 : std::min(2 + (random2(pow) / 4), 6);
     const int how_many = stepdown_value(2 + random2(pow)/10 + random2(pow)/25,
                                         2, 2, 6, 8);
 
     for (int i = 0; i < how_many; ++i)
     {
-        switch (random2(14))
-        {
-        case 0:
-        case 1:
-        case 2:         // prototypical swarming creature {dlb}
-            mon = MONS_KILLER_BEE;
-            break;
+        const monster_type swarmers[] = {
+            MONS_KILLER_BEE,   MONS_KILLER_BEE,    MONS_KILLER_BEE,
+            MONS_SCORPION,     MONS_WORM,          MONS_GIANT_MOSQUITO,
+            MONS_GIANT_BEETLE, MONS_GIANT_BLOWFLY, MONS_WOLF_SPIDER,
+            MONS_BUTTERFLY,    MONS_YELLOW_WASP,   MONS_GIANT_ANT,
+            MONS_GIANT_ANT,    MONS_GIANT_ANT
+        };
 
-        case 3:
-            mon = MONS_SCORPION; // think: "The Arrival" {dlb}
-            break;
-
-        case 4:         //jmf: technically not insects but still cool
-            mon = MONS_WORM;
-            break;              // but worms kinda "swarm" so s'ok {dlb}
-
-        case 5:
-            mon = MONS_GIANT_MOSQUITO;
-            break;              // changed into giant mosquito 12jan2000 {dlb}
-
-        case 6:
-            mon = MONS_GIANT_BEETLE;   // think: scarabs in "The Mummy" {dlb}
-            break;
-
-        case 7:         //jmf: blowfly instead of queen bee
-            mon = MONS_GIANT_BLOWFLY;
-            break;
-
-            // Queen bee added if more than x bees in swarm? {dlb}
-            // The above would require code rewrite - worth it? {dlb}
-
-        case 8:
-            mon = MONS_WOLF_SPIDER;  // think: "Kingdom of the Spiders" {dlb}
-            break;
-
-        case 9:
-            mon = MONS_BUTTERFLY;      // comic relief? {dlb}
-            break;
-
-        case 10:                // change into some kind of snake -- {dlb}
-            mon = MONS_YELLOW_WASP;    // do wasps swarm? {dlb}
-            break;              // think: "Indiana Jones" and snakepit? {dlb}
-
-        default:                // 3 in 14 chance, 12jan2000 {dlb}
-            mon = MONS_GIANT_ANT;
-            break;
-        }
-
-        bool friendly = !force_hostile ? (random2(pow) > 7) : false;
+        const monster_type mon = RANDOM_ELEMENT(swarmers);
+        const bool friendly = force_hostile ? false : (random2(pow) > 7);
 
         if (create_monster(
                 mgen_data(mon,
                           friendly ? BEH_FRIENDLY : BEH_HOSTILE,
                           dur, !permanent ? SPELL_SUMMON_SWARM : 0,
                           you.pos(),
-                          friendly ? you.pet_target : MHITYOU,
+                          MHITYOU,
                           0, god)) != -1)
         {
             success = true;
@@ -1307,7 +1225,7 @@ bool cast_call_canine_familiar(int pow, god_type god)
                       friendly ? BEH_FRIENDLY : BEH_HOSTILE,
                       dur, SPELL_CALL_CANINE_FAMILIAR,
                       you.pos(),
-                      friendly ? you.pet_target : MHITYOU,
+                      MHITYOU,
                       0, god)) != -1)
     {
         success = true;
@@ -1353,9 +1271,9 @@ bool cast_summon_elemental(int pow, god_type god,
 
         targ = you.pos() + smove.delta;
 
-        if (mgrd(targ) != NON_MONSTER)
+        if (const monsters *m = monster_at(targ))
         {
-            if (player_monster_visible(&menv[mgrd(targ)]))
+            if (you.can_see(m))
                 mpr("There's something there already!");
             else
             {
@@ -1400,9 +1318,7 @@ bool cast_summon_elemental(int pow, god_type god,
     {
         mon = MONS_FIRE_ELEMENTAL;
     }
-    else if ((grd(targ) == DNGN_DEEP_WATER
-                || grd(targ) == DNGN_SHALLOW_WATER
-                || grd(targ) == DNGN_FOUNTAIN_BLUE)
+    else if (grid_is_watery(grd(targ))
              && (any_elemental || restricted_type == MONS_WATER_ELEMENTAL))
     {
         mon = MONS_WATER_ELEMENTAL;
@@ -1449,7 +1365,7 @@ bool cast_summon_elemental(int pow, god_type god,
                       friendly ? BEH_FRIENDLY : BEH_HOSTILE,
                       dur, SPELL_SUMMON_ELEMENTAL,
                       targ,
-                      friendly ? you.pet_target : MHITYOU,
+                      MHITYOU,
                       0, god)) == -1)
     {
         canned_msg(MSG_NOTHING_HAPPENS);
@@ -1473,7 +1389,7 @@ bool cast_summon_ice_beast(int pow, god_type god)
     if (create_monster(
             mgen_data(mon, BEH_FRIENDLY,
                       dur, SPELL_SUMMON_ICE_BEAST,
-                      you.pos(), you.pet_target,
+                      you.pos(), MHITYOU,
                       0, god)) != -1)
     {
         mpr("A chill wind blows around you.");
@@ -1499,7 +1415,7 @@ bool cast_summon_ugly_thing(int pow, god_type god)
                       friendly ? BEH_FRIENDLY : BEH_HOSTILE,
                       dur, SPELL_SUMMON_UGLY_THING,
                       you.pos(),
-                      friendly ? you.pet_target : MHITYOU,
+                      MHITYOU,
                       0, god)) != -1)
     {
         mpr((mon == MONS_VERY_UGLY_THING) ? "A very ugly thing appears."
@@ -1529,7 +1445,7 @@ bool cast_summon_dragon(int pow, god_type god)
                       friendly ? BEH_FRIENDLY : BEH_HOSTILE,
                       3, SPELL_SUMMON_DRAGON,
                       you.pos(),
-                      friendly ? you.pet_target : MHITYOU,
+                      MHITYOU,
                       0, god)) != -1)
     {
         mpr("A dragon appears.");
@@ -1595,10 +1511,7 @@ bool summon_berserker(int pow, god_type god, int spell,
         create_monster(
             mgen_data(mon,
                       !force_hostile ? BEH_FRIENDLY : BEH_HOSTILE,
-                      dur, spell,
-                      you.pos(),
-                      !force_hostile ? you.pet_target : MHITYOU,
-                      0, god));
+                      dur, spell, you.pos(), MHITYOU, 0, god));
 
     if (monster == -1)
         return (false);
@@ -1634,7 +1547,7 @@ static bool _summon_holy_being_wrapper(int pow, god_type god, int spell,
                       friendly ? BEH_FRIENDLY : BEH_HOSTILE,
                       dur, spell,
                       you.pos(),
-                      friendly ? you.pet_target : MHITYOU,
+                      MHITYOU,
                       MG_FORCE_BEH, god));
 
     if (monster == -1)
@@ -1677,14 +1590,6 @@ bool summon_holy_warrior(int pow, god_type god, int spell,
                                       !force_hostile, quiet);
 }
 
-bool summon_holy_being_type(monster_type mon, int pow,
-                            god_type god, int spell)
-{
-    return _summon_holy_being_wrapper(pow, god, spell, mon,
-                                      std::min(2 + (random2(pow) / 4), 6),
-                                      true, false);
-}
-
 bool cast_tukimas_dance(int pow, god_type god,
                         bool force_hostile)
 {
@@ -1708,9 +1613,9 @@ bool cast_tukimas_dance(int pow, god_type god,
 
     if (i == NON_ITEM)
         success = false;
-    else
+    else if (success)
         // Copy item now so that mitm[i] is occupied and doesn't get picked
-        // by get_item_slot() when giving the dancing weapon it's item
+        // by get_item_slot() when giving the dancing weapon its item
         // during create_monster().
         mitm[i] = you.inv[wpn];
 
@@ -1727,7 +1632,7 @@ bool cast_tukimas_dance(int pow, god_type god,
                           friendly ? BEH_FRIENDLY : BEH_HOSTILE,
                           dur, SPELL_TUKIMAS_DANCE,
                           you.pos(),
-                          friendly ? you.pet_target : MHITYOU,
+                          MHITYOU,
                           0, god));
 
         if (monster == -1)
@@ -1752,7 +1657,8 @@ bool cast_tukimas_dance(int pow, god_type god,
         return (false);
     }
 
-    // We are successful.  Unwield the weapon, removing any wield effects.
+    // We are successful.  Unwield the weapon, removing any wield
+    // effects.
     unwield_item();
 
     // Copy the unwielded item.

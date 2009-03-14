@@ -79,38 +79,43 @@ const char *spell_title(spell_type which_spell);
 const char* spelltype_short_name( int which_spelltype );
 const char* spelltype_long_name( int which_spelltype );
 
-typedef int cell_func(coord_def where, int pow, int aux);
+typedef int cell_func(coord_def where, int pow, int aux, actor *agent);
 typedef int cloud_func(coord_def where, int pow, int spreadrate,
                        cloud_type type, kill_category whose,
                        killer_type killer);
 
 int apply_area_visible(cell_func cf, int power,
-                       bool pass_through_trans = false);
+                       bool pass_through_trans = false, actor *agent = NULL);
 
-int apply_area_square(cell_func cf, const coord_def& where, int power);
+int apply_area_square(cell_func cf, const coord_def& where, int power,
+                      actor *agent = NULL);
 
-int apply_area_around_square(cell_func cf, const coord_def& where, int power );
+int apply_area_around_square(cell_func cf, const coord_def& where, int power,
+                             actor *agent = NULL);
 
-int apply_random_around_square( cell_func cf, const coord_def& where,
-                                bool hole_in_middle, int power, int max_targs );
+int apply_random_around_square(cell_func cf, const coord_def& where,
+                               bool hole_in_middle, int power, int max_targs,
+                               actor *agent = NULL);
 
-int apply_one_neighbouring_square(cell_func cf, int power);
+int apply_one_neighbouring_square(cell_func cf, int power, actor *agent = NULL);
 
 int apply_area_within_radius(cell_func cf,  const coord_def& where,
-                             int pow, int radius, int ctype);
-
-bool spell_direction( dist &spelld, bolt &pbolt,
-                      targeting_type restrict = DIR_NONE,
-                      targ_mode_type mode = TARG_ENEMY,
-                      int range = LOS_RADIUS,
-                      bool needs_path = true, bool may_target_monster = true,
-                      bool may_target_self = false, const char *prompt = NULL,
-                      bool cancel_at_self = false );
+                             int pow, int radius, int ctype,
+                             actor *agent = NULL);
 
 void apply_area_cloud(cloud_func func, const coord_def& where,
                       int pow, int number, cloud_type ctype,
                       kill_category kc, killer_type killer,
                       int spread_rate = -1);
+
+bool spell_direction( dist &spelld, bolt &pbolt,
+                      targeting_type restrict = DIR_NONE,
+                      targ_mode_type mode = TARG_ENEMY,
+                      // pbolt.range if applicable, otherwise LOS_RADIUS
+                      int range = 0,
+                      bool needs_path = true, bool may_target_monster = true,
+                      bool may_target_self = false, const char *prompt = NULL,
+                      bool cancel_at_self = false );
 
 const char *spelltype_name(unsigned int which_spelltype);
 

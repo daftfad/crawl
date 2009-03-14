@@ -12,6 +12,7 @@ REVISION("$Rev$");
 #include "cio.h"
 #include "externs.h"
 #include "macro.h"
+#include "message.h"
 #include "state.h"
 
 #include <queue>
@@ -126,7 +127,6 @@ void get_input_line( char *const buff, int len )
         std::string &line = crawl_state.input_line_strs[curr];
 
         strcpy(buff, line.c_str());
-
         return;
     }
 
@@ -281,6 +281,7 @@ int wrapcprintf( int wrapcol, const char *s, ... )
 int cancelable_get_line( char *buf, int len, int maxcol,
                          input_history *mh, int (*keyproc)(int &ch) )
 {
+    flush_prev_message();
     line_reader reader(buf, len, maxcol);
     reader.set_input_history(mh);
     reader.set_keyproc(keyproc);

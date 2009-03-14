@@ -29,19 +29,19 @@ int div_rand_round( int num, int den );
 int div_round_up( int num, int den );
 bool one_chance_in(int a_million);
 bool x_chance_in_y(int x, int y);
-int random2(int randmax);
-int maybe_random2( int x, bool random_factor );
+int random2(int max);
+int maybe_random2(int x, bool random_factor);
 int random_range(int low, int high);
 int random_range(int low, int high, int nrolls);
 const char* random_choose_string(const char* first, ...);
 int random_choose(int first, ...);
 int random_choose_weighted(int weight, int first, ...);
 unsigned long random_int();
-int random2avg( int max, int rolls );
+int random2avg(int max, int rolls);
 int bestroll(int max, int rolls);
 
-int roll_dice( int num, int size );
-void scale_dice( dice_def &dice, int threshold = 24 );
+int roll_dice(int num, int size);
+void scale_dice(dice_def &dice, int threshold = 24);
 
 // Various ways to iterate over things.
 
@@ -90,7 +90,8 @@ public:
     radius_iterator( const coord_def& center, int radius,
                      bool roguelike_metric = true,
                      bool require_los = true,
-                     bool exclude_center = false );
+                     bool exclude_center = false,
+                     const env_show_grid* losgrid = NULL );
     bool done() const;
     void reset();
     operator bool() const { return !done(); }
@@ -109,6 +110,7 @@ private:
     coord_def location, center;
     int radius;
     bool roguelike_metric, require_los, exclude_center;
+    const env_show_grid* losgrid;
     bool iter_done;
 };
 
@@ -152,9 +154,12 @@ int yesnoquit( const char* str, bool safe = true, int safeanswer = 0,
                bool allow_all = false, bool clear_after = true,
                char alt_yes = 'Y', char alt_yes2 = 'Y' );
 
-
-bool in_bounds( int x, int y );
-bool map_bounds( int x, int y );
+bool in_bounds_x(int x);
+bool in_bounds_y(int y);
+bool in_bounds(int x, int y);
+bool map_bounds_x(int x);
+bool map_bounds_y(int y);
+bool map_bounds(int x, int y);
 coord_def random_in_bounds();
 
 inline bool in_bounds(const coord_def &p)
@@ -203,7 +208,7 @@ inline bool testbits(unsigned long flags, unsigned long test)
 
 template <typename Z> inline Z sgn(Z x)
 {
-    return (x < 0? -1 : (x > 0? 1 : 0));
+    return (x < 0 ? -1 : (x > 0 ? 1 : 0));
 }
 
 bool is_trap_square(dungeon_feature_type grid);
@@ -228,10 +233,10 @@ int choose_random_weighted(Iterator beg, const Iterator end)
 
     int totalweight = 0;
     int count = 0, result = 0;
-    while ( beg != end )
+    while (beg != end)
     {
         totalweight += *beg;
-        if ( random2(totalweight) < *beg )
+        if (random2(totalweight) < *beg)
         {
             result = count;
 #if DEBUG
@@ -241,7 +246,9 @@ int choose_random_weighted(Iterator beg, const Iterator end)
         ++count;
         ++beg;
     }
+#if DEBUG
     ASSERT(times_set > 0);
+#endif
     return result;
 }
 

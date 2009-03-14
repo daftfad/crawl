@@ -399,7 +399,7 @@ void unlink_item( int dest )
     }
     else
     {
-        ASSERT(in_bounds(mitm[dest].pos));
+        ASSERT(in_bounds(mitm[dest].pos) || is_shop_item(mitm[dest]));
 
         // Linked item on map:
         //
@@ -742,7 +742,7 @@ void item_check(bool verbose)
     if (static_cast<int>(items.size()) >= Options.item_stack_summary_minimum)
     {
         std::vector<unsigned short int> item_chars;
-        for ( unsigned int i = 0; i < items.size() && i < 50; ++i )
+        for (unsigned int i = 0; i < items.size() && i < 50; ++i)
         {
             unsigned glyph_char;
             unsigned short glyph_col;
@@ -754,10 +754,10 @@ void item_check(bool verbose)
 
         std::string out_string = "Items here: ";
         int cur_state = -1;
-        for ( unsigned int i = 0; i < item_chars.size(); ++i )
+        for (unsigned int i = 0; i < item_chars.size(); ++i)
         {
             const int specialness = 10 - (item_chars[i] % 0x100);
-            if ( specialness != cur_state )
+            if (specialness != cur_state)
             {
                 switch (specialness)
                 {
@@ -821,6 +821,7 @@ static void _pickup_menu(int item_link)
                     item_link = mitm[j].link;
 
                 int num_to_take = selected[i].quantity;
+                const bool take_all = (num_to_take == mitm[j].quantity);
                 unsigned long oldflags = mitm[j].flags;
                 mitm[j].flags &= ~(ISFLAG_THROWN | ISFLAG_DROPPED);
                 int result = move_item_to_player( j, num_to_take );
@@ -840,7 +841,14 @@ static void _pickup_menu(int item_link)
                         mitm[j].flags = oldflags;
                 }
                 else
+                {
                     n_did_pickup++;
+                    // If we deliberately chose to take only part of a
+                    // pile, we consider the rest to have been
+                    // "dropped."
+                    if (!take_all && is_valid_item(mitm[j]))
+                        mitm[j].flags |= ISFLAG_DROPPED;
+                }
             }
         }
 
@@ -1167,13 +1175,6 @@ std::string origin_desc(const item_def &item)
 
 bool pickup_single_item(int link, int qty)
 {
-    if (you.attribute[ATTR_TRANSFORMATION] == TRAN_AIR
-        && you.duration[DUR_TRANSFORMATION] > 0)
-    {
-        mpr("You can't pick up anything in this form!");
-        return (false);
-    }
-
     if (you.flight_mode() == FL_LEVITATE)
     {
         mpr("You can't reach the floor from up here.");
@@ -1208,13 +1209,6 @@ bool pickup_single_item(int link, int qty)
 void pickup()
 {
     int keyin = 'x';
-
-    if (you.attribute[ATTR_TRANSFORMATION] == TRAN_AIR
-        && you.duration[DUR_TRANSFORMATION] > 0)
-    {
-        mpr("You can't pick up anything in this form!");
-        return;
-    }
 
     if (you.flight_mode() == FL_LEVITATE)
     {
@@ -1258,15 +1252,18 @@ void pickup()
 
             if (keyin != 'a')
             {
-                mprf(MSGCH_PROMPT, "Pick up %s? (y/n/a/*?g,/q)",
+                std::string prompt = "Pick up %s? ("
+#ifdef USE_TILE
+                                     "Left-click to enter menu, or press "
+#endif
+                                     "y/n/a/*?g,/q)";
+
+                mprf(MSGCH_PROMPT, prompt.c_str(),
                      get_message_colour_tags(mitm[o], DESC_NOCAP_A,
                                              MSGCH_PROMPT).c_str());
-#ifndef USE_TILE
-                keyin = get_ch();
-#else
-                // TODO enne - why?
-                keyin = getch_ck();
-#endif
+
+                mouse_control mc(MOUSE_MODE_MORE);
+                keyin = getch();
             }
 
             if (keyin == '*' || keyin == '?' || keyin == ',' || keyin == 'g'
@@ -1534,7 +1531,6 @@ int move_item_to_player( int obj, int quant_got, bool quiet,
         you.attribute[ATTR_GOLD_FOUND] += quant_got;
         you.gold += quant_got;
         dec_mitm_item_quantity( obj, quant_got );
-        you.redraw_gold = true;
 
         if (!quiet)
         {
@@ -1647,9 +1643,10 @@ int move_item_to_player( int obj, int quant_got, bool quiet,
     // If moving an item directly from a monster to the player without the
     // item having been on the grid, then it really isn't a position event.
     if (in_bounds(p))
+    {
         dungeon_events.fire_position_event(
             dgn_event(DET_ITEM_PICKUP, p, 0, obj, -1), p);
-
+    }
     item_def &item = you.inv[freeslot];
     // Copy item.
     item        = mitm[obj];
@@ -1733,6 +1730,8 @@ void mark_items_non_pickup_at(const coord_def &pos)
 // calling code that "obj" is possibly modified.
 bool move_item_to_grid( int *const obj, const coord_def& p )
 {
+    ASSERT(in_bounds(p));
+
     int& ob(*obj);
     // Must be a valid reference to a valid object.
     if (ob == NON_ITEM || !is_valid_item( mitm[ob] ))
@@ -1833,6 +1832,8 @@ void move_item_stack_to_grid( const coord_def& from, const coord_def& to )
 bool copy_item_to_grid( const item_def &item, const coord_def& p,
                         int quant_drop, bool mark_dropped )
 {
+    ASSERT(in_bounds(p));
+
     if (quant_drop == 0)
         return (false);
 
@@ -2296,7 +2297,7 @@ void autoinscribe()
 static inline std::string _autopickup_item_name(const item_def &item)
 {
     return userdef_annotate_item(STASH_LUA_SEARCH_ANNOTATE, &item, true)
-           + menu_colour_item_prefix(item, false)
+           + menu_colour_item_prefix(item, false) + " "
            + item.name(DESC_PLAIN);
 }
 
@@ -2325,7 +2326,7 @@ bool item_needs_autopickup(const item_def &item)
     if (item_is_stationary(item))
         return (false);
 
-    if (strstr(item.inscription.c_str(), "=g") != 0)
+    if (item.inscription.find("=g") != std::string::npos)
         return (true);
 
     if ((item.flags & ISFLAG_THROWN) && Options.pickup_thrown)
@@ -2346,12 +2347,6 @@ bool can_autopickup()
     // pickup_thrown.
     if (!Options.autopickup_on)
         return (false);
-
-    if (you.attribute[ATTR_TRANSFORMATION] == TRAN_AIR
-        && you.duration[DUR_TRANSFORMATION] > 0)
-    {
-        return (false);
-    }
 
     if (you.flight_mode() == FL_LEVITATE)
         return (false);
@@ -2622,7 +2617,7 @@ bool item_def::has_spells() const
 int item_def::book_number() const
 {
     return (base_type == OBJ_BOOKS  ? sub_type                             :
-            base_type == OBJ_STAVES ? sub_type + NUM_BOOKS - STAFF_SMITING
+            base_type == OBJ_STAVES ? sub_type + NUM_BOOKS - STAFF_FIRST_ROD
                                     : -1);
 }
 

@@ -14,6 +14,7 @@ REVISION("$Rev$");
 #include "monplace.h"
 #include "version.h"
 
+#include <errno.h>
 #include <string.h>
 #include <string>
 #include <stdlib.h>
@@ -99,7 +100,7 @@ static void _save_level( int level_saved, level_area_type lt,
                          branch_type where_were_you);
 
 static bool _get_and_validate_version( FILE *restoreFile, char& major,
-                                       char& minor, std::string* reason=0);
+                                       char& minor, std::string* reason = 0);
 
 
 static bool _determine_ghost_version( FILE *ghostFile,
@@ -124,7 +125,6 @@ static void _redraw_all(void)
     you.redraw_armour_class = true;
     you.redraw_evasion      = true;
     you.redraw_experience   = true;
-    you.redraw_gold         = true;
 
     you.redraw_status_flags =
         REDRAW_LINE_1_MASK | REDRAW_LINE_2_MASK | REDRAW_LINE_3_MASK;
@@ -777,7 +777,7 @@ static void _write_tagged_file( FILE *outf, int fileType,
     // all other tags
     for (int i = 1; i < NUM_TAGS; i++)
         if (tags[i] == 1)
-            tag_write((tag_type)i, outf);
+            tag_write(static_cast<tag_type>(i), outf);
 }
 
 bool travel_load_map( branch_type branch, int absdepth )
@@ -962,10 +962,9 @@ static void _grab_followers()
     // Handle nearby ghosts.
     for (adjacent_iterator ai; ai; ++ai)
     {
-        if (mgrd(*ai) == NON_MONSTER)
+        monsters *fmenv = monster_at(*ai);
+        if (fmenv == NULL)
             continue;
-
-        monsters *fmenv = &menv[mgrd(*ai)];
 
         if (fmenv->type == MONS_PLAYER_GHOST
             && fmenv->hit_points < fmenv->max_hit_points / 2)
@@ -1050,6 +1049,9 @@ bool load( dungeon_feature_type stair_taken, load_mode_type load_mode,
     // Going up/down stairs, going through a portal, or being banished
     // means the previous x/y movement direction is no longer valid.
     you.reset_prev_move();
+#ifdef USE_TILE
+    you.last_clicked_grid = coord_def();
+#endif
 
     const bool make_changes =
         (load_mode != LOAD_RESTART_GAME && load_mode != LOAD_VISITOR);
@@ -1076,7 +1078,7 @@ bool load( dungeon_feature_type stair_taken, load_mode_type load_mode,
     }
 
     you.prev_targ     = MHITNOT;
-    you.prev_grd_targ = coord_def(0, 0);
+    you.prev_grd_targ.reset();
 
     // We clear twice - on save and on load.
     // Once would be enough...
@@ -1108,6 +1110,10 @@ bool load( dungeon_feature_type stair_taken, load_mode_type load_mode,
         tiles.load_dungeon(NULL, crawl_view.vgrdc);
     }
 #endif
+
+    // Clear the show grid, to prevent us noticing things
+    // which were within the old LOS by new coordinates.
+    env.show.init(0);
 
     // Try to open level savefile.
 #ifdef DEBUG_LEVEL_LOAD
@@ -1212,8 +1218,8 @@ bool load( dungeon_feature_type stair_taken, load_mode_type load_mode,
     crawl_view.set_player_at(you.pos(), load_mode != LOAD_VISITOR);
 
     // This should fix the "monster occurring under the player" bug?
-    if (make_changes && mgrd(you.pos()) != NON_MONSTER)
-        monster_teleport(&menv[mgrd(you.pos())], true, true);
+    if (make_changes && monster_at(you.pos()))
+        monster_teleport(monster_at(you.pos()), true, true);
 
     // Actually "move" the followers if applicable.
     if (level_type_allows_followers(you.level_type)
@@ -1272,9 +1278,7 @@ bool load( dungeon_feature_type stair_taken, load_mode_type load_mode,
         if (timeval > 0)
         {
             you.time_taken = timeval;
-#ifndef USE_TILE
             viewwindow(true, false);
-#endif
             handle_monsters();
         }
     }
@@ -1378,7 +1382,7 @@ bool load( dungeon_feature_type stair_taken, load_mode_type load_mode,
     }
 
     return just_created_level;
-}                               // end load()
+}
 
 void _save_level(int level_saved, level_area_type old_ltype,
                  branch_type where_were_you)
@@ -1388,7 +1392,7 @@ void _save_level(int level_saved, level_area_type old_ltype,
                                          false );
 
     you.prev_targ     = MHITNOT;
-    you.prev_grd_targ = coord_def(0, 0);
+    you.prev_grd_targ.reset();
 
     FILE *saveFile = fopen(cha_fil.c_str(), "wb");
 
@@ -1537,16 +1541,31 @@ void save_game_state()
         save_game(true);
 }
 
+static std::string _make_portal_vault_ghost_suffix()
+{
+    return you.level_type_ext.empty()? "ptl" : you.level_type_ext;
+}
+
+static std::string _make_ghost_filename()
+{
+    if (you.level_type == LEVEL_PORTAL_VAULT)
+    {
+        const std::string suffix = _make_portal_vault_ghost_suffix();
+        return get_savedir_filename("bones", "", suffix, true);
+    }
+    else
+    {
+        return make_filename("bones", you.your_level, you.where_are_you,
+                             you.level_type, true);
+    }
+}
+
 void _load_ghost(void)
 {
     char majorVersion;
     char minorVersion;
 
-    std::string cha_fil = make_filename("bones", you.your_level,
-                                        you.where_are_you,
-                                        you.level_type,
-                                        true );
-
+    const std::string cha_fil = _make_ghost_filename();
     FILE *gfile = fopen(cha_fil.c_str(), "rb");
 
     if (gfile == NULL)
@@ -1589,7 +1608,7 @@ void _load_ghost(void)
     fclose(gfile);
 
 #if DEBUG_DIAGNOSTICS
-        mpr( "Loaded ghost.", MSGCH_DIAGNOSTICS );
+    mpr( "Loaded ghost.", MSGCH_DIAGNOSTICS );
 #endif
 
     // Remove bones file - ghosts are hardly permanent.
@@ -1701,6 +1720,9 @@ static void _restore_level(const level_id &original)
 
     load( DNGN_STONE_STAIRS_DOWN_I, LOAD_VISITOR,
           you.level_type, you.your_level, you.where_are_you );
+
+    // Rebuild the show grid, which was cleared out before.
+    calc_show_los();
 }
 
 // Given a level returns true if the level has been created already
@@ -1893,11 +1915,7 @@ void save_ghost( bool force )
         return;
     }
 
-    std::string cha_fil = make_filename( "bones", you.your_level,
-                                         you.where_are_you,
-                                         you.level_type,
-                                         true );
-
+    const std::string cha_fil = _make_ghost_filename();
     FILE *gfile = fopen(cha_fil.c_str(), "rb");
 
     // Don't overwrite existing bones!
@@ -1926,7 +1944,7 @@ void save_ghost( bool force )
     lk_close(gfile, "wb", cha_fil);
 
 #if DEBUG_DIAGNOSTICS
-    mpr( "Saved ghost.", MSGCH_DIAGNOSTICS );
+    mprf(MSGCH_DIAGNOSTICS, "Saved ghost (%s).", cha_fil.c_str() );
 #endif
 
     DO_CHMOD_PRIVATE(cha_fil.c_str());

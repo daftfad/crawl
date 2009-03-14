@@ -162,8 +162,7 @@ int blink(int pow, bool high_level_controlled_blink, bool wizard_blink)
         if (wizard_blink && grid_is_solid(grd(beam.target)))
             grd(beam.target) = DNGN_FLOOR;
 
-        if (grid_is_solid(grd(beam.target))
-            || mgrd(beam.target) != NON_MONSTER)
+        if (grid_is_solid(grd(beam.target)) || monster_at(beam.target))
         {
             mpr("Oops! Maybe something was there already.");
             random_blink(false);
@@ -176,9 +175,6 @@ int blink(int pow, bool high_level_controlled_blink, bool wizard_blink)
         }
         else
         {
-            // No longer held in net.
-            clear_trapping_net();
-
             move_player_to_grid(beam.target, false, true, true);
 
             // Controlling teleport contaminates the player. -- bwr
@@ -232,9 +228,6 @@ void random_blink(bool allow_partial_control, bool override_abyss)
     {
         mpr("You blink.");
 
-        // No longer held in net.
-        clear_trapping_net();
-
         success = true;
         you.moveto(target);
 
@@ -266,7 +259,7 @@ void setup_fire_storm(const actor *source, int pow, bolt &beam)
     beam.beam_source  = source->mindex();
     // XXX: Should this be KILL_MON_MISSILE?
     beam.thrower      =
-        source->atype() == ACT_PLAYER? KILL_YOU_MISSILE : KILL_MON;
+        source->atype() == ACT_PLAYER ? KILL_YOU_MISSILE : KILL_MON;
     beam.aux_source.clear();
     beam.obvious_effect = false;
     beam.is_beam      = false;
@@ -495,75 +488,69 @@ void identify(int power, int item_slot)
 }
 
 // Returns whether the spell was actually cast.
-bool conjure_flame(int pow)
+bool conjure_flame(int pow, const coord_def& where)
 {
-    struct dist spelld;
-
-    bool done_first_message = false;
-
-    while (true)
+    // FIXME: this would be better handled by a flag to enforce max range.
+    if (grid_distance(where, you.pos()) > spell_range(SPELL_CONJURE_FLAME,
+                                                      pow, true)
+        || !in_bounds(where))
     {
-        if (done_first_message)
-            mpr("Where would you like to place the cloud?", MSGCH_PROMPT);
-        else
-        {
-            mpr("You cast a flaming cloud spell! But where?", MSGCH_PROMPT);
-            done_first_message = true;
-        }
-
-        direction( spelld, DIR_TARGET, TARG_ENEMY, -1, false, false, false );
-
-        if (!spelld.isValid)
-        {
-            canned_msg(MSG_OK);
-            return (false);
-        }
-
-        if (trans_wall_blocking(spelld.target))
-        {
-            mpr("A translucent wall is in the way.");
-            return (false);
-        }
-        else if (!see_grid(spelld.target))
-        {
-            mpr("You can't see that place!");
-            continue;
-        }
-
-        if (spelld.target == you.pos())
-        {
-            mpr("You can't place the cloud here!");
-            continue;
-        }
-
-        const int cloud = env.cgrid(spelld.target);
-
-        if (grid_is_solid(grd(spelld.target)) ||
-            mgrd(spelld.target) != NON_MONSTER ||
-            (cloud != EMPTY_CLOUD && env.cloud[cloud].type != CLOUD_FIRE))
-        {
-            mpr( "There's already something there!" );
-            continue;
-        }
-        else if (cloud != EMPTY_CLOUD)
-        {
-            // Reinforce the cloud - but not too much.
-            mpr( "The fire roars with new energy!" );
-            const int extra_dur = 2 + std::min(random2(pow) / 2, 20);
-            env.cloud[cloud].decay += extra_dur * 5;
-            env.cloud[cloud].set_whose(KC_YOU);
-            return (true);
-        }
-
-        break;
+        mpr("That's too far away.");
+        return (false);
     }
 
-    int durat = 5 + (random2(pow) / 2) + (random2(pow) / 2);
+    if (trans_wall_blocking(where))
+    {
+        mpr("A translucent wall is in the way.");
+        return (false);
+    }
 
-    if (durat > 23)
-        durat = 23;
+    if (grid_is_solid(where))
+    {
+        mpr("You can't ignite solid rock!");
+        return (false);
+    }
 
-    place_cloud( CLOUD_FIRE, spelld.target, durat, KC_YOU );
+    const int cloud = env.cgrid(where);
+
+    if (cloud != EMPTY_CLOUD && env.cloud[cloud].type != CLOUD_FIRE)
+    {
+        mpr("There's already a cloud there!");
+        return (false);
+    }
+
+    // Note that self-targeting is handled by SPFLAG_NOT_SELF.
+    monsters *monster = monster_at(where);
+    if (monster)
+    {
+        if (you.can_see(monster))
+        {
+            mpr("You can't place the cloud on a creature.");
+            return (false);
+        }
+        else
+        {
+            // FIXME: maybe should do _paranoid_option_disable() here?
+            mpr("You see a ghostly outline there, and the spell fizzles.");
+            return (true);      // Don't give free detection!
+        }
+    }
+
+    if (cloud != EMPTY_CLOUD)
+    {
+        // Reinforce the cloud - but not too much.
+        // It must be a fire cloud from a previous test.
+        mpr("The fire roars with new energy!");
+        const int extra_dur = 2 + std::min(random2(pow) / 2, 20);
+        env.cloud[cloud].decay += extra_dur * 5;
+        env.cloud[cloud].set_whose(KC_YOU);
+    }
+    else
+    {
+        const int durat = std::min(5 + (random2(pow)/2) + (random2(pow)/2), 23);
+        place_cloud(CLOUD_FIRE, where, durat, KC_YOU);
+    }
+
     return (true);
 }
 
@@ -700,7 +687,9 @@ static bool _can_pacify_monster(const monsters *mon, const int healed)
     return (false);
 }
 
-static int _healing_spell(int healed, const coord_def where = coord_def(0,0))
+// Returns: 1 -- success, 0 -- failure, -1 -- cancel
+static int _healing_spell(int healed, bool divine_ability,
+                          const coord_def& where)
 {
     ASSERT(healed >= 1);
 
@@ -722,10 +711,7 @@ static int _healing_spell(int healed, const coord_def where = coord_def(0,0))
     }
 
     if (!spd.isValid)
-    {
-        canned_msg(MSG_OK);
-        return (0);
-    }
+        return (-1);
 
     if (spd.target == you.pos())
     {
@@ -734,26 +720,28 @@ static int _healing_spell(int healed, const coord_def where = coord_def(0,0))
         return (1);
     }
 
-    const int mgr = mgrd(spd.target);
-
-    if (mgr == NON_MONSTER)
+    monsters* monster = monster_at(spd.target);
+    if (!monster)
     {
         mpr("There isn't anything there!");
-        return (-1);
+        // This isn't a cancel, to avoid leaking invisible monster
+        // locations.
+        return (0);
     }
 
-    monsters *monster = &menv[mgr];
-
-    // Don't heal a monster you can't pacify.
-    if (you.religion == GOD_ELYVILON && !_can_pacify_monster(monster, healed))
+    // Don't divinely heal a monster you can't pacify.
+    if (divine_ability
+        && you.religion == GOD_ELYVILON
+        && !_can_pacify_monster(monster, healed))
     {
         canned_msg(MSG_NOTHING_HAPPENS);
-        return (-1);
+        return (0);
     }
 
-    bool nothing_happens = true;
+    bool did_something = false;
     if (heal_monster(monster, healed, false))
     {
+        did_something = true;
         mprf("You heal %s.", monster->name(DESC_NOCAP_THE).c_str());
 
         if (monster->hit_points == monster->max_hit_points)
@@ -763,63 +751,50 @@ static int _healing_spell(int healed, const coord_def where = coord_def(0,0))
 
         if (you.religion == GOD_ELYVILON && !_mons_hostile(monster))
         {
-            simple_god_message(" appreciates the healing of a fellow creature.");
+            simple_god_message(" appreciates your healing of a fellow "
+                               "creature.");
             if (one_chance_in(8))
                 gain_piety(1);
-            return (1);
         }
-
-        nothing_happens = false;
     }
 
-    if (you.religion == GOD_ELYVILON && _mons_hostile(monster))
+    if (you.religion == GOD_ELYVILON
+        && _can_pacify_monster(monster, healed)
+        && _mons_hostile(monster))
     {
+        did_something = true;
         simple_god_message(" supports your offer of peace.");
 
         if (mons_is_holy(monster))
             good_god_holy_attitude_change(monster);
         else
         {
+            const bool is_summoned = mons_is_summoned(monster);
             simple_monster_message(monster, " turns neutral.");
             mons_pacify(monster);
 
             // Give a small piety return.
-            gain_piety(1 + random2(healed/15));
+            if (!is_summoned)
+                gain_piety(1 + random2(healed/15));
         }
     }
-    else if (nothing_happens)
+
+    if (!did_something)
         canned_msg(MSG_NOTHING_HAPPENS);
 
-    return (1);
+    return (did_something ? 1 : 0);
 }
 
-#if 0
-char cast_lesser_healing( int pow )
-{
-    return _healing_spell(5 + random2avg(7, 2));
-}
-
-char cast_greater_healing( int pow )
-{
-    return _healing_spell(15 + random2avg(29, 2));
-}
-
-char cast_greatest_healing( int pow )
-{
-    return _healing_spell(50 + random2avg(49, 2));
-}
-#endif
-
-int cast_healing(int pow, const coord_def& where)
+// Returns: 1 -- success, 0 -- failure, -1 -- cancel
+int cast_healing(int pow, bool divine_ability, const coord_def& where)
 {
     pow = std::min(50, pow);
-
-    return (_healing_spell(pow + roll_dice(2, pow) - 2, where));
+    return (_healing_spell(pow + roll_dice(2, pow) - 2, divine_ability, where));
 }
 
 void remove_divine_vigour()
 {
-    mpr("Your divine vigour fades.", MSGCH_DURATION);
+    mpr("Your divine vigour fades away.", MSGCH_DURATION);
     you.duration[DUR_DIVINE_VIGOUR] = 0;
     you.attribute[ATTR_DIVINE_VIGOUR] = 0;
     calc_hp();
@@ -838,7 +813,7 @@ bool cast_divine_vigour()
         const int old_hp_max = you.hp_max;
         you.attribute[ATTR_DIVINE_VIGOUR] = vigour_amt;
         you.duration[DUR_DIVINE_VIGOUR]
-            = 35 + (you.skills[SK_INVOCATIONS]*5)/3;
+            = 40 + (you.skills[SK_INVOCATIONS]*5)/2;
         calc_hp();
         inc_hp(you.hp_max - old_hp_max, false);
 
@@ -852,13 +827,14 @@ bool cast_divine_vigour()
 
 void remove_divine_stamina()
 {
-    mpr("Your divine stamina fades.", MSGCH_DURATION);
+    mpr("Your divine stamina fades away.", MSGCH_DURATION);
     modify_stat(STAT_STRENGTH, -you.attribute[ATTR_DIVINE_STAMINA],
                 true, "Zin's divine stamina running out");
     modify_stat(STAT_INTELLIGENCE, -you.attribute[ATTR_DIVINE_STAMINA],
                 true, "Zin's divine stamina running out");
     modify_stat(STAT_DEXTERITY, -you.attribute[ATTR_DIVINE_STAMINA],
                 true, "Zin's divine stamina running out");
+    you.duration[DUR_DIVINE_STAMINA] = 0;
     you.attribute[ATTR_DIVINE_STAMINA] = 0;
 }
 
@@ -937,7 +913,7 @@ bool cast_vitalisation()
             const int stamina_amt = 3;
             you.attribute[ATTR_DIVINE_STAMINA] = stamina_amt;
             you.duration[DUR_DIVINE_STAMINA]
-                = 35 + (you.skills[SK_INVOCATIONS]*5)/3;
+                = 40 + (you.skills[SK_INVOCATIONS]*5)/2;
 
             modify_stat(STAT_STRENGTH, stamina_amt, true, "");
             modify_stat(STAT_INTELLIGENCE, stamina_amt, true, "");
@@ -1315,8 +1291,6 @@ void deflection(int pow)
 
 void cast_regen(int pow)
 {
-    mpr("Your skin crawls.");
-
     _increase_duration(DUR_REGENERATION, 5 + roll_dice(2, pow / 3 + 1), 100,
                        "Your skin crawls.");
 }
@@ -1386,13 +1360,13 @@ void cast_resist_poison(int power)
 
 void cast_teleport_control(int power)
 {
-    _increase_duration(DUR_CONTROLLED_FLIGHT, 10 + random2(power), 50,
+    _increase_duration(DUR_CONTROL_TELEPORT, 10 + random2(power), 50,
                        "You feel in control.");
 }
 
 void cast_ring_of_flames(int power)
 {
-    _increase_duration(DUR_FIRE_SHIELD, 
+    _increase_duration(DUR_FIRE_SHIELD,
                        5 + (power / 10) + (random2(power) / 5), 50,
                        "The air around you leaps into flame!");
     manage_fire_shield();

@@ -201,6 +201,7 @@ bool mons_abyss(int mcls)
     case MONS_BLUE_DEVIL:
     case MONS_BRAIN_WORM:
     case MONS_CACODEMON:
+    case MONS_CHAOS_SPAWN:
     case MONS_CLAY_GOLEM:
     case MONS_CRYSTAL_GOLEM:
     case MONS_DAEVA:
@@ -237,7 +238,6 @@ bool mons_abyss(int mcls)
     case MONS_IRON_DEVIL:
     case MONS_IRON_GOLEM:
     case MONS_JELLY:
-    case MONS_SKELETON_LARGE:
     case MONS_LEMURE:
     case MONS_LICH:
     case MONS_LOROCYPROCA:
@@ -262,6 +262,7 @@ bool mons_abyss(int mcls)
     case MONS_SHINING_EYE:
     case MONS_SKELETAL_DRAGON:
     case MONS_SKELETAL_WARRIOR:
+    case MONS_SKELETON_LARGE:
     case MONS_SKELETON_SMALL:
     case MONS_SMOKE_DEMON:
     case MONS_SOUL_EATER:
@@ -332,8 +333,8 @@ int mons_rare_abyss(int mcls)
         return 50;
 
     case MONS_SKELETON_LARGE:
-    case MONS_SKELETAL_WARRIOR:
     case MONS_SKELETON_SMALL:
+    case MONS_SKELETAL_WARRIOR:
         return 40;
 
     case MONS_ZOMBIE_LARGE:
@@ -377,6 +378,7 @@ int mons_rare_abyss(int mcls)
     case MONS_BLUE_DEATH:
     case MONS_BLUE_DEVIL:
     case MONS_CACODEMON:
+    case MONS_CHAOS_SPAWN:
     case MONS_DEMONIC_CRAWLER:
     case MONS_EXECUTIONER:
     case MONS_GREEN_DEATH:
@@ -493,12 +495,12 @@ bool mons_pan(int mcls)
     case MONS_FLYING_SKULL:
     case MONS_FREEZING_WRAITH:
     case MONS_HUNGRY_GHOST:
-    case MONS_SKELETON_LARGE:
     case MONS_LICH:
     case MONS_MUMMY:
     case MONS_NECROPHAGE:
     case MONS_PHANTOM:
     case MONS_SHADOW:
+    case MONS_SKELETON_LARGE:
     case MONS_SKELETON_SMALL:
     case MONS_SPECTRAL_WARRIOR:
     case MONS_VAMPIRE:
@@ -663,7 +665,6 @@ int mons_standard_level(int mcls)
     case MONS_WRAITH:
     case MONS_UNSEEN_HORROR:
     case MONS_TRAPDOOR_SPIDER:
-    case MONS_ROCK_WORM:
         return 14;
 
     case MONS_ARMOUR_MIMIC:
@@ -702,6 +703,7 @@ int mons_standard_level(int mcls)
     case MONS_WIZARD:
     case MONS_SIMULACRUM_SMALL:
     case MONS_SIMULACRUM_LARGE:
+    case MONS_ROCK_WORM:
         return 17;
 
     case MONS_DRAGON:
@@ -1958,7 +1960,7 @@ int mons_hive_level(int mcls)
         break;
 
     case MONS_KILLER_BEE_LARVA:
-        mlev += 2;
+        mlev++;
         break;
 
     default:

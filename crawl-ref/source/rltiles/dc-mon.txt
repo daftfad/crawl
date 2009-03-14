@@ -211,7 +211,11 @@ shadow_imp MONS_SHADOW_IMP
 ufetubus MONS_UFETUBUS
 white_imp MONS_WHITE_IMP
 
-efreet MONS_EFREET /*'E'*/
+# efreet ('E')
+%sdir dc-mon/unique
+azrael MONS_AZRAEL
+%sdir dc-mon/demons
+efreet MONS_EFREET
 
 ## Rakshasa ('R')
 rakshasa MONS_RAKSHASA
@@ -248,9 +252,12 @@ toenail_golem MONS_TOENAIL_GOLEM
 wood_golem MONS_WOOD_GOLEM
 
 ## Statues (also '8')
-ice_statue ICE_STATUE
-silver_statue SILVER_STATUE
-orange_crystal_statue ORANGE_CRYSTAL_STATUE
+%sdir dc-mon/unique
+roxanne MONS_ROXANNE
+%sdir dc-mon
+ice_statue MONS_ICE_STATUE
+silver_statue MONS_SILVER_STATUE
+orange_crystal_statue MONS_ORANGE_CRYSTAL_STATUE
 
 ## Gargoyles ('9')
 gargoyle MONS_GARGOYLE
@@ -265,6 +272,7 @@ donald MONS_DONALD
 duane MONS_DUANE
 edmund MONS_EDMUND
 erica MONS_ERICA
+eustachio MONS_EUSTACHIO
 frances MONS_FRANCES
 francis MONS_FRANCIS
 frederick MONS_FREDERICK
@@ -379,6 +387,9 @@ death_ooze MONS_DEATH_OOZE
 acid_blob MONS_ACID_BLOB
 
 ## Kobolds ('K')
+%sdir dc-mon/unique
+sonja MONS_SONJA
+%sdir dc-mon
 kobold MONS_KOBOLD
 big_kobold MONS_BIG_KOBOLD
 kobold_demonologist MONS_KOBOLD_DEMONOLOGIST
@@ -507,6 +518,8 @@ rotting_hulk MONS_ROTTING_HULK
 %sdir dc-mon/unique
 blork_the_orc MONS_BLORK_THE_ORC
 urug MONS_URUG
+nergalle MONS_NERGALLE
+saint_roka MONS_SAINT_ROKA
 %sdir dc-mon
 orc MONS_ORC
 orc_wizard MONS_ORC_WIZARD
@@ -522,6 +535,7 @@ orc_high_priest MONS_ORC_HIGH_PRIEST
 shadow MONS_SHADOW /*' '*/
 insubstantial_wisp MONS_INSUBSTANTIAL_WISP
 phantom MONS_PHANTOM
+## used for Detect Creatures
 ghost MONS_PLAYER_GHOST
 %rim 1
 flayed_ghost MONS_FLAYED_GHOST

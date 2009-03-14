@@ -199,9 +199,9 @@ bool is_player_seen(int grid_x, int grid_y)
 // Returns true if there is a known trap at (x,y). Returns false for non-trap
 // squares as also for undiscovered traps.
 //
-inline bool is_trap(int x, int y)
+inline bool is_trap(const coord_def& c)
 {
-    return grid_is_trap( grd[x][y] );
+    return grid_is_trap(grd(c));
 }
 
 // Returns an estimate for the time needed to cross this feature.
@@ -224,7 +224,7 @@ bool is_altar(dungeon_feature_type grid)
 
 bool is_altar(const coord_def &c)
 {
-    return is_altar(grd[c.x][c.y]);
+    return is_altar(grd(c));
 }
 
 inline bool is_player_altar(dungeon_feature_type grid)
@@ -236,7 +236,7 @@ inline bool is_player_altar(dungeon_feature_type grid)
 
 inline bool is_player_altar(const coord_def &c)
 {
-    return is_player_altar(grd[c.x][c.y]);
+    return is_player_altar(grd(c));
 }
 
 #ifdef CLUA_BINDINGS
@@ -254,12 +254,12 @@ static void _init_traps()
     traps_inited = true;
 }
 
-const char *trap_name(int x, int y)
+const char *trap_name(const coord_def& c)
 {
     if (!traps_inited)
         _init_traps();
 
-    const int ti = curr_traps[x][y];
+    const int ti = curr_traps[c.x][c.y];
     if (ti != -1)
     {
         int type = env.trap[ti].type;
@@ -509,14 +509,14 @@ void set_exclude(const coord_def &p, int radius)
     }
 }
 
-static bool _is_monster_blocked(int x, int y)
+static bool _is_monster_blocked(const coord_def& c)
 {
-    const monsters *mons = monster_at(coord_def(x, y));
+    const monsters *mons = monster_at(c);
     return (mons
             && player_monster_visible(mons)
             && mons_is_stationary(mons)
             && mons_was_seen(mons)
-            && (!mons_is_mimic(mons->type) || mons_is_known_mimic(mons)));
+            && !mons_is_unknown_mimic(mons));
 }
 
 /*
@@ -530,71 +530,72 @@ static bool _is_monster_blocked(int x, int y)
  *       colour the level map. It does not affect pathing of actual
  *       travel/explore.
  */
-static bool _is_reseedable(int x, int y)
+static bool _is_reseedable(const coord_def& c)
 {
-    if (is_excluded(coord_def(x, y)))
+    if (is_excluded(c))
         return (true);
 
-    int grid = grd[x][y];
-    return (grid == DNGN_DEEP_WATER || grid == DNGN_SHALLOW_WATER
-            || grid == DNGN_LAVA || is_trap(x, y) || _is_monster_blocked(x, y));
+    const dungeon_feature_type grid = grd(c);
+    return (grid_is_water(grid)
+               || grid == DNGN_LAVA
+               || is_trap(c)
+               || _is_monster_blocked(c));
 }
 
 // Returns true if the square at (x,y) is okay to travel over. If ignore_hostile
 // is true, returns true even for dungeon features the character can normally
 // not cross safely (deep water, lava, traps).
-bool is_travelsafe_square(int x, int y, bool ignore_hostile,
+bool is_travelsafe_square(const coord_def& c, bool ignore_hostile,
                           bool ignore_terrain_knowledge)
 {
-    if (!ignore_terrain_knowledge && !is_terrain_known(x, y))
+    if (!ignore_terrain_knowledge && !is_terrain_known(c))
         return (false);
 
-    const dungeon_feature_type grid = grd[x][y];
+    const bool seen = see_grid(c);
+    const int grid = ((seen || ignore_terrain_knowledge) ? grd(c)
+                                                         : get_envmap_obj(c));
 
-    // Special-case secret doors so that we don't run into awkwardness when
-    // a monster opens a secret door without the hero seeing it, but the travel
-    // code paths through the secret door because it looks at the actual grid,
-    // rather than the env overmap.
-    if ((grid == DNGN_OPEN_DOOR || grid == DNGN_CLOSED_DOOR)
-        && is_terrain_changed(x, y))
+    // FIXME: this compares to the *real* monster at the square,
+    // even if the one we've seen is different.
+    if (!ignore_hostile
+        && (seen || grid > DNGN_START_OF_MONSTERS)
+        && _is_monster_blocked(c))
     {
-        const int c = get_envmap_obj(x, y);
-        const int secret_door = grid_secret_door_appearance(coord_def(x, y));
-        return (c != secret_door);
-    }
-
-    if (!ignore_hostile && _is_monster_blocked(x, y))
         return (false);
+    }
 
     // If 'ignore_hostile' is true, we're ignoring hazards that can be
     // navigated over if the player is willing to take damage, or levitate.
-    if (ignore_hostile && _is_reseedable(x, y))
+    if (ignore_hostile
+        && (seen || grid < NUM_REAL_FEATURES)
+        && _is_reseedable(c))
+    {
+        return (true);
+    }
+
+    if (grid >= NUM_REAL_FEATURES)
         return (true);
 
-    return (is_traversable(grid)
+    return (is_traversable(static_cast<dungeon_feature_type>(grid))
 #ifdef CLUA_BINDINGS
-                || (is_trap(x, y)
+                || (is_trap(c)
                     && clua.callbooleanfn(false, "ch_cross_trap",
-                                          "s", trap_name(x, y)))
+                                          "s", trap_name(c)))
 #endif
             )
-            && !is_excluded(coord_def(x, y));
+            && !is_excluded(c);
 }
 
 // Returns true if the location at (x,y) is monster-free and contains no clouds.
 // Travel uses this to check if the square the player is about to move to is
 // safe.
-static bool _is_safe_move(int x, int y)
+static bool _is_safe_move(const coord_def& c)
 {
-    int mon = mgrd[x][y];
-    if (mon != NON_MONSTER)
+    if (const monsters *mon = monster_at(c))
     {
         // Stop before wasting energy on plants and fungi.
-        if (player_monster_visible(&menv[mon])
-            && mons_class_flag( menv[mon].type, M_NO_EXP_GAIN ))
-        {
+        if (you.can_see(mon) && mons_class_flag(mon->type, M_NO_EXP_GAIN))
             return (false);
-        }
 
         // If this is any *other* monster, it'll be visible and
         // a) Friendly, in which case we'll displace it, no problem.
@@ -602,22 +603,22 @@ static bool _is_safe_move(int x, int y)
         //    should have been aborted already by the checks in view.cc.
     }
 
-    if (is_trap(x, y)
+    if (is_trap(c)
 #ifdef CLUA_BINDINGS
         && !clua.callbooleanfn(false, "ch_cross_trap",
-                               "s", trap_name(x, y))
+                               "s", trap_name(c))
 #endif
         )
     {
         return (false);
     }
 
-    const int cloud = env.cgrid[x][y];
+    const int cloud = env.cgrid(c);
     if (cloud == EMPTY_CLOUD)
         return (true);
 
     // We can also safely run through smoke.
-    const cloud_type ctype = env.cloud[ cloud ].type;
+    const cloud_type ctype = env.cloud[cloud].type;
     return (!is_damaging_cloud(ctype, true));
 }
 
@@ -702,9 +703,9 @@ void initialise_travel()
 int get_feature_type(const std::string &feature)
 {
     if (feature.find("deep water") != std::string::npos)
-        return DNGN_DEEP_WATER;
+        return (DNGN_DEEP_WATER);
     if (feature.find("shallow water") != std::string::npos)
-        return DNGN_SHALLOW_WATER;
+        return (DNGN_SHALLOW_WATER);
     return -1;
 }
 
@@ -725,12 +726,15 @@ bool is_branch_stair(const coord_def& pos)
     return (next.branch != curr.branch);
 }
 
+// Returns true if the given dungeon feature is a stair, i.e., a level
+// exit.
 bool is_stair(dungeon_feature_type gridc)
 {
     return (is_travelable_stair(gridc) || is_gate(gridc));
 }
 
-// Returns true if the given dungeon feature can be considered a stair.
+// Returns true if the given dungeon feature is a travelable stair, i.e.,
+// it's a level exit with a consistent endpoint.
 bool is_travelable_stair(dungeon_feature_type gridc)
 {
     switch (gridc)
@@ -796,6 +800,13 @@ bool is_gate(dungeon_feature_type gridc)
     case DNGN_TRANSIT_PANDEMONIUM:
     case DNGN_ENTER_PORTAL_VAULT:
     case DNGN_EXIT_PORTAL_VAULT:
+    case DNGN_ENTER_ZOT:
+    case DNGN_RETURN_FROM_ZOT:
+    case DNGN_ENTER_HELL:
+    case DNGN_ENTER_DIS:
+    case DNGN_ENTER_GEHENNA:
+    case DNGN_ENTER_COCYTUS:
+    case DNGN_ENTER_TARTARUS:
         return (true);
     default:
         return (false);
@@ -830,14 +841,12 @@ inline static void _check_interesting_square(int x, int y,
 
     if (ES_item || ES_greedy || ES_glow || ES_art || ES_rune)
     {
-        if (mgrd(pos) != NON_MONSTER)
+        if (const monsters *mons = monster_at(pos))
         {
-            const monsters *mons = &menv[ mgrd(pos) ];
-            if (mons_is_mimic(mons->type) && !mons_is_known_mimic(mons))
+            if (mons_is_unknown_mimic(mons))
             {
                 item_def item;
                 get_mimic_item(mons, item);
-
                 ed.found_item(pos, item);
             }
         }
@@ -1008,7 +1017,7 @@ static void _explore_find_target_square()
                 target += delta;
                 feature = grd(target);
             }
-            while (is_travelsafe_square(target.x, target.y)
+            while (is_travelsafe_square(target)
                    && is_traversable(feature)
                    && feature_traverse_cost(feature) == 1);
 
@@ -1022,10 +1031,8 @@ static void _explore_find_target_square()
                 // Auto-explore is only zigzagging if the prefered
                 // target (whereto) and the anti-zigzag target are
                 // close together.
-                if (grid_distance(target.x, target.y,
-                                  whereto.x, whereto.y) <= 5
-                    && distance(target.x, target.y,
-                                whereto.x, whereto.y) <= 34)
+                if (grid_distance(target, whereto) <= 5
+                    && distance(target, whereto) <= 34)
                 {
                     _set_target_square(target);
                     return;
@@ -1055,8 +1062,8 @@ static void _explore_find_target_square()
                 inacc.push_back("places");
 
             mprf("Partly explored, can't reach some %s.",
-                 comma_separated_line( inacc.begin(),
-                                       inacc.end()).c_str());
+                 comma_separated_line(inacc.begin(),
+                                      inacc.end()).c_str());
         }
         stop_running();
     }
@@ -1402,13 +1409,9 @@ static bool _is_greed_inducing_square(const LevelStashes *ls,
     if (ls && ls->needs_visit(c.x, c.y))
         return (true);
 
-    const int m_ind = mgrd(c);
-    if (m_ind != NON_MONSTER)
+    if (const monsters *mons = monster_at(c))
     {
-        const monsters *mons = &menv[ m_ind ];
-        if (mons_is_mimic(mons->type)
-            && mons_was_seen(mons)
-            && !mons_is_known_mimic(mons))
+        if (mons_is_unknown_mimic(mons) && mons_was_seen(mons))
         {
             item_def mimic_item;
             get_mimic_item(mons, mimic_item);
@@ -1537,10 +1540,10 @@ coord_def travel_pathfind::pathfind(run_mode_type rmode)
     // Abort run if we're trying to go someplace evil. Travel to traps is
     // specifically allowed here if the player insists on it.
     if (!floodout
-        && !is_travelsafe_square(start.x, start.y, false)
-        && !is_trap(start.x, start.y))          // player likes pain
+        && !is_travelsafe_square(start, false)
+        && !is_trap(start))          // player likes pain
     {
-        return coord_def(0, 0);
+        return coord_def();
     }
 
     // Nothing to do?
@@ -1676,7 +1679,7 @@ void travel_pathfind::check_square_greed(const coord_def &c)
 {
     if (greedy_dist == UNFOUND_DIST
         && is_greed_inducing_square(c)
-        && is_travelsafe_square(c.x, c.y, ignore_hostile))
+        && is_travelsafe_square(c, ignore_hostile))
     {
         greedy_place = c;
         greedy_dist  = traveled_distance;
@@ -1741,20 +1744,20 @@ bool travel_pathfind::path_flood(const coord_def &c, const coord_def &dc)
     if (dc == dest)
     {
         // Hallelujah, we're home!
-        if (_is_safe_move(c.x, c.y))
+        if (_is_safe_move(c))
             next_travel_move = c;
 
         return (true);
     }
-    else if (!is_travelsafe_square(dc.x, dc.y, ignore_hostile))
+    else if (!is_travelsafe_square(dc, ignore_hostile))
     {
         // This point is not okay to travel on, but if this is a
         // trap, we'll want to put it on the feature vector anyway.
-        if (_is_reseedable(dc.x, dc.y)
+        if (_is_reseedable(dc)
             && !point_distance[dc.x][dc.y]
             && dc != start)
         {
-            if (features && (is_trap(dc.x, dc.y) || is_exclude_root(dc)))
+            if (features && (is_trap(dc) || is_exclude_root(dc)))
                 features->push_back(dc);
 
             if (double_flood)
@@ -1790,12 +1793,11 @@ bool travel_pathfind::path_flood(const coord_def &c, const coord_def &dc)
 
         if (features && !ignore_hostile)
         {
-            const int feature = grd(dc);
+            dungeon_feature_type feature = grd(dc);
 
             if (dc != start
                 && (feature != DNGN_FLOOR
-                       && feature != DNGN_SHALLOW_WATER
-                       && feature != DNGN_DEEP_WATER
+                       && !grid_is_water(feature)
                        && feature != DNGN_LAVA
                     || is_waypoint(dc)
                     || is_stash(ls, dc.x, dc.y)))
@@ -2641,18 +2643,13 @@ static int _find_transtravel_stair( const level_id &cur,
             // Okay, we don't seem to have a distance available to us, which
             // means we're either (a) not standing on stairs or (b) whoever
             // initiated interlevel travel didn't call
-            // _populate_stair_distances or (c) we're trying to travel to
-            // a non-traversable square. Assuming we're not on stairs, that
+            // _populate_stair_distances.  Assuming we're not on stairs, that
             // situation can arise only if interlevel travel has been triggered
             // for a location on the same level. If that's the case, we can get
             // the distance off the travel_point_distance matrix.
-
             deltadist = travel_point_distance[target.pos.x][target.pos.y];
-
-            // If deltadist is zero, travel is trying to occur to a non-seeded
-            // square, so bail.  This can happen if trying to travel to a wall.
             if (!deltadist && stair != target.pos)
-                return (-1);
+                deltadist = -1;
         }
 
         if (deltadist != -1)
@@ -2946,6 +2943,12 @@ void start_travel(const coord_def& p)
     if (!i_feel_safe(true, true))
         return;
 
+    // Can we even travel to this square?
+    if (!in_bounds(p))
+        return;
+    if (!is_travelsafe_square(p, true))
+        return;
+
     you.running.pos = p;
     level_target  = level_pos(level_id::current(), p);
 
@@ -3057,7 +3060,7 @@ int level_id::absdepth() const
 
 level_id level_id::get_next_level_id(const coord_def &pos)
 {
-    int gridc = grd[pos.x][pos.y];
+    int gridc = grd(pos);
     level_id id = current();
 
     for ( int i = 0; i < NUM_BRANCHES; ++i )
@@ -4014,7 +4017,7 @@ bool runrest::run_grids_changed() const
     if (env.cgrid(you.pos() + pos) != EMPTY_CLOUD)
         return (true);
 
-    if (mgrd(you.pos() + pos) != NON_MONSTER)
+    if (monster_at(you.pos() + pos))
         return (true);
 
     for (int i = 0; i < 3; i++)

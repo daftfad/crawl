@@ -22,6 +22,8 @@ typedef unsigned int screen_buffer_t;
 typedef unsigned short screen_buffer_t;
 #endif
 
+#include <stdio.h>
+
 char getche(void);
 
 void message_out(int mline, int colour, const char *str, int firstcol = 0,

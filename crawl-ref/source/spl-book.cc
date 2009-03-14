@@ -56,7 +56,7 @@ REVISION("$Rev$");
 
 static spell_type spellbook_template_array[][SPELLBOOK_SIZE] =
 {
-    // 0 - Minor Magic I
+    // 0 - Minor Magic I (fire)
     {SPELL_MAGIC_DART,
      SPELL_SUMMON_SMALL_MAMMALS,
      SPELL_THROW_FLAME,
@@ -66,7 +66,8 @@ static spell_type spellbook_template_array[][SPELLBOOK_SIZE] =
      SPELL_CONJURE_FLAME,
      SPELL_NO_SPELL,
      },
-    // 1 - Minor Magic II
+
+    // 1 - Minor Magic II (ice)
     {SPELL_MAGIC_DART,
      SPELL_THROW_FROST,
      SPELL_BLINK,
@@ -76,7 +77,8 @@ static spell_type spellbook_template_array[][SPELLBOOK_SIZE] =
      SPELL_OZOCUBUS_ARMOUR,
      SPELL_NO_SPELL,
      },
-    // 2 - Minor Magic III
+
+    // 2 - Minor Magic III (summ)
     {SPELL_MAGIC_DART,
      SPELL_SUMMON_SMALL_MAMMALS,
      SPELL_BLINK,
@@ -86,6 +88,7 @@ static spell_type spellbook_template_array[][SPELLBOOK_SIZE] =
      SPELL_MEPHITIC_CLOUD,
      SPELL_NO_SPELL,
      },
+
     // 3 - Book of Conjurations I - Fire and Earth
     {SPELL_MAGIC_DART,
      SPELL_THROW_FLAME,
@@ -96,6 +99,7 @@ static spell_type spellbook_template_array[][SPELLBOOK_SIZE] =
      SPELL_NO_SPELL,
      SPELL_NO_SPELL,
      },
+
     // 4 - Book of Conjurations II - Air and Ice
     {SPELL_MAGIC_DART,
      SPELL_THROW_FROST,
@@ -106,6 +110,7 @@ static spell_type spellbook_template_array[][SPELLBOOK_SIZE] =
      SPELL_NO_SPELL,
      SPELL_NO_SPELL,
      },
+
     // 5 - Book of Flames
     {SPELL_FLAME_TONGUE,
      SPELL_THROW_FLAME,
@@ -116,6 +121,7 @@ static spell_type spellbook_template_array[][SPELLBOOK_SIZE] =
      SPELL_NO_SPELL,
      SPELL_NO_SPELL,
      },
+
     // 6 - Book of Frost
     {SPELL_FREEZE,
      SPELL_THROW_FROST,
@@ -126,8 +132,9 @@ static spell_type spellbook_template_array[][SPELLBOOK_SIZE] =
      SPELL_NO_SPELL,
      SPELL_NO_SPELL,
      },
+
     // 7 - Book of Summonings
-    {SPELL_ABJURATION_I,
+    {SPELL_ABJURATION,
      SPELL_RECALL,
      SPELL_CALL_CANINE_FAMILIAR,
      SPELL_SUMMON_UGLY_THING,
@@ -136,6 +143,7 @@ static spell_type spellbook_template_array[][SPELLBOOK_SIZE] =
      SPELL_SUMMON_HORRIBLE_THINGS,
      SPELL_NO_SPELL,
      },
+
     // 8 - Book of Fire
     {SPELL_EVAPORATE,
      SPELL_FIRE_BRAND,
@@ -146,6 +154,7 @@ static spell_type spellbook_template_array[][SPELLBOOK_SIZE] =
      SPELL_RING_OF_FLAMES,
      SPELL_NO_SPELL,
      },
+
     // 9 - Book of Ice
     {SPELL_FREEZING_AURA,
      SPELL_SLEEP,
@@ -167,6 +176,7 @@ static spell_type spellbook_template_array[][SPELLBOOK_SIZE] =
      SPELL_NO_SPELL,
      SPELL_NO_SPELL
      },
+
     // 11 - Book of Spatial Translocations
     {SPELL_APPORTATION,
      SPELL_PORTAL_PROJECTILE,
@@ -177,6 +187,7 @@ static spell_type spellbook_template_array[][SPELLBOOK_SIZE] =
      SPELL_TELEPORT_SELF,
      SPELL_NO_SPELL,
      },
+
     // 12 - Book of Enchantments (fourth one)
     {SPELL_LEVITATION,
      SPELL_SELECTIVE_AMNESIA,
@@ -187,9 +198,10 @@ static spell_type spellbook_template_array[][SPELLBOOK_SIZE] =
      SPELL_HASTE,
      SPELL_NO_SPELL,
      },
+
     // 13 - Young Poisoner's Handbook
     {SPELL_STING,
-     SPELL_CURE_POISON_II,
+     SPELL_CURE_POISON,
      SPELL_POISON_WEAPON,
      SPELL_MEPHITIC_CLOUD,
      SPELL_VENOM_BOLT,
@@ -197,6 +209,7 @@ static spell_type spellbook_template_array[][SPELLBOOK_SIZE] =
      SPELL_NO_SPELL,
      SPELL_NO_SPELL,
      },
+
     // 14 - Book of the Tempests
     {SPELL_DISCHARGE,
      SPELL_LIGHTNING_BOLT,
@@ -207,6 +220,7 @@ static spell_type spellbook_template_array[][SPELLBOOK_SIZE] =
      SPELL_NO_SPELL,
      SPELL_NO_SPELL,
      },
+
     // 15 - Book of Death
     {SPELL_CORPSE_ROT,
      SPELL_LETHAL_INFUSION,
@@ -217,6 +231,7 @@ static spell_type spellbook_template_array[][SPELLBOOK_SIZE] =
      SPELL_NO_SPELL,
      SPELL_NO_SPELL,
      },
+
     // 16 - Book of Hinderance
     {SPELL_CONFUSING_TOUCH,
      SPELL_SLOW,
@@ -227,6 +242,7 @@ static spell_type spellbook_template_array[][SPELLBOOK_SIZE] =
      SPELL_NO_SPELL,
      SPELL_NO_SPELL,
      },
+
     // 17 - Book of Changes
     {SPELL_FULSOME_DISTILLATION,
      SPELL_STICKS_TO_SNAKES,
@@ -237,6 +253,7 @@ static spell_type spellbook_template_array[][SPELLBOOK_SIZE] =
      SPELL_BLADE_HANDS,
      SPELL_NO_SPELL,
      },
+
     // 18 - Book of Transfigurations
     {SPELL_SANDBLAST,
      SPELL_POLYMORPH_OTHER,
@@ -247,6 +264,7 @@ static spell_type spellbook_template_array[][SPELLBOOK_SIZE] =
      SPELL_NO_SPELL,
      SPELL_NO_SPELL,
      },
+
     // 19 - Book of Practical Magic
     {SPELL_PROJECTED_NOISE,
      SPELL_DETECT_CURSE,
@@ -268,6 +286,7 @@ static spell_type spellbook_template_array[][SPELLBOOK_SIZE] =
      SPELL_NO_SPELL,
      SPELL_NO_SPELL,
      },
+
     // 21 - Book of Clouds
     {SPELL_EVAPORATE,
      SPELL_MEPHITIC_CLOUD,
@@ -278,17 +297,8 @@ static spell_type spellbook_template_array[][SPELLBOOK_SIZE] =
      SPELL_NO_SPELL,
      SPELL_NO_SPELL,
      },
-    // 22 - Book of Healing --  XXX: not used
-    {SPELL_LESSER_HEALING,
-     SPELL_CURE_POISON_I,
-     SPELL_PURIFICATION,
-     SPELL_GREATER_HEALING,
-     SPELL_NO_SPELL,
-     SPELL_NO_SPELL,
-     SPELL_NO_SPELL,
-     SPELL_NO_SPELL,
-     },
-    // 23 - Book of Necromancy
+
+    // 22 - Book of Necromancy
     {SPELL_PAIN,
      SPELL_ANIMATE_SKELETON,
      SPELL_VAMPIRIC_DRAINING,
@@ -298,7 +308,8 @@ static spell_type spellbook_template_array[][SPELLBOOK_SIZE] =
      SPELL_NO_SPELL,
      SPELL_NO_SPELL,
      },
-    // 24 - Book of Callings
+
+    // 23 - Book of Callings
     {SPELL_SUMMON_SMALL_MAMMALS,
      SPELL_STICKS_TO_SNAKES,
      SPELL_CALL_IMP,
@@ -308,7 +319,8 @@ static spell_type spellbook_template_array[][SPELLBOOK_SIZE] =
      SPELL_NO_SPELL,
      SPELL_NO_SPELL,
      },
-    // 25 - Book of Charms
+
+    // 24 - Book of Charms
     {SPELL_BACKLIGHT,
      SPELL_REPEL_MISSILES,
      SPELL_SLEEP,
@@ -318,7 +330,8 @@ static spell_type spellbook_template_array[][SPELLBOOK_SIZE] =
      SPELL_INVISIBILITY,
      SPELL_NO_SPELL,
      },
-    // 26 - Book of Air
+
+    // 25 - Book of Air
     {SPELL_SHOCK,
      SPELL_SWIFTNESS,
      SPELL_REPEL_MISSILES,
@@ -329,22 +342,7 @@ static spell_type spellbook_template_array[][SPELLBOOK_SIZE] =
      SPELL_NO_SPELL,
      },
 
-    // Removing Air Walk... it's currently broken in a number or ways:
-    // - the AC/EV bonus probably means very little to any character
-    //   capable of casting a level nine spell
-    // - the penalty of dropping inventory is a bit harsh considering
-    //   the above
-    // - the fire/ice susceptibility doesn't work... the AC/EV bonus
-    //   cancel it out (so you'd hardly be wary of them since they
-    //   can't really do any damage).
-    // - there is no need for another invulnerability spell (which is
-    //   what this spell is trying to be), one is more than enough...
-    //   let people use necromancy.
-    // - there is no need for another air spell... air spells are
-    //   already very common (i.e,. this level nine spell occurred in
-    //   two books!)
-
-    // 27 - Book of the Sky
+    // 26 - Book of the Sky
     {SPELL_SUMMON_ELEMENTAL,
      SPELL_INSULATION,
      SPELL_AIRSTRIKE,
@@ -355,7 +353,7 @@ static spell_type spellbook_template_array[][SPELLBOOK_SIZE] =
      SPELL_CONJURE_BALL_LIGHTNING,
      },
 
-    // 28 - Book of Divinations
+    // 27 - Book of Divinations
     {SPELL_DETECT_SECRET_DOORS,
      SPELL_DETECT_CREATURES,
      SPELL_DETECT_ITEMS,
@@ -365,7 +363,8 @@ static spell_type spellbook_template_array[][SPELLBOOK_SIZE] =
      SPELL_IDENTIFY,
      SPELL_NO_SPELL,
      },
-    // 29 - Book of the Warp
+
+    // 28 - Book of the Warp
     {SPELL_BANISHMENT,
      SPELL_WARP_BRAND,
      SPELL_DISPERSAL,
@@ -375,7 +374,8 @@ static spell_type spellbook_template_array[][SPELLBOOK_SIZE] =
      SPELL_NO_SPELL,
      SPELL_NO_SPELL,
      },
-    // 30 - Book of Envenomations
+
+    // 29 - Book of Envenomations
     {SPELL_SPIDER_FORM,
      SPELL_SUMMON_SCORPIONS,
      SPELL_POISON_AMMUNITION,
@@ -385,7 +385,8 @@ static spell_type spellbook_template_array[][SPELLBOOK_SIZE] =
      SPELL_NO_SPELL,
      SPELL_NO_SPELL,
      },
-    // 31 - Book of Unlife
+
+    // 30 - Book of Unlife
     {SPELL_SUBLIMATION_OF_BLOOD,
      SPELL_ANIMATE_DEAD,
      SPELL_TWISTED_RESURRECTION,
@@ -396,7 +397,7 @@ static spell_type spellbook_template_array[][SPELLBOOK_SIZE] =
      SPELL_NO_SPELL,
      },
 
-    // 32 - Book of Control
+    // 31 - Book of Control
     {SPELL_CONTROL_TELEPORT,
      SPELL_ENSLAVEMENT,
      SPELL_TAME_BEASTS,
@@ -406,19 +407,20 @@ static spell_type spellbook_template_array[][SPELLBOOK_SIZE] =
      SPELL_NO_SPELL,
      SPELL_NO_SPELL,
      },
-    // 33 - Book of Morphology
+
+    // 32 - Book of Morphology
     {SPELL_FRAGMENTATION,
      SPELL_POLYMORPH_OTHER,
      SPELL_CIGOTUVIS_DEGENERATION,
      SPELL_ALTER_SELF,
      // SPELL_IGNITE_POISON,    // moved to Fire which was a bit slim -- bwr
      SPELL_SHATTER,
-     // SPELL_AIR_WALK,
      SPELL_NO_SPELL,
      SPELL_NO_SPELL,
      SPELL_NO_SPELL,
      },
-    // 34 - Book of Tukima
+
+    // 33 - Book of Tukima
     {SPELL_SURE_BLADE,
      SPELL_TUKIMAS_VORPAL_BLADE,
      SPELL_TUKIMAS_DANCE,
@@ -428,7 +430,8 @@ static spell_type spellbook_template_array[][SPELLBOOK_SIZE] =
      SPELL_NO_SPELL,
      SPELL_NO_SPELL,
      },
-    // 35 - Book of Geomancy
+
+    // 34 - Book of Geomancy
     {SPELL_SANDBLAST,
      SPELL_STONESKIN,
      SPELL_PASSWALL,
@@ -439,7 +442,7 @@ static spell_type spellbook_template_array[][SPELLBOOK_SIZE] =
      SPELL_NO_SPELL,
      },
 
-    // 36 - Book of Earth
+    // 35 - Book of Earth
     {SPELL_MAXWELLS_SILVER_HAMMER,
      SPELL_MAGIC_MAPPING,
      SPELL_DIG,
@@ -449,7 +452,8 @@ static spell_type spellbook_template_array[][SPELLBOOK_SIZE] =
      SPELL_NO_SPELL,
      SPELL_NO_SPELL
      },
-    // 37 - Book of Wizardry
+
+    // 36 - Book of Wizardry
     {SPELL_DETECT_CREATURES,
      SPELL_SUMMON_ELEMENTAL,
      SPELL_MAGIC_MAPPING,
@@ -459,7 +463,8 @@ static spell_type spellbook_template_array[][SPELLBOOK_SIZE] =
      SPELL_HASTE,
      SPELL_NO_SPELL,
      },
-    // 38 - Book of Power
+
+    // 37 - Book of Power
     {SPELL_ANIMATE_DEAD,
      SPELL_TELEPORT_OTHER,
      SPELL_VENOM_BOLT,
@@ -469,7 +474,8 @@ static spell_type spellbook_template_array[][SPELLBOOK_SIZE] =
      SPELL_POISONOUS_CLOUD,
      SPELL_NO_SPELL,
      },
-    // 39 - Book of Cantrips      //jmf: added 04jan2000
+
+    // 38 - Book of Cantrips      //jmf: added 04jan2000
     {SPELL_CONFUSING_TOUCH,
      SPELL_ANIMATE_SKELETON,
      SPELL_SUMMON_SMALL_MAMMALS,
@@ -480,7 +486,7 @@ static spell_type spellbook_template_array[][SPELLBOOK_SIZE] =
      SPELL_NO_SPELL,
      },
 
-    // 40 - Book of Party Tricks  //jmf: added 04jan2000
+    // 39 - Book of Party Tricks  //jmf: added 04jan2000
     {SPELL_SUMMON_BUTTERFLIES,
      SPELL_APPORTATION,
      SPELL_PROJECTED_NOISE,
@@ -491,7 +497,7 @@ static spell_type spellbook_template_array[][SPELLBOOK_SIZE] =
      SPELL_NO_SPELL,
      },
 
-    // 41 - Book of Beasts //jmf: added 19mar2000
+    // 40 - Book of Beasts //jmf: added 19mar2000
     {SPELL_SUMMON_SMALL_MAMMALS,
      SPELL_STICKS_TO_SNAKES,
      SPELL_DETECT_CREATURES,
@@ -502,7 +508,7 @@ static spell_type spellbook_template_array[][SPELLBOOK_SIZE] =
      SPELL_NO_SPELL,
      },
 
-    // 42 - Book of Stalking //jmf: 24jun2000
+    // 41 - Book of Stalking //jmf: 24jun2000
     {SPELL_STING,
      SPELL_SURE_BLADE,
      SPELL_PROJECTED_NOISE,
@@ -513,7 +519,7 @@ static spell_type spellbook_template_array[][SPELLBOOK_SIZE] =
      SPELL_NO_SPELL,
      },
 
-    // 43 - Book of Annihilations -- Vehumet special
+    // 42 - Book of Annihilations - Vehumet special
     {SPELL_ISKENDERUNS_MYSTIC_BLAST,
      SPELL_POISON_ARROW,
      SPELL_CHAIN_LIGHTNING,
@@ -524,8 +530,8 @@ static spell_type spellbook_template_array[][SPELLBOOK_SIZE] =
      SPELL_NO_SPELL,
      },
 
-    // 44 - Book of Demonology  -- Vehumet special
-    {SPELL_ABJURATION_I,
+    // 43 - Book of Demonology - Vehumet special
+    {SPELL_ABJURATION,
      SPELL_RECALL,
      SPELL_CALL_IMP,
      SPELL_SUMMON_DEMON,
@@ -535,7 +541,7 @@ static spell_type spellbook_template_array[][SPELLBOOK_SIZE] =
      SPELL_NO_SPELL,
      },
 
-    // 45 - Necronomicon -- Kikubaaqudgha special
+    // 44 - Necronomicon - Kikubaaqudgha special
     {SPELL_SYMBOL_OF_TORMENT,
      SPELL_CONTROL_UNDEAD,
      SPELL_SUMMON_WRAITHS,
@@ -546,7 +552,7 @@ static spell_type spellbook_template_array[][SPELLBOOK_SIZE] =
      SPELL_NO_SPELL,
      },
 
-    // 46 - Randart Spellbook (by level)
+    // 45 - Randart Spellbook (by level)
     {SPELL_NO_SPELL,
      SPELL_NO_SPELL,
      SPELL_NO_SPELL,
@@ -557,7 +563,7 @@ static spell_type spellbook_template_array[][SPELLBOOK_SIZE] =
      SPELL_NO_SPELL,
      },
 
-    // 47 - Randart Spellbook (by theme)
+    // 46 - Randart Spellbook (by theme)
     {SPELL_NO_SPELL,
      SPELL_NO_SPELL,
      SPELL_NO_SPELL,
@@ -568,7 +574,7 @@ static spell_type spellbook_template_array[][SPELLBOOK_SIZE] =
      SPELL_NO_SPELL,
      },
 
-    // 48 - Book of Card Effects
+    // 47 - Book of Card Effects
     {SPELL_NO_SPELL,
      SPELL_NO_SPELL,
      SPELL_NO_SPELL,
@@ -579,7 +585,7 @@ static spell_type spellbook_template_array[][SPELLBOOK_SIZE] =
      SPELL_NO_SPELL,
      },
 
-    // 49 - manuals of all kinds
+    // 48 - manuals of all kinds
     {SPELL_NO_SPELL,
      SPELL_NO_SPELL,
      SPELL_NO_SPELL,
@@ -590,7 +596,7 @@ static spell_type spellbook_template_array[][SPELLBOOK_SIZE] =
      SPELL_NO_SPELL,
      },
 
-    // 50 - Tome of Destruction
+    // 49 - Tome of Destruction
     {SPELL_NO_SPELL,
      SPELL_NO_SPELL,
      SPELL_NO_SPELL,
@@ -603,7 +609,7 @@ static spell_type spellbook_template_array[][SPELLBOOK_SIZE] =
 
     // Rods - start at NUM_BOOKS.
 
-    // 51 - Rod of smiting
+    // 50 - Rod of smiting
     {SPELL_SMITING,
      SPELL_NO_SPELL,
      SPELL_NO_SPELL,
@@ -614,8 +620,8 @@ static spell_type spellbook_template_array[][SPELLBOOK_SIZE] =
      SPELL_NO_SPELL,
      },
 
-    // 52 - Rod of summoning
-    {SPELL_ABJURATION_I,
+    // 51 - Rod of summoning
+    {SPELL_ABJURATION,
      SPELL_RECALL,
      SPELL_SUMMON_ELEMENTAL,
      SPELL_SUMMON_SWARM,
@@ -624,7 +630,8 @@ static spell_type spellbook_template_array[][SPELLBOOK_SIZE] =
      SPELL_NO_SPELL,
      SPELL_NO_SPELL,
      },
-    // 53 - Rod of destruction (fire)
+
+    // 52 - Rod of destruction (fire)
     {SPELL_THROW_FLAME,
      SPELL_BOLT_OF_FIRE,
      SPELL_FIREBALL,
@@ -634,7 +641,8 @@ static spell_type spellbook_template_array[][SPELLBOOK_SIZE] =
      SPELL_NO_SPELL,
      SPELL_NO_SPELL,
      },
-    // 54 - Rod of destruction (ice)
+
+    // 53 - Rod of destruction (ice)
     {SPELL_THROW_FROST,
      SPELL_ICE_BOLT,
      SPELL_FREEZING_CLOUD,
@@ -644,7 +652,8 @@ static spell_type spellbook_template_array[][SPELLBOOK_SIZE] =
      SPELL_NO_SPELL,
      SPELL_NO_SPELL,
      },
-    // 55 - Rod of destruction (lightning, iron, fireball)
+
+    // 54 - Rod of destruction (lightning, iron, fireball)
     {SPELL_LIGHTNING_BOLT,
      SPELL_BOLT_OF_IRON,
      SPELL_FIREBALL,
@@ -654,7 +663,8 @@ static spell_type spellbook_template_array[][SPELLBOOK_SIZE] =
      SPELL_NO_SPELL,
      SPELL_NO_SPELL,
      },
-    // 56 - Rod of destruction (inaccuracy, magma, cold)
+
+    // 55 - Rod of destruction (inaccuracy, magma, cold)
     {SPELL_BOLT_OF_INACCURACY,
      SPELL_BOLT_OF_MAGMA,
      SPELL_BOLT_OF_COLD,
@@ -664,8 +674,9 @@ static spell_type spellbook_template_array[][SPELLBOOK_SIZE] =
      SPELL_NO_SPELL,
      SPELL_NO_SPELL,
      },
-    // 57 - Rod of warding
-    {SPELL_ABJURATION_I,
+
+    // 56 - Rod of warding
+    {SPELL_ABJURATION,
      SPELL_CONDENSATION_SHIELD,
      SPELL_CAUSE_FEAR,
      SPELL_DEFLECT_MISSILES,
@@ -674,7 +685,8 @@ static spell_type spellbook_template_array[][SPELLBOOK_SIZE] =
      SPELL_NO_SPELL,
      SPELL_NO_SPELL,
      },
-    // 58 - Rod of discovery
+
+    // 57 - Rod of discovery
     {SPELL_DETECT_SECRET_DOORS,
      SPELL_DETECT_TRAPS,
      SPELL_DETECT_ITEMS,
@@ -684,8 +696,9 @@ static spell_type spellbook_template_array[][SPELLBOOK_SIZE] =
      SPELL_NO_SPELL,
      SPELL_NO_SPELL,
      },
-    // 59 - Rod of demonology
-    {SPELL_ABJURATION_I,
+
+    // 58 - Rod of demonology
+    {SPELL_ABJURATION,
      SPELL_RECALL,
      SPELL_CALL_IMP,
      SPELL_SUMMON_DEMON,
@@ -694,7 +707,8 @@ static spell_type spellbook_template_array[][SPELLBOOK_SIZE] =
      SPELL_NO_SPELL,
      SPELL_NO_SPELL,
      },
-    // 60 - Rod of striking
+
+    // 59 - Rod of striking
     {SPELL_STRIKING,
      SPELL_NO_SPELL,
      SPELL_NO_SPELL,
@@ -704,8 +718,9 @@ static spell_type spellbook_template_array[][SPELLBOOK_SIZE] =
      SPELL_NO_SPELL,
      SPELL_NO_SPELL,
      },
-    // 61 - Rod of venom
-    {SPELL_CURE_POISON_II,
+
+    // 60 - Rod of venom
+    {SPELL_CURE_POISON,
      SPELL_VENOM_BOLT,
      SPELL_POISON_ARROW,
      SPELL_POISONOUS_CLOUD,
@@ -890,6 +905,7 @@ int spellbook_contents( item_def &book, read_book_action_type action,
 }
 
 //jmf: was in shopping.cc
+// Rarity 100 is reserved for unused books.
 int book_rarity(unsigned char which_book)
 {
     switch (which_book)
@@ -973,9 +989,6 @@ int book_rarity(unsigned char which_book)
     case BOOK_DESTRUCTION:
         return 30;
 
-    case BOOK_HEALING: //  XXX: not used
-        return 100;
-
     default:
         return 1;
     }
@@ -990,11 +1003,8 @@ void init_spell_rarities()
 
     for (int i = 0; i < NUM_FIXED_BOOKS; ++i)
     {
-        const int rarity = book_rarity(i);
-
-        // Manuals, books of destruction, books only created as gifts
-        // from specific gods, and the unused Book of Healing.
-        if (rarity >= 20)
+        // Manuals and books of destruction are not even part of this loop.
+        if (i >= MIN_GOD_ONLY_BOOK && i <= MAX_GOD_ONLY_BOOK)
             continue;
 
         for (int j = 0; j < SPELLBOOK_SIZE; ++j)
@@ -1019,6 +1029,7 @@ void init_spell_rarities()
             }
 #endif
 
+            const int rarity = book_rarity(i);
             if (rarity < _lowest_rarity[spell])
                 _lowest_rarity[spell] = rarity;
         }
@@ -1157,18 +1168,18 @@ void mark_had_book(int booktype)
 
     you.had_book[booktype] = true;
 
-    if ( booktype == BOOK_MINOR_MAGIC_I
-         || booktype == BOOK_MINOR_MAGIC_II
-         || booktype == BOOK_MINOR_MAGIC_III)
+    if (booktype == BOOK_MINOR_MAGIC_I
+        || booktype == BOOK_MINOR_MAGIC_II
+        || booktype == BOOK_MINOR_MAGIC_III)
     {
-        you.had_book[BOOK_MINOR_MAGIC_I] = true;
-        you.had_book[BOOK_MINOR_MAGIC_II] = true;
+        you.had_book[BOOK_MINOR_MAGIC_I]   = true;
+        you.had_book[BOOK_MINOR_MAGIC_II]  = true;
         you.had_book[BOOK_MINOR_MAGIC_III] = true;
     }
     else if (booktype == BOOK_CONJURATIONS_I
              || booktype == BOOK_CONJURATIONS_II)
     {
-        you.had_book[BOOK_CONJURATIONS_I] = true;
+        you.had_book[BOOK_CONJURATIONS_I]  = true;
         you.had_book[BOOK_CONJURATIONS_II] = true;
     }
 }
@@ -1199,26 +1210,19 @@ int read_book( item_def &book, read_book_action_type action )
     return (keyin);
 }
 
-// Recoded to answer whether an UNDEAD_STATE is
-// barred from a particular spell passed to the
-// function. Note that the function can be expanded
-// to prevent memorisation of certain spells by
-// the living by setting up an US_ALIVE case returning
-// a value of false for a set of spells ... might be
-// an idea worth further consideration. - 12mar2000 {dlb}
-bool undead_cannot_memorise(spell_type spell, char being)
+bool you_cannot_memorise(spell_type spell)
 {
-    switch (being)
+    bool rc = false;
+    switch (you.is_undead)
     {
     case US_HUNGRY_DEAD: // Ghouls
         switch (spell)
         {
-        case SPELL_AIR_WALK:
         case SPELL_ALTER_SELF:
         case SPELL_BERSERKER_RAGE:
         case SPELL_BLADE_HANDS:
         case SPELL_BORGNJORS_REVIVIFICATION:
-        case SPELL_CURE_POISON_II:
+        case SPELL_CURE_POISON:
         case SPELL_DEATHS_DOOR:
         case SPELL_DRAGON_FORM:
         case SPELL_ICE_FORM:
@@ -1229,9 +1233,10 @@ bool undead_cannot_memorise(spell_type spell, char being)
         case SPELL_STONESKIN:
         case SPELL_SYMBOL_OF_TORMENT:
         case SPELL_TAME_BEASTS:
-            return (true);
+            rc = true;
+            break;
         default:
-            return (false);
+            break;
         }
         break;
 
@@ -1241,23 +1246,23 @@ bool undead_cannot_memorise(spell_type spell, char being)
         case SPELL_BORGNJORS_REVIVIFICATION:
         case SPELL_DEATHS_DOOR:
         case SPELL_NECROMUTATION:
-            return (true);
-        default:
             // In addition, the above US_HUNGRY_DEAD spells are not castable
             // when satiated or worse.
-            return (false);
+            rc = true;
+            break;
+        default:
+            break;
         }
         break;
 
     case US_UNDEAD: // Mummies
         switch (spell)
         {
-        case SPELL_AIR_WALK:
         case SPELL_ALTER_SELF:
         case SPELL_BERSERKER_RAGE:
         case SPELL_BLADE_HANDS:
         case SPELL_BORGNJORS_REVIVIFICATION:
-        case SPELL_CURE_POISON_II:
+        case SPELL_CURE_POISON:
         case SPELL_DEATHS_DOOR:
         case SPELL_DRAGON_FORM:
         case SPELL_ICE_FORM:
@@ -1272,14 +1277,21 @@ bool undead_cannot_memorise(spell_type spell, char being)
         case SPELL_SUMMON_HORRIBLE_THINGS:
         case SPELL_SYMBOL_OF_TORMENT:
         case SPELL_TAME_BEASTS:
-            return (true);
+            rc = true;
+            break;
         default:
-            return (false);
+            break;
         }
+        break;
+
+    case US_ALIVE:
         break;
     }
 
-    return (false);
+    if (you.species == SP_DEEP_DWARF && spell == SPELL_REGENERATION)
+        rc = true;
+
+    return (rc);
 }
 
 bool player_can_memorise(const item_def &book)
@@ -1391,14 +1403,13 @@ bool learn_spell(int book)
         return (false);
     }
 
-    if ((you.is_undead || you.species == SP_DEMONSPAWN)
-        && spell_typematch(specspell, SPTYP_HOLY))
+    if (player_is_unholy() && spell_typematch(specspell, SPTYP_HOLY))
     {
         mpr("You can't use this type of magic!");
         return (false);
     }
 
-    if (undead_cannot_memorise(specspell, you.is_undead))
+    if (you_cannot_memorise(specspell))
     {
         mpr("You cannot use this spell.");
         return (false);
@@ -1730,9 +1741,35 @@ bool is_memorised(spell_type spell)
 static void _get_spell_list(std::vector<spell_type> &spell_list, int level,
                             unsigned int disc1, unsigned int disc2,
                             god_type god, bool avoid_uncastable,
-                            int &god_discard, int &uncastable_discard)
+                            int &god_discard, int &uncastable_discard,
+                            bool avoid_known = false)
 {
-    for (int i = 0; i < NUM_SPELLS; i++)
+    // For randarts handed out by Sif Muna, spells contained in the
+    // Vehumet/Kiku specials are fair game.
+    // We store them in an extra vector that (once sorted) can later
+    // be checked for each spell with a rarity -1 (i.e. not normally
+    // appearing randomly).
+    std::vector<spell_type> special_spells;
+    if (god == GOD_SIF_MUNA)
+    {
+        for (int i = MIN_GOD_ONLY_BOOK; i <= MAX_GOD_ONLY_BOOK; ++i)
+            for (int j = 0; j < SPELLBOOK_SIZE; ++j)
+            {
+                spell_type spell = which_spell_in_book(i, j);
+                if (spell == SPELL_NO_SPELL)
+                    continue;
+
+                if (spell_rarity(spell) != -1)
+                    continue;
+
+                special_spells.push_back(spell);
+            }
+
+        std::sort(special_spells.begin(), special_spells.end());
+    }
+
+    int specnum = 0;
+    for (int i = 0; i < NUM_SPELLS; ++i)
     {
         const spell_type spell = (spell_type) i;
 
@@ -1742,19 +1779,38 @@ static void _get_spell_list(std::vector<spell_type> &spell_list, int level,
         // Only use spells available in books you might find lying about
         // the dungeon.
         if (spell_rarity(spell) == -1)
+        {
+            bool skip_spell = true;
+            while ((unsigned int) specnum < special_spells.size()
+                   && spell == special_spells[specnum])
+            {
+                specnum++;
+                skip_spell = false;
+            }
+
+            if (skip_spell)
+                continue;
+        }
+
+        if (avoid_known && you.seen_spell[spell])
             continue;
 
-        const unsigned int disciplines = get_spell_disciplines(spell);
         if (level != -1)
         {
+            // fixed level randart: only include spells of the given level
             if (spell_difficulty(spell) != level)
                 continue;
         }
-        else if (!((disciplines & disc1) || (disciplines & disc2))
+        else
+        {
+            // themed randart: only include spells of the given disciplines
+            const unsigned int disciplines = get_spell_disciplines(spell);
+            if ((!(disciplines & disc1) && !(disciplines & disc2))
                  || disciplines_conflict(disc1, disciplines)
                  || disciplines_conflict(disc2, disciplines))
-        {
-            continue;
+            {
+                continue;
+            }
         }
 
         // Only wizard mode gets spells still under development.
@@ -1769,7 +1825,7 @@ static void _get_spell_list(std::vector<spell_type> &spell_list, int level,
 #endif
         }
 
-        if (avoid_uncastable && undead_cannot_memorise(spell, you.is_undead))
+        if (avoid_uncastable && you_cannot_memorise(spell))
         {
             uncastable_discard++;
             continue;
@@ -1789,22 +1845,27 @@ static void _get_spell_list(std::vector<spell_type> &spell_list, int level,
 static void _get_spell_list(std::vector<spell_type> &spell_list,
                             unsigned int disc1, unsigned int disc2,
                             god_type god, bool avoid_uncastable,
-                            int &god_discard, int &uncastable_discard)
+                            int &god_discard, int &uncastable_discard,
+                            bool avoid_known = false)
 {
     _get_spell_list(spell_list, -1, disc1, disc2,
-                    god, avoid_uncastable, god_discard, uncastable_discard);
+                    god, avoid_uncastable, god_discard, uncastable_discard,
+                    avoid_known);
 }
 
 static void _get_spell_list(std::vector<spell_type> &spell_list, int level,
                             god_type god, bool avoid_uncastable,
-                            int &god_discard, int &uncastable_discard)
+                            int &god_discard, int &uncastable_discard,
+                            bool avoid_known = false)
 {
     _get_spell_list(spell_list, level, SPTYP_NONE, SPTYP_NONE,
-                    god, avoid_uncastable, god_discard, uncastable_discard);
+                    god, avoid_uncastable, god_discard, uncastable_discard,
+                    avoid_known);
 }
 
 
-bool make_book_level_randart(item_def &book, int level, int num_spells)
+bool make_book_level_randart(item_def &book, int level, int num_spells,
+                             std::string owner)
 {
     ASSERT(book.base_type == OBJ_BOOKS);
 
@@ -1816,12 +1877,16 @@ bool make_book_level_randart(item_def &book, int level, int num_spells)
 
     if (!is_random_artefact(book))
     {
+        if (!owner.empty())
+            book.props["owner"].get_string() = owner;
+
         // Stuff parameters into book.plus and book.plus2, then call
         // make_item_randart(), which will call us back.
         if (level == -1)
         {
             int max_level =
-                completely_random ? 9 : std::min(9, you.get_experience_level());
+                (completely_random ? 9
+                                   : std::min(9, you.get_experience_level()));
 
             level = random_range(1, max_level);
         }
@@ -1839,9 +1904,12 @@ bool make_book_level_randart(item_def &book, int level, int num_spells)
     }
 
     // Being called from make_item_randart()
-
     ASSERT(book.sub_type == BOOK_RANDART_LEVEL);
     ASSERT(level == -1 && num_spells == -1);
+
+    // Re-read owner, if applicable.
+    if (owner.empty() && book.props.exists("owner"))
+        owner = book.props["owner"].get_string();
 
     level = book.plus;
     ASSERT(level > 0 && level <= 9);
@@ -1907,6 +1975,7 @@ bool make_book_level_randart(item_def &book, int level, int num_spells)
 
     std::vector<bool> spell_used(spell_list.size(), false);
     std::vector<bool> avoid_memorised(spell_list.size(), !completely_random);
+    std::vector<bool> avoid_seen(spell_list.size(), !completely_random);
 
     spell_type chosen_spells[SPELLBOOK_SIZE];
     for (int i = 0; i < SPELLBOOK_SIZE; i++)
@@ -1925,9 +1994,16 @@ bool make_book_level_randart(item_def &book, int level, int num_spells)
 
         if (avoid_memorised[spell_pos] && is_memorised(spell))
         {
-           // Only once.
-           avoid_memorised[spell_pos] = false;
-           continue;
+            // Only once.
+            avoid_memorised[spell_pos] = false;
+            continue;
+        }
+
+        if (avoid_seen[spell_pos] && you.seen_spell[spell] && coinflip())
+        {
+            // Only once.
+            avoid_seen[spell_pos] = false;
+            continue;
         }
 
         spell_used[spell_pos]     = true;
@@ -1948,17 +2024,28 @@ bool make_book_level_randart(item_def &book, int level, int num_spells)
         spell_vec[i] = (long) chosen_spells[i];
 
     bool has_owner = true;
-    std::string name = "\"";
-
-    if (god != GOD_NO_GOD)
-        name += apostrophise(god_name(god, false)) + " ";
+    std::string name = "";
+    if (!owner.empty())
+        name = owner;
+    else if (god != GOD_NO_GOD)
+        name = god_name(god, false);
+    else if (one_chance_in(30))
+        name = god_name(GOD_SIF_MUNA, false);
     else if (one_chance_in(3))
-        name += apostrophise(make_name(random_int(), false)) + " ";
+        name = make_name(random_int(), false);
     else
         has_owner = false;
 
+    if (has_owner)
+        name = apostrophise(name) + " ";
+
+    // None of these books need a definite article prepended.
+    book.props["is_named"].get_bool() = true;
+
     std::string lookup;
-    if (level <= 3)
+    if (level == 1)
+        lookup = "starting";
+    else if (level <= 3 || level == 4 && coinflip())
         lookup = "easy";
     else if (level <= 6)
         lookup = "moderate";
@@ -1977,11 +2064,40 @@ bool make_book_level_randart(item_def &book, int level, int num_spells)
         bookname = getRandNameString(lookup);
 
     bookname = uppercase_first(bookname);
+    if (has_owner)
+    {
+        if (bookname.substr(0, 4) == "The ")
+            bookname = bookname.substr(4);
+        else if (bookname.substr(0, 2) == "A ")
+            bookname = bookname.substr(2);
+        else if (bookname.substr(0, 3) == "An ")
+            bookname = bookname.substr(3);
+    }
+
     if (bookname.empty())
         bookname = getRandNameString("book");
 
+    if (bookname.find("@level@", 0) != std::string::npos)
+    {
+        std::string number;
+        switch (level)
+        {
+        case 1: number = "One"; break;
+        case 2: number = "Two"; break;
+        case 3: number = "Three"; break;
+        case 4: number = "Four"; break;
+        case 5: number = "Five"; break;
+        case 6: number = "Six"; break;
+        case 7: number = "Seven"; break;
+        case 8: number = "Eight"; break;
+        case 9: number = "Nine"; break;
+        default:
+            number = ""; break;
+        }
+        bookname = replace_all(bookname, "@level@", number);
+    }
+
     name += bookname;
-    name += '"';
 
     set_randart_name(book, name);
 
@@ -1991,10 +2107,11 @@ bool make_book_level_randart(item_def &book, int level, int num_spells)
 static bool _get_weighted_discs(bool completely_random, god_type god,
                                 int &disc1, int &disc2)
 {
-    // Eliminate disciplines that the god disapproves of or from which
-    // all spells are discarded.
+    // Eliminate disciplines that the god dislikes or from which all
+    // spells are discarded.
     std::vector<int> ok_discs;
     std::vector<int> skills;
+    std::vector<int> spellcount;
     for (int i = 0; i < SPTYP_LAST_EXPONENT; i++)
     {
         int disc = 1 << i;
@@ -2004,68 +2121,68 @@ static bool _get_weighted_discs(bool completely_random, god_type god,
 
         std::vector<spell_type> spell_list;
         _get_spell_list(spell_list, disc, disc, god, !completely_random,
-                        junk1, junk2);
+                        junk1, junk2, !completely_random);
 
-        if(spell_list.empty())
+        if (spell_list.empty())
             continue;
 
         ok_discs.push_back(disc);
         skills.push_back(spell_type2skill(disc));
+        spellcount.push_back(spell_list.size());
     }
 
     int num_discs = ok_discs.size();
 
-    ASSERT( num_discs > 0 );
     if (num_discs == 0)
     {
+#ifdef DEBUG
         mpr("No valid disciplines with which to make a themed ranadart "
             "spellbook.", MSGCH_ERROR);
+#endif
+        // Only happens if !completely_random and the player already knows
+        // all available spells. We could simply re-allow all disciplines
+        // but the player isn't going to get any new spells, anyway, so just
+        // consider this acquirement failed. (jpeg)
         return (false);
     }
 
     int skill_weights[SPTYP_LAST_EXPONENT];
-    int apt_weights[SPTYP_LAST_EXPONENT];
 
     memset(skill_weights, 0, SPTYP_LAST_EXPONENT * sizeof(int));
-    memset(apt_weights,   0, SPTYP_LAST_EXPONENT * sizeof(int));
 
-    if (completely_random)
-    {
-        for (int i = 0; i < num_discs; i++)
-        {
-            skill_weights[i] = 1;
-            apt_weights[i]   = 1;
-        }
-    }
-    else
+    if (!completely_random)
     {
         int total_skills = 0;
         for (int i = 0; i < num_discs; i++)
         {
-            int skill = skills[i];
-            skill_weights[i] = you.skills[skill];
+            int skill  = skills[i];
+            int weight = 2 * you.skills[skill] + 1;
 
-            int apt = species_skills(skill, you.species);
-            apt_weights[i] = (int) ( (1.0 / (double) apt) * 1000000.0);
+            if (spellcount[i] < 3)
+                weight *= spellcount[i]/3;
 
+            skill_weights[i] = std::max(0, weight);
             total_skills += skill_weights[i];
         }
 
         if (total_skills == 0)
-        {
-            for (int i = 0; i < num_discs; i++)
-                skill_weights[i] = apt_weights[i];
-        }
+            completely_random = true;
+    }
+
+    if (completely_random)
+    {
+        for (int i = 0; i < num_discs; i++)
+            skill_weights[i] = 1;
     }
 
     do
     {
         disc1 = ok_discs[choose_random_weighted(skill_weights,
                                                 skill_weights + num_discs)];
-        disc2 = ok_discs[choose_random_weighted(apt_weights,
-                                                apt_weights + num_discs)];
+        disc2 = ok_discs[choose_random_weighted(skill_weights,
+                                                skill_weights + num_discs)];
     }
-    while(disciplines_conflict(disc1, disc2));
+    while (disciplines_conflict(disc1, disc2));
 
     return (true);
 }
@@ -2387,10 +2504,6 @@ bool make_book_theme_randart(item_def &book, int disc1, int disc2,
     _remove_nondiscipline_spells(chosen_spells, 1 << max1, 1 << max2,
                                  incl_spell);
 
-    // Finally fill the spell vector.
-    for (int i = 0; i < SPELLBOOK_SIZE; i++)
-        spell_vec[i] = (long) chosen_spells[i];
-
     // ... and change disc1 and disc2 accordingly.
     disc1 = 1 << max1;
     if (max1 == max2)
@@ -2398,76 +2511,181 @@ bool make_book_theme_randart(item_def &book, int disc1, int disc2,
     else
         disc2 = 1 << max2;
 
-    std::string name;
+    int highest_level = 0;
+    int lowest_level  = 10;
+    bool all_spells_disc1 = true;
 
-    bool need_quotes = true;
-    if (!owner.empty())
-        name = owner;
-    else if (god != GOD_NO_GOD)
-        name = god_name(god, false);
-    else if (one_chance_in(5)) // Occasionally, use a random name.
-        name = make_name(random_int(), false);
-    else
-        need_quotes = false;
-
-    if (need_quotes)
-        name = "\"" + apostrophise(name) + " ";
-
-    name += getRandNameString("book_noun");
-    name += " of ";
-
-    // For the actual name there's a 50% chance of getting something like
-    //  Flames and Displacement (Fire/Translocation), else
-    //  Fiery Translocation
-    std::string type_name;
-    if (disc1 != disc2 && coinflip())
+    // Finally fill the spell vector.
+    for (int i = 0; i < SPELLBOOK_SIZE; i++)
     {
-        std::string search = spelltype_long_name(disc2);
-        type_name = getRandNameString(search + " adj");
+        spell_vec[i] = (long) chosen_spells[i];
+        int diff = spell_difficulty(chosen_spells[i]);
+        if (diff > highest_level)
+            highest_level = diff;
+        else if (diff < lowest_level)
+            lowest_level = diff;
+
+        if (all_spells_disc1 && is_valid_spell(chosen_spells[i])
+            && !spell_typematch( chosen_spells[i], disc1 ))
+        {
+            all_spells_disc1 = false;
+        }
     }
 
-    if (type_name.empty())
+    // Every spell in the book is of school disc1.
+    if (disc1 == disc2)
+        all_spells_disc1 = true;
+
+    // If the owner hasn't been set already use
+    // a) the god's name for god gifts (only applies to Sif Muna and Xom),
+    // b) a name depending on the spell disciplines, for pure books
+    // c) a random name (all god gifts not named earlier)
+    // d) an applicable god's name
+    // ... else leave it unnamed (around 57% chance for non-god gifts)
+    if (owner.empty())
     {
-        // No adjective found, use the normal method of combining two nouns.
-        type_name = getRandNameString(spelltype_long_name(disc1));
-        if (type_name.empty())
-            name += spelltype_long_name(disc1);
-        else
-            name += type_name;
-
-        if (disc1 != disc2)
+        const bool god_gift = (god != GOD_NO_GOD);
+        if (god_gift && !one_chance_in(4))
+            owner = god_name(god, false);
+        else if (god_gift && one_chance_in(3) || one_chance_in(5))
         {
-            name += " and ";
-            type_name = getRandNameString(spelltype_long_name(disc2));
+            bool highlevel = (highest_level >= 7 + random2(3)
+                              && (lowest_level > 1 || coinflip()));
 
+            if (disc1 != disc2)
+            {
+                std::string schools[2];
+                schools[0] = spelltype_long_name(disc1);
+                schools[1] = spelltype_long_name(disc2);
+                std::sort(schools, schools + 2);
+                std::string lookup = schools[0] + " " + schools[1];
+
+                if (highlevel)
+                    owner = getRandNameString("highlevel " + lookup + " owner");
+
+                if (owner.empty() || owner == "__NONE")
+                    owner = getRandNameString(lookup + " owner");
+
+                if (owner == "__NONE")
+                    owner = "";
+            }
+
+            if (owner.empty() && all_spells_disc1)
+            {
+                std::string lookup = spelltype_long_name(disc1);
+                if (highlevel && disc1 == disc2)
+                    owner = getRandNameString("highlevel " + lookup + " owner");
+
+                if (owner.empty() || owner == "__NONE")
+                    owner = getRandNameString(lookup + " owner");
+
+                if (owner == "__NONE")
+                    owner = "";
+            }
+        }
+
+        if (owner.empty())
+        {
+            if (god_gift || one_chance_in(5)) // Use a random name.
+                owner = make_name(random_int(), false);
+            else if (!god_gift && one_chance_in(9))
+            {
+                god = GOD_SIF_MUNA;
+                switch (disc1)
+                {
+                case SPTYP_NECROMANCY:
+                    if (all_spells_disc1 && !one_chance_in(6))
+                        god = GOD_KIKUBAAQUDGHA;
+                    break;
+                case SPTYP_SUMMONING:
+                case SPTYP_CONJURATION:
+                    if ((all_spells_disc1 || disc2 == SPTYP_SUMMONING
+                         || disc2 == SPTYP_CONJURATION) && !one_chance_in(4))
+                    {
+                        god = GOD_VEHUMET;
+                    }
+                    break;
+                default:
+                    break;
+                }
+                owner = god_name(god, false);
+            }
+        }
+    }
+
+    std::string name = "";
+
+    if (!owner.empty())
+    {
+        name = apostrophise(owner) + " ";
+        book.props["is_named"].get_bool() = true;
+    }
+    else
+        book.props["is_named"].get_bool() = false;
+
+    // Sometimes use a completely random title.
+    std::string bookname = "";
+    if (one_chance_in(20) && (owner.empty() || one_chance_in(3)))
+        bookname = getRandNameString("random_book_title");
+
+    if (!bookname.empty())
+        name += getRandNameString("book_noun") + " of " + bookname;
+    else
+    {
+        // Give a name that reflects the primary and secondary
+        // spell disciplines of the spells contained in the book.
+        name += getRandNameString("book_name") + " ";
+
+        // For the actual name there's a 66% chance of getting something like
+        //  <book> of the Fiery Traveller (Translocation/Fire), else
+        //  <book> of Displacement and Flames.
+        std::string type_name;
+        if (disc1 != disc2 && !one_chance_in(3))
+        {
+            std::string lookup = spelltype_long_name(disc2);
+            type_name = getRandNameString(lookup + " adj");
+        }
+
+        if (type_name.empty())
+        {
+            // No adjective found, use the normal method of combining two nouns.
+            type_name = getRandNameString(spelltype_long_name(disc1));
             if (type_name.empty())
-                name += spelltype_long_name(disc2);
+                name += spelltype_long_name(disc1);
             else
                 name += type_name;
-        }
-    }
-    else
-    {
-        std::string bookname = type_name + " ";
 
-        // Add the noun for the first discipline.
-        type_name = getRandNameString(spelltype_long_name(disc1));
-        if (type_name.empty())
-            bookname += spelltype_long_name(disc1);
+            if (disc1 != disc2)
+            {
+                name += " and ";
+                type_name = getRandNameString(spelltype_long_name(disc2));
+
+                if (type_name.empty())
+                    name += spelltype_long_name(disc2);
+                else
+                    name += type_name;
+            }
+        }
         else
         {
-            if (type_name.find("the ", 0) != std::string::npos)
-            {
-                type_name = replace_all(type_name, "the ", "");
-                bookname = "the " + bookname;
-            }
-            bookname += type_name;
-        }
-        name += bookname;
-    }
+            bookname = type_name + " ";
 
-    if (need_quotes)
-        name += '"';
+            // Add the noun for the first discipline.
+            type_name = getRandNameString(spelltype_long_name(disc1));
+            if (type_name.empty())
+                bookname += spelltype_long_name(disc1);
+            else
+            {
+                if (type_name.find("the ", 0) != std::string::npos)
+                {
+                    type_name = replace_all(type_name, "the ", "");
+                    bookname = "the " + bookname;
+                }
+                bookname += type_name;
+            }
+            name += bookname;
+        }
+    }
 
     set_randart_name(book, name);
 
@@ -2477,7 +2695,7 @@ bool make_book_theme_randart(item_def &book, int disc1, int disc2,
     return (true);
 }
 
-// Give Roxanne a randart spellbook of the disciplines Transmutation/Earth
+// Give Roxanne a randart spellbook of the disciplines Transmutations/Earth
 // that includes Statue Form and is named after her.
 void make_book_Roxanne_special(item_def *book)
 {
@@ -2493,5 +2711,6 @@ bool book_has_title(const item_def &book)
     if (!is_artefact(book))
         return (false);
 
-    return (get_artefact_name(book)[0] == '"');
+    return (book.props.exists("is_named")
+            && book.props["is_named"].get_bool() == true);
 }

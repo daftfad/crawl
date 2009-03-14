@@ -12,6 +12,17 @@
 #include "enum.h"
 #include <vector>
 
+class monsters;
+class mon_acting;
+
+class crawl_exit_hook
+{
+public:
+    crawl_exit_hook();
+    virtual ~crawl_exit_hook();
+    virtual void restore_state() = 0;
+};
+
 struct god_act_state
 {
 public:
@@ -27,6 +38,8 @@ public:
 // Track various aspects of Crawl game state.
 struct game_state
 {
+    bool game_crashed;      // The game crashed and is now in the process of
+                            // dumping crash info.
     bool mouse_enabled;     // True if mouse input is currently relevant.
 
     bool waiting_for_command; // True when the game is waiting for a command.
@@ -71,6 +84,9 @@ struct game_state
     std::vector<std::string> input_line_strs;
     unsigned int             input_line_curr;
 
+    // Hooks to call if get shut down unexpectedly.
+    std::vector<crawl_exit_hook*> exit_hooks;
+
     bool level_annotation_shown;
 
 protected:
@@ -79,6 +95,9 @@ protected:
 
     god_act_state              god_act;
     std::vector<god_act_state> god_act_stack;
+
+    monsters*              mon_act;
+    std::vector<monsters*> mon_act_stack;
 
 public:
     game_state();
@@ -116,6 +135,17 @@ public:
     void     clear_god_acting();
 
     std::vector<god_act_state> other_gods_acting() const;
+
+    bool      is_mon_acting() const;
+    monsters* which_mon_acting() const;
+    void      inc_mon_acting(monsters* mon);
+    void      dec_mon_acting(monsters* mon);
+    void      clear_mon_acting();
+    void      mon_gone(monsters* mon);
+
+    void dump();
+
+    friend class mon_acting;
 };
 
 extern game_state crawl_state;
@@ -140,5 +170,25 @@ public:
 private:
     god_type god;
 };
+
+class mon_acting
+{
+public:
+    mon_acting(monsters* _mon) : mon(_mon)
+    {
+        crawl_state.inc_mon_acting(_mon);
+    }
+
+    ~mon_acting()
+    {
+        // Monster might have died in the meantime.
+        if (mon == crawl_state.mon_act)
+            crawl_state.dec_mon_acting(mon);
+    }
+
+private:
+    monsters *mon;
+};
+
 
 #endif

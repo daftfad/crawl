@@ -124,10 +124,7 @@ ENDMAP
 # good luck! (Shiori)
 NAME:    shiawase
 TAGS:    entry no_monster_gen no_rotate no_vmirror
-WEIGHT:  5
 ORIENT:  float
-ITEM:    bread ration, meat ration, apple, orange, banana, choko, pear
-SUBST:   . = .:100 $ % d
 SHUFFLE: +=
 SUBST:   =:==x , x:xvcb
 MAP
@@ -193,6 +190,7 @@ MARKER: A = lua:fog_machine { \
             size = 12, start_clouds = 1, \
             cloud_type = "noxious fumes" }
 SUBST:  A=a ,  a=aaam
+FTILE:  a=floor_slime
 COLOUR: a=lightgreen
 SUBST:  a=.
 MARKER: W = lua:fog_machine{\
@@ -205,6 +203,7 @@ MARKER: F= lua:fog_machine {\
             size = 12, start_clouds = 1, \
             cloud_type = "flame"}
 SUBST:  F=f
+FTILE:  f=floor_rough_red
 COLOUR: f=red
 SUBST:  f=lll.
 MARKER: E= lua:fog_machine{\
@@ -212,6 +211,7 @@ MARKER: E= lua:fog_machine{\
             size = 12, start_clouds = 1, \
             cloud_type = "black smoke"}
 SUBST:  E=e , e=cxbveeee
+FTILE:  e=floor_orc
 COLOUR: e= brown
 SUBST:  e=.
 MONS:   butterfly
@@ -256,6 +256,7 @@ MARKER: # = lua:fog_machine { \
             size = 5, start_clouds = 1, \
             cloud_type = "flame" }
 KFEAT:  # = l
+FTILE:  ' = floor_rough_red
 COLOUR: ' = red
 SUBST:  ' = .
 MAP
@@ -2470,17 +2471,19 @@ TAGS:    entry
 ORIENT:  float
 SHUFFLE: {[(
 MONS:    plant
+FTILE:   ' = floor_grass, 1 = floor_grass, { = floor_grass
+FTILE:   . = floor_grass / floor_normal
 SUBST:   . = .:140 d
 KITEM:   d : apple / apricot / pear / apricot / orange / banana / \
              strawberry / lemon
 KFEAT:   d = .
 MAP
   .....
- .......
- .1...1.
-....{....
- .1...1.
- .......
+ .'...'.
+ '1'''1'
+..''{''..
+ '1'''1'
+ .'...'.
   .....
 ENDMAP
 
@@ -3473,6 +3476,9 @@ MONS: w:30 nothing / ooze / w:2 jelly / giant cockroach / w:2 worm / \
 # There is a very slight chance that a jelly or an intelligent monster 
 # (hobgoblin) might spawn inside near the door. This is okay; added an exit.
 ORIENT:  float
+FTILE:   1=floor_dirt, 2=floor_dirt, 3=floor_dirt, 4=floor_dirt, +=floor_dirt
+FTILE:   A=floor_dirt, B=floor_dirt, C=floor_dirt, D=floor_dirt, E=floor_dirt
+FTILE:   a=floor_dirt, b=floor_dirt, c=floor_dirt, d=floor_dirt, e=floor_dirt
 SHUFFLE: abcde / fghij
 SUBST:   f=A, g=B, h=C, i=D, j=E
 SUBST:   a=mx, b=mx, c=mx, d=mx, e=mx
@@ -4392,8 +4398,9 @@ ENDMAP
 
 ##############################################################
 # The zoo
-NAME:    onia_ninara_005_the_zoo
-TAGS:    entry no_rotate no_hmirror
+#
+NAME:    onia_ninara_005_the_zoo_common
+WEIGHT:  9
 ORIENT:  float
 SHUFFLE: 1234567
 MONS: giant gecko /giant iguana / giant lizard / giant newt / gila monster /\
@@ -4412,6 +4419,32 @@ xxx.G.......G.xxx
 x...............x
 x.G..xxxxxxx..G.x
 x....x12345x....x
+x.G..xmmmmmx..G.x
+x...............x
+xxx.............x
+xxxxxxxxxxxx....x
+xxxxx[{(<.....xxx
+xxxxxxxxxxxxxxxxx
+ENDMAP
+
+NAME:    onia_ninara_005_the_zoo_special
+TAGS:    entry no_rotate no_hmirror
+WEIGHT:  1
+ORIENT:  float
+SHUFFLE: 12
+MONS:    centaur / centaur warrior / yaktaur / yaktaur captain
+MONS:    ettin / frost giant / hill giant / stone giant / fire giant
+MONS:    rat / green rat / orange rat / grey rat / quokka
+MONS:    giant cockroach / giant ant / soldier ant
+MONS:    spiny worm / ant larva / worm
+MONS:    giant lizard / lindwurm / gila monster / komodo dragon
+MAP
+xxxxxxxx@xxxxxxxx
+xxxxxx.G.G.xxxxxx
+xxx.G.......G.xxx
+x...............x
+x.G..xxxxxxx..G.x
+x....x13456x....x
 x.G..xmmmmmx..G.x
 x...............x
 xxx.............x
@@ -4718,6 +4751,8 @@ ENDMAP
 # Rooms in the neighbourhood.
 NAME: misc_entry_001
 TAGS: entry no_monster_gen
+RTILE:  x = wall_hall
+FTILE:  . = floor_hall, ( = floor_hall, [ = floor_hall, { = floor_hall
 ORIENT: float
 
 MAP

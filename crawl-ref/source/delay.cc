@@ -81,15 +81,13 @@ static bool _recite_mons_useless(const monsters *mon)
 }
 
 // Power is maximum 50.
-static int _recite_to_monsters(coord_def where, int pow, int unused)
+static int _recite_to_monsters(coord_def where, int pow, int, actor *)
 {
-    UNUSED(unused);
 
-    const int mon = mgrd(where);
-    if (mon == NON_MONSTER)
+    monsters *mons = monster_at(where);
+
+    if (mons == NULL)
         return (0);
-
-    monsters *mons = &menv[mon];
 
     if (_recite_mons_useless(mons))
         return (0);
@@ -508,9 +506,9 @@ void stop_delay( bool stop_stair_travel )
     case DELAY_DESCENDING_STAIRS: // short... and probably what people want
          if (stop_stair_travel)
          {
-#ifdef DEBUG_DIAGNOSTICS
-             mpr("Stop ascending/descending stairs.");
-#endif
+             mprf("You stop %s the stairs.",
+                  delay.type == DELAY_ASCENDING_STAIRS ? "ascending"
+                                                       : "descending");
              _pop_delay();
          }
          break;
@@ -527,23 +525,20 @@ void stop_delay( bool stop_stair_travel )
         update_turn_count();
 }
 
-void stop_butcher_delay()
-{
-    if (current_delay_action() == DELAY_BUTCHER
-        || current_delay_action() == DELAY_BOTTLE_BLOOD
-        || current_delay_action() == DELAY_OFFER_CORPSE)
-    {
-        stop_delay();
-    }
-}
-
 static bool _is_butcher_delay(int delay)
 {
     return (delay == DELAY_BUTCHER || delay == DELAY_BOTTLE_BLOOD
             || delay == DELAY_OFFER_CORPSE);
 }
 
-void handle_interrupted_swap(bool swap_if_safe, bool force_unsafe)
+void stop_butcher_delay()
+{
+    if (_is_butcher_delay(current_delay_action()))
+        stop_delay();
+}
+
+void handle_interrupted_swap(bool swap_if_safe, bool force_unsafe,
+                             bool transform)
 {
     if (!you.attribute[ATTR_WEAPON_SWAP_INTERRUPTED]
         || !you_tran_can_wear(EQ_WEAPON) || you.cannot_act())
@@ -560,7 +555,8 @@ void handle_interrupted_swap(bool swap_if_safe, bool force_unsafe)
     const bool       prompt = Options.prompt_for_swap && !safe;
     const delay_type delay  = current_delay_action();
 
-    const char* prompt_str = "Switch back from butchering tool?";
+    const char* prompt_str  = transform ? "Switch back to main weapon?"
+                                        : "Switch back from butchering tool?";
 
     // If we're going to prompt then update the window so the player can
     // see what the monsters are.
@@ -680,13 +676,14 @@ int check_recital_audience()
 
     for ( radius_iterator ri(you.pos(), 8); ri; ++ri )
     {
-        if ( mgrd(*ri) == NON_MONSTER )
+        monsters* mons = monster_at(*ri);
+        if (mons == NULL)
             continue;
 
         found_monsters = true;
 
         // Check if audience can listen.
-        if (!_recite_mons_useless( &menv[mgrd(*ri)] ) )
+        if (!_recite_mons_useless(mons))
             return (1);
     }
 
@@ -1128,12 +1125,11 @@ static void _finish_delay(const delay_queue_item &delay)
 
         if (pass.x != 0 && pass.y != 0)
         {
-
             switch (grd(pass))
             {
             default:
                 if (!you.can_pass_through_feat(grd(pass)))
-                    ouch(1 + you.hp, NON_MONSTER, KILLED_BY_PETRIFICATION);
+                    ouch(INSTANT_DEATH, NON_MONSTER, KILLED_BY_PETRIFICATION);
                 break;
 
             case DNGN_SECRET_DOOR:      // oughtn't happen
@@ -1142,17 +1138,21 @@ static void _finish_delay(const delay_queue_item &delay)
                 break;
             }
 
-            // Move any monsters out of the way:
-            int mon = mgrd(pass);
-            if (mon != NON_MONSTER)
+            // Move any monsters out of the way.
+            monsters *m = monster_at(pass);
+            if (m)
             {
-                monsters* m = &menv[mon];
                 // One square, a few squares, anywhere...
                 if (!shift_monster(m) && !monster_blink(m))
-                    monster_teleport( m, true, true );
+                    monster_teleport(m, true, true);
             }
 
             move_player_to_grid(pass, false, true, true);
+
+            // Wake the monster if it's asleep.
+            if (m)
+                behaviour_event(m, ME_ALERT, MHITYOU);
+
             redraw_screen();
         }
         break;
@@ -1202,14 +1202,14 @@ static void _finish_delay(const delay_queue_item &delay)
                 if (god_hates_cannibalism(you.religion)
                     && is_player_same_species(item.plus))
                 {
-                    simple_god_message(" expects more respect for your departed "
-                                       "relatives.");
+                    simple_god_message(" expects more respect for your"
+                                       " departed relatives.");
                 }
                 else if (you.religion == GOD_ZIN
                          && mons_class_intel(item.plus) >= I_NORMAL)
                 {
-                    simple_god_message(" expects more respect for this departed "
-                                       "soul.");
+                    simple_god_message(" expects more respect for this"
+                                       " departed soul.");
                 }
 
                 if (you.species == SP_VAMPIRE && delay.type == DELAY_BUTCHER
@@ -1246,7 +1246,7 @@ static void _finish_delay(const delay_queue_item &delay)
                 autopickup();
             }
 
-            // If we were interrupted while butchering (by poisonig, for
+            // If we were interrupted while butchering (by poisoning, for
             // example) then resumed butchering and finished, swap back from
             // butchering tool if appropriate.
             if (you.delay_queue.size() == 1)
@@ -1287,7 +1287,7 @@ static void _finish_delay(const delay_queue_item &delay)
             offer_corpse(delay.parm1);
             StashTrack.update_stash(); // Don't stash-track this corpse anymore.
         }
-        // If we were interrupted while butchering (by poisonig, for
+        // If we were interrupted while butchering (by poisoning, for
         // example) then resumed butchering and finished, swap back from
         // butchering tool if appropriate.
         if (you.delay_queue.size() == 1)
@@ -1335,7 +1335,7 @@ static void _finish_delay(const delay_queue_item &delay)
 
     case DELAY_INTERRUPTIBLE:
     case DELAY_UNINTERRUPTIBLE:
-        // these are simple delays that have no effect when complete
+        // These are simple delays that have no effect when complete.
         break;
 
     default:
@@ -1740,14 +1740,6 @@ static bool _should_stop_activity(const delay_queue_item &item,
 
     if (ai == AI_FULL_HP || ai == AI_FULL_MP)
     {
-        // No recursive interruptions from messages (AI_MESSAGE)
-        _block_interruptions(true);
-        if (ai == AI_FULL_HP)
-            mpr("HP restored.");
-        else
-            mpr("Magic restored.");
-        _block_interruptions(false);
-
         if (Options.rest_wait_both && curr == DELAY_REST
             && (you.magic_points < you.max_magic_points
                 || you.hp < you.hp_max))
@@ -1782,6 +1774,7 @@ inline static bool _monster_warning(activity_interrupt_type ai,
         }
         else
         {
+            ASSERT(mon->seen_context != "just seen");
             // If the monster is in the auto_exclude list, automatically
             // set an exclusion.
             if (need_auto_exclude(mon) && !is_exclude_root(mon->pos()))
@@ -1801,6 +1794,10 @@ inline static bool _monster_warning(activity_interrupt_type ai,
                 else
                     text += " appears from thin air!";
             }
+            // The monster surfaced and submerged in the same turn without
+            // doing anything else.
+            else if (at.context == "surfaced")
+                text += "surfaces briefly.";
             else if (at.context == "surfaces")
                 text += " surfaces.";
             else if (at.context.find("bursts forth") != std::string::npos)
@@ -1828,16 +1825,15 @@ inline static bool _monster_warning(activity_interrupt_type ai,
                 text += " comes into view.";
 
             const std::string mweap =
-                get_monster_desc(mon, false, DESC_NONE);
+                get_monster_equipment_desc(mon, false, DESC_NONE);
 
             if (!mweap.empty())
             {
                 text += " " + mon->pronoun(PRONOUN_CAP)
                         + " is" + mweap + ".";
             }
-            print_formatted_paragraph(text,
-                                      get_number_of_cols(),
-                                      MSGCH_WARN);
+            print_formatted_paragraph(text, MSGCH_WARN);
+            const_cast<monsters*>(mon)->seen_context = "just seen";
         }
 
         if (Options.tutorial_left)
@@ -1914,6 +1910,14 @@ bool interrupt_activity( activity_interrupt_type ai,
     // First try to stop the current delay.
     const delay_queue_item &item = you.delay_queue.front();
 
+    // No recursive interruptions from messages (AI_MESSAGE)
+    _block_interruptions(true);
+    if (ai == AI_FULL_HP)
+        mpr("HP restored.");
+    else if (ai == AI_FULL_MP)
+        mpr("Magic restored.");
+    _block_interruptions(false);
+
     if (_should_stop_activity(item, ai, at))
     {
         // no monster will attack you inside a sanctuary,
@@ -1922,7 +1926,8 @@ bool interrupt_activity( activity_interrupt_type ai,
             return (false);
 
         was_monst = _monster_warning(ai, at, item.type) || was_monst;
-        stop_delay();
+        // Teleport stops stair delays.
+        stop_delay(ai == AI_TELEPORT);
         if (was_monst)
             handle_interrupted_swap(false, true);
 
@@ -1948,7 +1953,7 @@ bool interrupt_activity( activity_interrupt_type ai,
                         _monster_warning(ai, at, you.delay_queue[j].type)
                         || was_monst;
 
-                    stop_delay();
+                    stop_delay(ai == AI_TELEPORT);
                     if (was_monst)
                         handle_interrupted_swap(false, true);
                     return (true);

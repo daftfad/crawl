@@ -53,7 +53,8 @@ int tileidx_bolt(const bolt &bolt);
 int tileidx_zap(int colour);
 int tile_idx_unseen_terrain(int x, int y, int what);
 int tile_unseen_flag(const coord_def& gc);
-int tileidx_monster(const monsters *mon, bool detected);
+int tileidx_monster_base(const monsters *mon, bool detected = false);
+int tileidx_monster(const monsters *mon, bool detected = false);
 
 // Player tile related
 void tilep_race_default(int race, int gender, int level, int *parts);
@@ -100,6 +101,7 @@ void tile_default_flv(level_area_type lev, branch_type br, tile_flavour &flv);
 void tile_clear_flavour();
 // Initialize per-cell types of walls and floors using defaults.
 void tile_init_flavour();
+void tile_init_flavour(const coord_def &gc);
 
 void tile_floor_halo(dungeon_feature_type target, int tile);
 
@@ -143,14 +145,16 @@ enum tile_flags
     TILE_FLAG_MAY_STAB  = 0x0000C000,
     TILE_FLAG_NET       = 0x00010000,
     TILE_FLAG_POISON    = 0x00020000,
-    TILE_FLAG_ANIM_WEP  = 0x00040000,
+    TILE_FLAG_FLAME     = 0x00040000,
+    TILE_FLAG_ANIM_WEP  = 0x00080000,
+
     // MDAM has 5 possibilities, so uses 3 bits.
-    TILE_FLAG_MDAM_MASK = 0x00380000,
-    TILE_FLAG_MDAM_LIGHT= 0x00080000,
-    TILE_FLAG_MDAM_MOD  = 0x00100000,
-    TILE_FLAG_MDAM_HEAVY= 0x00180000,
-    TILE_FLAG_MDAM_SEV  = 0x00200000,
-    TILE_FLAG_MDAM_ADEAD= 0x00280000,
+    TILE_FLAG_MDAM_MASK = 0x03800000,
+    TILE_FLAG_MDAM_LIGHT= 0x00800000,
+    TILE_FLAG_MDAM_MOD  = 0x01000000,
+    TILE_FLAG_MDAM_HEAVY= 0x01800000,
+    TILE_FLAG_MDAM_SEV  = 0x02000000,
+    TILE_FLAG_MDAM_ADEAD= 0x02800000,
 
     // Background flags
     TILE_FLAG_RAY       = 0x00000800,
@@ -207,5 +211,5 @@ enum
     TILE_Y = 32
 };
 
-#endif // USE_TILES
+#endif
 #endif

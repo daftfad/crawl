@@ -139,7 +139,7 @@ int str_to_colour( const std::string &str, int default_colour,
         "iron", "bone", "random"
     };
 
-    ASSERT(ARRAYSZ(element_cols) == (EC_RANDOM - EC_FIRE) + 1);
+    ASSERT(ARRAYSZ(element_cols) == (ETC_RANDOM - ETC_FIRE) + 1);
 
     for (ret = 0; ret < 16; ++ret)
     {
@@ -165,7 +165,7 @@ int str_to_colour( const std::string &str, int default_colour,
             if (str == element_cols[i])
             {
                 // Ugh.
-                ret = element_type(EC_FIRE + i);
+                ret = element_type(ETC_FIRE + i);
                 break;
             }
         }
@@ -238,16 +238,16 @@ std::string channel_to_str( int channel )
 
 static int _str_to_book( const std::string& str )
 {
-    if (str == "fire" || str == "flame")
-        return SBT_FIRE;
-    if (str == "cold" || str == "ice")
-        return SBT_COLD;
+    if (str == "flame" || str == "fire")
+        return (SBT_FIRE);
+    if (str == "frost" || str == "cold" || str == "ice")
+        return (SBT_COLD);
     if (str == "summ" || str == "summoning")
-        return SBT_SUMM;
+        return (SBT_SUMM);
     if (str == "random")
-        return SBT_RANDOM;
+        return (SBT_RANDOM);
 
-    return SBT_NO_SELECTION;
+    return (SBT_NO_SELECTION);
 }
 
 static int _str_to_weapon( const std::string &str )
@@ -272,7 +272,7 @@ static int _str_to_weapon( const std::string &str )
     return (WPN_UNKNOWN);
 }
 
-std::string weapon_to_str( int weapon )
+static std::string _weapon_to_str( int weapon )
 {
     switch (weapon)
     {
@@ -291,6 +291,48 @@ std::string weapon_to_str( int weapon )
     case WPN_UNARMED:
         return "claws";
     case WPN_RANDOM:
+    default:
+        return "random";
+    }
+}
+
+static int _str_to_wand( const std::string& str )
+{
+    if (str == "enslavement")
+        return (SWT_ENSLAVEMENT);
+    if (str == "confusion")
+        return (SWT_CONFUSION);
+    if (str == "magic darts" || str == "magicdarts")
+        return (SWT_MAGIC_DARTS);
+    if (str == "frost" || str == "cold" || str == "ice")
+        return (SWT_FROST);
+    if (str == "flame" || str == "fire")
+        return (SWT_FLAME);
+    if (str == "striking")
+        return (SWT_STRIKING);
+    if (str == "random")
+        return (SWT_RANDOM);
+
+    return (SWT_NO_SELECTION);
+}
+
+static std::string _wand_to_str( int weapon )
+{
+    switch (weapon)
+    {
+    case SWT_ENSLAVEMENT:
+        return "enslavement";
+    case SWT_CONFUSION:
+        return "confusion";
+    case SWT_MAGIC_DARTS:
+        return "magic darts";
+    case SWT_FROST:
+        return "frost";
+    case SWT_FLAME:
+        return "flame";
+    case SWT_STRIKING:
+        return "striking";
+    case SWT_RANDOM:
     default:
         return "random";
     }
@@ -343,7 +385,7 @@ static char _str_to_race( const std::string &str )
         index = get_species_index_by_name( str.c_str() );
 
     if (index == -1)
-        fprintf( stderr, "Unknown race choice: %s\n", str.c_str() );
+        fprintf( stderr, "Unknown species choice: %s\n", str.c_str() );
 
     return ((index != -1) ? index_to_letter( index ) : 0);
 }
@@ -365,7 +407,7 @@ static int _str_to_class( const std::string &str )
         index = get_class_index_by_name( str.c_str() );
 
     if (index == -1)
-        fprintf( stderr, "Unknown class choice: %s\n", str.c_str() );
+        fprintf( stderr, "Unknown job choice: %s\n", str.c_str() );
 
     return ((index != -1) ? index_to_letter( index ) : 0);
 }
@@ -465,6 +507,7 @@ void game_options::reset_startup_options()
     cls                    = 0;
     weapon                 = WPN_UNKNOWN;
     book                   = SBT_NO_SELECTION;
+    wand                   = SWT_NO_SELECTION;
     random_pick            = false;
     good_random            = true;
     chaos_knight           = GOD_NO_GOD;
@@ -496,10 +539,11 @@ void game_options::set_default_activity_interrupts()
         "interrupt_run = interrupt_travel, message",
         "interrupt_rest = interrupt_run, full_hp, full_mp",
 
-        // Stair ascents/descents cannot be interrupted, attempts to interrupt
-        // the delay will just trash all queued delays, including travel.
-        "interrupt_ascending_stairs =",
-        "interrupt_descending_stairs =",
+        // Stair ascents/descents cannot be interrupted except by
+        // teleportation. Attempts to interrupt the delay will just
+        // trash all queued delays, including travel.
+        "interrupt_ascending_stairs = teleport",
+        "interrupt_descending_stairs = teleport",
         "interrupt_recite = teleport",
         "interrupt_uninterruptible =",
         "interrupt_weapon_swap =",
@@ -655,6 +699,7 @@ void game_options::reset_options()
     prev_pr       = GOD_NO_GOD;
     prev_weapon   = WPN_UNKNOWN;
     prev_book     = SBT_NO_SELECTION;
+    prev_wand     = SWT_NO_SELECTION;
     prev_randpick = false;
     remember_name = true;
 
@@ -688,6 +733,8 @@ void game_options::reset_options()
     list_rotten            = true;
     prefer_safe_chunks     = true;
     easy_eat_chunks        = false;
+    easy_eat_gourmand      = false;
+    easy_eat_contaminated  = false;
     easy_confirm           = CONFIRM_SAFE_EASY;
     easy_quit_item_prompts = true;
     allow_self_target      = CONFIRM_PROMPT;
@@ -789,6 +836,7 @@ void game_options::reset_options()
     dump_message_count     = 7;
     dump_item_origins      = IODS_ARTEFACTS | IODS_RODS;
     dump_item_origin_price = -1;
+    dump_book_spells       = true;
 
     drop_mode              = DM_MULTI;
     pickup_mode            = -1;
@@ -807,6 +855,8 @@ void game_options::reset_options()
                    false);
 
     item_stack_summary_minimum = 5;
+
+    pizza.clear();
 
 #ifdef WIZARD
     fsim_rounds = 40000L;
@@ -878,7 +928,7 @@ void game_options::reset_options()
     tile_window_width = 0;
     tile_window_height = 0;
     tile_map_pixels = 0;
-    tile_tooltip_ms = 1000;
+    tile_tooltip_ms = 500;
     tile_tag_pref = crawl_state.arena ? TAGPREF_NAMED : TAGPREF_ENEMY;
 #endif
 
@@ -1243,6 +1293,7 @@ void read_startup_prefs()
     Options.prev_cls      = temp.cls;
     Options.prev_race     = temp.race;
     Options.prev_book     = temp.book;
+    Options.prev_wand     = temp.wand;
     Options.prev_name     = temp.player_name;
 #endif // !DISABLE_STICKY_STARTUP_OPTIONS
 }
@@ -1258,12 +1309,12 @@ static void write_newgame_options(FILE *f)
 
     // Race selection
     if (Options.prev_race)
-        fprintf(f, "race = %c\n", Options.prev_race);
+        fprintf(f, "species = %c\n", Options.prev_race);
     if (Options.prev_cls)
-        fprintf(f, "class = %c\n", Options.prev_cls);
+        fprintf(f, "job = %c\n", Options.prev_cls);
 
     if (Options.prev_weapon != WPN_UNKNOWN)
-        fprintf(f, "weapon = %s\n", weapon_to_str(Options.prev_weapon).c_str());
+        fprintf(f, "weapon = %s\n", _weapon_to_str(Options.prev_weapon).c_str());
 
     if (Options.prev_ck != GOD_NO_GOD)
     {
@@ -1286,7 +1337,7 @@ static void write_newgame_options(FILE *f)
                 lowercase_string(god_name(Options.prev_pr)).c_str());
     }
 
-    if (Options.prev_book != SBT_NO_SELECTION )
+    if (Options.prev_book != SBT_NO_SELECTION)
     {
         fprintf(f, "book = %s\n",
                 Options.prev_book == SBT_FIRE ? "fire" :
@@ -1294,6 +1345,9 @@ static void write_newgame_options(FILE *f)
                 Options.prev_book == SBT_SUMM ? "summ" :
                 "random");
     }
+
+    if (Options.prev_wand != SWT_NO_SELECTION)
+        fprintf(f, "wand = %s\n", _wand_to_str(Options.prev_wand).c_str());
 }
 #endif // !DISABLE_STICKY_STARTUP_OPTIONS
 
@@ -1506,7 +1560,7 @@ void game_options::read_options(InitLineInput &il, bool runscript,
 
     Options.explore_stop |= Options.explore_stop_prompt;
 
-    evil_colour = str_to_colour(variables["evil"]);    
+    evil_colour = str_to_colour(variables["evil"]);
 }
 
 void game_options::fixup_options()
@@ -1933,7 +1987,7 @@ void game_options::read_option_line(const std::string &str, bool runscript)
     const std::string orig_field = field;
 
     if (key != "name" && key != "crawl_dir" && key != "macro_dir"
-        && key != "race" && key != "class" && key != "ban_pickup"
+        && key != "species" && key != "job" && key != "ban_pickup"
         && key != "autopickup_exceptions"
         && key != "stop_travel" && key != "sound"
         && key != "travel_stop_message" && key != "force_more_message"
@@ -2053,6 +2107,8 @@ void game_options::read_option_line(const std::string &str, bool runscript)
             default_friendly_pickup = FRIENDLY_PICKUP_NONE;
         else if (field == "friend")
             default_friendly_pickup = FRIENDLY_PICKUP_FRIEND;
+        else if (field == "player")
+            default_friendly_pickup = FRIENDLY_PICKUP_PLAYER;
         else if (field == "all")
             default_friendly_pickup = FRIENDLY_PICKUP_ALL;
     }
@@ -2091,6 +2147,8 @@ void game_options::read_option_line(const std::string &str, bool runscript)
     else BOOL_OPTION(list_rotten);
     else BOOL_OPTION(prefer_safe_chunks);
     else BOOL_OPTION(easy_eat_chunks);
+    else BOOL_OPTION(easy_eat_gourmand);
+    else BOOL_OPTION(easy_eat_contaminated);
     else if (key == "lua_file" && runscript)
     {
 #ifdef CLUA_BINDINGS
@@ -2183,6 +2241,11 @@ void game_options::read_option_line(const std::string &str, bool runscript)
         // Choose this book for classes that get choice.
         book = _str_to_book( field );
     }
+    else if (key == "wand")
+    {
+        // Choose this wand for classes that get choice.
+        wand = _str_to_wand( field );
+    }
     else if (key == "chaos_knight")
     {
         // Choose god for Chaos Knights.
@@ -2231,6 +2294,11 @@ void game_options::read_option_line(const std::string &str, bool runscript)
     else if (key == "fire_order")
     {
         set_fire_order(field, plus_equal);
+    }
+    else if (key == "pizza")
+    {
+        // field is already cleaned up from trim_string()
+        pizza = field;
     }
 
     BOOL_OPTION(random_pick);
@@ -2307,11 +2375,11 @@ void game_options::read_option_line(const std::string &str, bool runscript)
         macro_dir = field;
     }
 #endif
-    else if (key == "race")
+    else if (key == "species" || key == "race")
     {
         race = _str_to_race( field );
     }
-    else if (key == "class")
+    else if (key == "job" || key == "class")
     {
         cls = _str_to_class( field );
     }
@@ -2388,6 +2456,7 @@ void game_options::read_option_line(const std::string &str, bool runscript)
         // field is already cleaned up from trim_string()
         user_note_prefix = field;
     }
+    else BOOL_OPTION(note_all_skill_levels);
     else BOOL_OPTION(note_skill_max);
     else BOOL_OPTION(note_all_spells);
     else BOOL_OPTION(delay_message_clear);
@@ -2900,6 +2969,7 @@ void game_options::read_option_line(const std::string &str, bool runscript)
         if (dump_item_origin_price < -1)
             dump_item_origin_price = -1;
     }
+    else BOOL_OPTION(dump_book_spells);
     else BOOL_OPTION(level_map_title);
     else BOOL_OPTION(target_zero_exp);
     else BOOL_OPTION(target_oos);
@@ -3253,9 +3323,6 @@ void get_system_environment(void)
     // The player's name
     SysEnv.crawl_name = check_string( getenv("CRAWL_NAME") );
 
-    // The player's pizza
-    SysEnv.crawl_pizza = check_string( getenv("CRAWL_PIZZA") );
-
     // The directory which contians init.txt, macro.txt, morgue.txt
     // This should end with the appropriate path delimiter.
     SysEnv.crawl_dir = check_string( getenv("CRAWL_DIR") );
@@ -3299,7 +3366,6 @@ enum commandline_option_type {
     CLO_NAME,
     CLO_RACE,
     CLO_CLASS,
-    CLO_PIZZA,
     CLO_PLAIN,
     CLO_DIR,
     CLO_RC,
@@ -3316,7 +3382,7 @@ enum commandline_option_type {
 };
 
 static const char *cmd_ops[] = {
-    "scores", "name", "race", "class", "pizza", "plain", "dir", "rc",
+    "scores", "name", "species", "job", "plain", "dir", "rc",
     "rcdir", "tscores", "vscores", "scorefile", "morgue", "macro",
     "mapstat", "arena"
 };
@@ -3506,16 +3572,6 @@ bool parse_args( int argc, char **argv, bool rc_only )
                 if (o == 3)
                     Options.cls = _str_to_class( std::string( next_arg ) );
             }
-            nextUsed = true;
-            break;
-
-        case CLO_PIZZA:
-            if (!next_is_param)
-                return (false);
-
-            if (!rc_only)
-                SysEnv.crawl_pizza = next_arg;
-
             nextUsed = true;
             break;
 

@@ -61,7 +61,7 @@ spell_type which_spell_in_book(int sbook_type, int spl);
 int staff_spell( int zap_device_2 );
 bool is_memorised(spell_type spell);
 
-bool undead_cannot_memorise(spell_type spell, char being);
+bool you_cannot_memorise(spell_type spell);
 
 int spellbook_contents( item_def &book, read_book_action_type action,
                         formatted_string *fs = NULL );
@@ -70,7 +70,7 @@ int count_staff_spells(const item_def &item, bool need_id);
 int rod_shield_leakage();
 
 bool make_book_level_randart(item_def &book, int level = -1,
-                             int num_spells = -1);
+                             int num_spells = -1, std::string owner = "");
 bool make_book_theme_randart(item_def &book,
                              int disc1 = 0, int disc2 = 0,
                              int num_spells = -1, int max_levels = -1,

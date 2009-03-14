@@ -20,6 +20,7 @@ REVISION("$Rev$");
 #include "ghost.h"
 #include "lev-pand.h"
 #include "makeitem.h"
+#include "message.h"
 #include "monstuff.h"
 #include "mon-pick.h"
 #include "mon-util.h"
@@ -60,8 +61,8 @@ static monster_type _resolve_monster_type(monster_type mon_type,
                                           dungeon_char_type *stair_type,
                                           int *lev_mons);
 
-static void _define_zombie(int mid, monster_type ztype,
-                           monster_type cs, int power, coord_def pos);
+static void _define_zombie(int mid, monster_type ztype, monster_type cs,
+                           int power, coord_def pos);
 static monster_type _band_member(band_type band, int power);
 static band_type _choose_band(int mon_type, int power, int &band_size);
 // static int _place_monster_aux(int mon_type, beh_type behaviour, int target,
@@ -72,12 +73,10 @@ static int _place_monster_aux(const mgen_data &mg, bool first_band_member,
                               bool force_pos = false);
 
 // Returns whether actual_grid is compatible with grid_wanted for monster
-// movement (or for monster generation, if generation is true).
+// movement and generation.
 bool grid_compatible(dungeon_feature_type grid_wanted,
                      dungeon_feature_type actual_grid)
 {
-    // XXX What in Xom's name is DNGN_WATER_STUCK? It looks like an artificial
-    // device to slow down fiery monsters flying over water.
     if (grid_wanted == DNGN_FLOOR)
     {
         return (actual_grid >= DNGN_FLOOR
@@ -88,12 +87,19 @@ bool grid_compatible(dungeon_feature_type grid_wanted,
     if (grid_wanted >= DNGN_ROCK_WALL
         && grid_wanted <= DNGN_CLEAR_PERMAROCK_WALL)
     {
+        // A monster can only move through or inhabit permanent rock if that's
+        // exactly what it's asking for.
+        if (actual_grid == DNGN_PERMAROCK_WALL
+            || actual_grid == DNGN_CLEAR_PERMAROCK_WALL)
+        {
+            return (grid_wanted == DNGN_PERMAROCK_WALL
+                    || grid_wanted == DNGN_CLEAR_PERMAROCK_WALL);
+        }
+
         return (actual_grid >= DNGN_ROCK_WALL
                 && actual_grid <= DNGN_CLEAR_PERMAROCK_WALL);
     }
 
-    // Restricted fountains during generation, so we don't get monsters
-    // "trapped" in fountains for easy killing.
     return (grid_wanted == actual_grid
             || (grid_wanted == DNGN_DEEP_WATER
                 && (actual_grid == DNGN_SHALLOW_WATER
@@ -491,11 +497,7 @@ static monster_type _resolve_monster_type(monster_type mon_type,
                    || drac_colour_incompatible(mon_type, base_type)));
     }
     else if (mon_type == RANDOM_BASE_DRACONIAN)
-    {
-        mon_type =
-            static_cast<monster_type>(
-                random_range(MONS_BLACK_DRACONIAN, MONS_PALE_DRACONIAN));
-    }
+        mon_type = random_draconian_monster_species();
     else if (mon_type == RANDOM_NONBASE_DRACONIAN)
     {
         mon_type =
@@ -517,7 +519,7 @@ static monster_type _resolve_monster_type(monster_type mon_type,
             {
                 pos = random_in_bounds();
 
-                if (mgrd(pos) != NON_MONSTER || pos == you.pos())
+                if (actor_at(pos))
                     continue;
 
                 // Is the grid verboten?
@@ -671,12 +673,10 @@ static int _is_near_stairs(coord_def &p)
     return (result);
 }
 
-/*
- * Checks if the monster is ok to place at mg_pos. If force_location
- * is true, then we'll be less rigorous in our checks, in particular
- * allowing land monsters to be placed in shallow water and water
- * creatures in fountains.
- */
+// Checks if the monster is ok to place at mg_pos. If force_location
+// is true, then we'll be less rigorous in our checks, in particular
+// allowing land monsters to be placed in shallow water and water
+// creatures in fountains.
 static bool _valid_monster_location(const mgen_data &mg,
                                     const coord_def &mg_pos)
 {
@@ -691,7 +691,7 @@ static bool _valid_monster_location(const mgen_data &mg,
         return (false);
 
     // Occupied?
-    if (mgrd(mg_pos) != NON_MONSTER || mg_pos == you.pos())
+    if (actor_at(mg_pos))
         return (false);
 
     // Is the monster happy where we want to put it?
@@ -729,7 +729,7 @@ int place_monster(mgen_data mg, bool force_pos)
     int id = -1;
 
     // (1) Early out (summoned to occupied grid).
-    if (mg.use_position() && mgrd(mg.pos) != NON_MONSTER)
+    if (mg.use_position() && monster_at(mg.pos))
         return (-1);
 
     mg.cls = _resolve_monster_type(mg.cls, mg.proximity, mg.base_type,
@@ -763,7 +763,8 @@ int place_monster(mgen_data mg, bool force_pos)
         // For some cases disallow monsters on stairs.
         if (mons_class_is_stationary(mg.cls)
             || (pval == 2 // Stairs occupied by player.
-                && (mons_speed(mg.cls) == 0 || grd(mg.pos) == DNGN_LAVA
+                && (mons_class_base_speed(mg.cls) == 0
+                    || grd(mg.pos) == DNGN_LAVA
                     || grd(mg.pos) == DNGN_DEEP_WATER)))
         {
             mg.proximity = PROX_AWAY_FROM_PLAYER;
@@ -829,8 +830,7 @@ int place_monster(mgen_data mg, bool force_pos)
             case PROX_NEAR_STAIRS:
                 if (pval == 2) // player on stairs
                 {
-                    // 0 speed monsters can't shove player out of their way.
-                    if (mons_speed(mg.cls) == 0)
+                    if (mons_class_base_speed(mg.cls) == 0)
                     {
                         proxOK = false;
                         break;
@@ -843,6 +843,14 @@ int place_monster(mgen_data mg, bool force_pos)
                         proxOK = false;
                         break;
                     }
+
+                    // You can't be shoved if you're caught in a net.
+                    if (you.caught())
+                    {
+                        proxOK = false;
+                        break;
+                    }
+
                     shoved = true;
                     coord_def mpos = mg.pos;
                     mg.pos         = you.pos();
@@ -978,7 +986,7 @@ static int _place_monster_aux(const mgen_data &mg,
     // If the space is occupied, try some neighbouring square instead.
     if (first_band_member && in_bounds(mg.pos)
         && (mg.behaviour == BEH_FRIENDLY || !is_sanctuary(mg.pos))
-        && mgrd(mg.pos) == NON_MONSTER && mg.pos != you.pos()
+        && actor_at(mg.pos) == NULL
         && (force_pos || monster_habitable_grid(montype, grd(mg.pos))))
     {
         fpos = mg.pos;
@@ -1040,16 +1048,10 @@ static int _place_monster_aux(const mgen_data &mg,
             menv[id].god = GOD_BEOGH;
             break;
         case MONS_MUMMY:
-            menv[id].god = coinflip() ? GOD_KIKUBAAQUDGHA : GOD_YREDELEMNUL;
-            break;
         case MONS_DRACONIAN:
         case MONS_ELF:
-        {
-            god_type gods[] = {GOD_KIKUBAAQUDGHA, GOD_YREDELEMNUL,
-                               GOD_MAKHLEB};
-            menv[id].god = RANDOM_ELEMENT(gods);
+            menv[id].god = GOD_NAMELESS;
             break;
-        }
         default:
             mprf(MSGCH_ERROR, "ERROR: Invalid monster priest '%s'",
                  menv[id].name(DESC_PLAIN, true).c_str());
@@ -1057,16 +1059,20 @@ static int _place_monster_aux(const mgen_data &mg,
             break;
         }
     }
-    // 6 out of 7 non-priestly orcs are believers.
+    // 1 out of 7 non-priestly orcs are unbelievers.
     else if (mons_genus(mg.cls) == MONS_ORC)
     {
-        if (x_chance_in_y(6, 7))
+        if (!one_chance_in(7))
             menv[id].god = GOD_BEOGH;
     }
-    // Angels and Daevas belong to TSO
+    // Angels and Daevas belong to TSO, but 1 out of 7 in the Abyss are
+    // adopted by Xom.
     else if (mons_class_holiness(mg.cls) == MH_HOLY)
     {
-        menv[id].god = GOD_SHINING_ONE;
+        if (mg.level_type != LEVEL_ABYSS || !one_chance_in(7))
+            menv[id].god = GOD_SHINING_ONE;
+        else
+            menv[id].god = GOD_XOM;
     }
 
     // If the caller requested a specific colour for this monster,
@@ -1097,16 +1103,39 @@ static int _place_monster_aux(const mgen_data &mg,
 
     menv[id].flags |= MF_JUST_SUMMONED;
 
+    // Don't leave shifters in their starting shape.
+    if (mg.cls == MONS_SHAPESHIFTER || mg.cls == MONS_GLOWING_SHAPESHIFTER)
+    {
+        no_messages nm;
+        monster_polymorph(&menv[id], RANDOM_MONSTER);
+
+        // It's not actually a known shapeshifter if it happened to be
+        // placed in LOS of the player.
+        menv[id].flags &= ~MF_KNOWN_MIMIC;
+    }
+
     // dur should always be 1-6 for monsters that can be abjured.
     const bool summoned = mg.abjuration_duration >= 1
                        && mg.abjuration_duration <= 6;
 
-    if (mg.cls == MONS_DANCING_WEAPON && mg.number != 1) // ie not from spell
+    if (mg.cls == MONS_DANCING_WEAPON)
     {
         give_item(id, mg.power, summoned);
 
-        if (menv[id].inv[MSLOT_WEAPON] != NON_ITEM)
-            menv[id].colour = mitm[menv[id].inv[MSLOT_WEAPON]].colour;
+        // Dancing swords *always* have a weapon. Fail to
+        // create them otherwise.
+        const item_def* wpn = menv[id].weapon();
+        if (!wpn)
+        {
+            menv[id].destroy_inventory();
+            menv[id].reset();
+            mgrd(fpos) = NON_MONSTER;
+            return (-1);
+        }
+        else
+        {
+            menv[id].colour = wpn->colour;
+        }
     }
     else if (mons_class_itemuse(mg.cls) >= MONUSE_STARTING_EQUIPMENT)
     {
@@ -1168,11 +1197,11 @@ static int _place_monster_aux(const mgen_data &mg,
 
     mark_interesting_monst(&menv[id], mg.behaviour);
 
-    if (player_monster_visible(&menv[id]) && mons_near(&menv[id]))
+    if (you.can_see(&menv[id]))
         seen_monster(&menv[id]);
 
     if (crawl_state.arena)
-        arena_placed_monster(&menv[id], mg, first_band_member);
+        arena_placed_monster(&menv[id]);
 
     return (id);
 }
@@ -1194,19 +1223,20 @@ static monster_type _pick_random_zombie()
             zombifiable.push_back(mcls);
         }
     }
-    return (zombifiable[ random2(zombifiable.size()) ]);
+    return (zombifiable[random2(zombifiable.size())]);
 }
 
-static void _define_zombie( int mid, monster_type ztype,
-                            monster_type cs, int power, coord_def pos )
+static void _define_zombie(int mid, monster_type ztype, monster_type cs,
+                           int power, coord_def pos)
 {
-    monster_type cls       = MONS_PROGRAM_BUG;
-    monster_type mons_sec2 = MONS_PROGRAM_BUG;
-    int  zombie_size       = 0;
-    bool ignore_rarity     = false;
+    ASSERT(mons_class_is_zombified(cs));
 
-    if (power > 27)
-        power = 27;
+    monster_type cls             = MONS_PROGRAM_BUG;
+    monster_type mons_sec2       = MONS_PROGRAM_BUG;
+    zombie_size_type zombie_size = Z_NOZOMBIE;
+    bool ignore_rarity           = false;
+
+    power = std::min(27, power);
 
     // Set size based on zombie class (cs).
     switch (cs)
@@ -1224,13 +1254,9 @@ static void _define_zombie( int mid, monster_type ztype,
             break;
 
         case MONS_SPECTRAL_THING:
-            zombie_size = -1;
             break;
 
         default:
-            // This should NEVER happen.
-            perror("\ncreate_zombie() got passed incorrect zombie type!\n");
-            end(0);
             break;
     }
 
@@ -1260,14 +1286,14 @@ static void _define_zombie( int mid, monster_type ztype,
             // such as the Temple, HoB, and Slime Pits.
             if (you.level_type != LEVEL_DUNGEON
                 || player_in_hell()
-                || player_in_branch( BRANCH_HALL_OF_ZOT )
-                || player_in_branch( BRANCH_VESTIBULE_OF_HELL )
-                || player_in_branch( BRANCH_ECUMENICAL_TEMPLE )
-                || player_in_branch( BRANCH_CRYPT )
-                || player_in_branch( BRANCH_TOMB )
-                || player_in_branch( BRANCH_HALL_OF_BLADES )
-                || player_in_branch( BRANCH_SNAKE_PIT )
-                || player_in_branch( BRANCH_SLIME_PITS )
+                || player_in_branch(BRANCH_HALL_OF_ZOT)
+                || player_in_branch(BRANCH_VESTIBULE_OF_HELL)
+                || player_in_branch(BRANCH_ECUMENICAL_TEMPLE)
+                || player_in_branch(BRANCH_CRYPT)
+                || player_in_branch(BRANCH_TOMB)
+                || player_in_branch(BRANCH_HALL_OF_BLADES)
+                || player_in_branch(BRANCH_SNAKE_PIT)
+                || player_in_branch(BRANCH_SLIME_PITS)
                 || one_chance_in(1000))
             {
                 ignore_rarity = true;
@@ -1286,8 +1312,11 @@ static void _define_zombie( int mid, monster_type ztype,
 
             // Size must match, but you can make a spectral thing out
             // of anything.
-            if (zombie_size != -1 && mons_zombie_size(cls) != zombie_size)
+            if (cs != MONS_SPECTRAL_THING
+                && mons_zombie_size(cls) != zombie_size)
+            {
                 continue;
+            }
 
             if (cs == MONS_SKELETON_SMALL || cs == MONS_SIMULACRUM_SMALL)
             {
@@ -1328,14 +1357,14 @@ static void _define_zombie( int mid, monster_type ztype,
 
             // Every so often, we'll relax the OOD restrictions.  Avoids
             // infinite loops (if we don't do this, things like creating
-            // a large skeleton on level 1 may hang the game!)
+            // a large skeleton on level 1 may hang the game!).
             if (one_chance_in(5))
                 relax++;
         }
 
         // Set type and secondary appropriately.
         menv[mid].base_monster = cls;
-        mons_sec2 = cls;
+        mons_sec2              = cls;
     }
     else
     {
@@ -1348,63 +1377,53 @@ static void _define_zombie( int mid, monster_type ztype,
 
     define_monster(mid);
 
-    menv[mid].hit_points     = hit_points( menv[mid].hit_dice, 6, 5 );
+    menv[mid].hit_points     = hit_points(menv[mid].hit_dice, 6, 5);
     menv[mid].max_hit_points = menv[mid].hit_points;
 
     menv[mid].ac -= 2;
-
-    if (menv[mid].ac < 0)
-        menv[mid].ac = 0;
+    menv[mid].ac  = std::max(0, menv[mid].ac);
 
     menv[mid].ev -= 5;
+    menv[mid].ev  = std::max(0, menv[mid].ev);
 
-    if (menv[mid].ev < 0)
-        menv[mid].ev = 0;
-
-    menv[mid].speed -= 2;
-
-    if (menv[mid].speed < 3)
-        menv[mid].speed = 3;
-
-    menv[mid].speed_increment = 70;
+    menv[mid].speed = mons_class_zombie_base_speed(menv[mid].base_monster);
 
     // Now override type with the required type.
     if (cs == MONS_ZOMBIE_SMALL || cs == MONS_ZOMBIE_LARGE)
     {
-        menv[mid].type = ((mons_zombie_size(menv[mid].base_monster) == Z_BIG)
-                          ? MONS_ZOMBIE_LARGE : MONS_ZOMBIE_SMALL);
+        menv[mid].type = ((mons_zombie_size(menv[mid].base_monster) == Z_BIG) ?
+                             MONS_ZOMBIE_LARGE : MONS_ZOMBIE_SMALL);
     }
     else if (cs == MONS_SKELETON_SMALL || cs == MONS_SKELETON_LARGE)
     {
-        menv[mid].hit_points     = hit_points( menv[mid].hit_dice, 5, 4 );
+        menv[mid].hit_points     = hit_points(menv[mid].hit_dice, 5, 4);
         menv[mid].max_hit_points = menv[mid].hit_points;
 
         menv[mid].ac -= 4;
-
-        if (menv[mid].ac < 0)
-            menv[mid].ac = 0;
+        menv[mid].ac  = std::max(0, menv[mid].ac);
 
         menv[mid].ev -= 2;
+        menv[mid].ev  = std::max(0, menv[mid].ev);
 
-        if (menv[mid].ev < 0)
-            menv[mid].ev = 0;
-
-        menv[mid].type = ((mons_zombie_size( menv[mid].base_monster ) == Z_BIG)
-                          ? MONS_SKELETON_LARGE : MONS_SKELETON_SMALL);
+        menv[mid].type = ((mons_zombie_size(menv[mid].base_monster) == Z_BIG) ?
+                             MONS_SKELETON_LARGE : MONS_SKELETON_SMALL);
     }
     else if (cs == MONS_SIMULACRUM_SMALL || cs == MONS_SIMULACRUM_LARGE)
     {
-        // Simulacra aren't tough, but you can create piles of them. -- bwr
-        menv[mid].hit_points     = hit_points( menv[mid].hit_dice, 1, 4 );
+        // Simulacra aren't tough, but you can create piles of them. - bwr
+        menv[mid].hit_points     = hit_points(menv[mid].hit_dice, 1, 4);
         menv[mid].max_hit_points = menv[mid].hit_points;
-        menv[mid].type = ((mons_zombie_size( menv[mid].base_monster ) == Z_BIG)
-                            ? MONS_SIMULACRUM_LARGE : MONS_SIMULACRUM_SMALL);
+
+        menv[mid].type = ((mons_zombie_size(menv[mid].base_monster) == Z_BIG) ?
+                             MONS_SIMULACRUM_LARGE : MONS_SIMULACRUM_SMALL);
     }
     else if (cs == MONS_SPECTRAL_THING)
     {
-        menv[mid].hit_points     = hit_points( menv[mid].hit_dice, 4, 4 );
+        menv[mid].hit_points     = hit_points(menv[mid].hit_dice, 4, 4);
         menv[mid].max_hit_points = menv[mid].hit_points;
+
         menv[mid].ac            += 4;
+
         menv[mid].type           = MONS_SPECTRAL_THING;
     }
 
@@ -2271,8 +2290,7 @@ public:
                 good_square(dc);
             return (false);
         }
-        if (mgrd(dc) == NON_MONSTER && dc != you.pos()
-            && one_chance_in(++nfound))
+        if (actor_at(dc) == NULL && one_chance_in(++nfound))
         {
             greedy_dist = traveled_distance;
             greedy_place = dc;
@@ -2392,7 +2410,7 @@ bool player_angers_monster(monsters *mon)
         mon->del_ench(ENCH_CHARM);
         behaviour_event(mon, ME_ALERT, MHITYOU);
 
-        if (see_grid(mon->pos()) && player_monster_visible(mon))
+        if (you.can_see(mon))
         {
             std::string aura;
 
@@ -2424,8 +2442,7 @@ int create_monster(mgen_data mg, bool fail_msg)
 
     if (!mg.force_place()
         || !in_bounds(mg.pos)
-        || mgrd(mg.pos) != NON_MONSTER
-        || mg.pos == you.pos()
+        || actor_at(mg.pos)
         || !mons_class_can_pass(montype, grd(mg.pos)))
     {
         mg.pos = find_newmons_square(montype, mg.pos);
@@ -2440,10 +2457,15 @@ int create_monster(mgen_data mg, bool fail_msg)
 
             int tries = 0;
             while (tries++ < 50
-                   && mons_avoids_cloud(&dummy, env.cgrid(mg.pos), NULL, true))
+                   && (!in_bounds(mg.pos)
+                       || mons_avoids_cloud(&dummy, env.cgrid(mg.pos),
+                                            NULL, true)))
             {
                 mg.pos = find_newmons_square(montype, mg.pos);
             }
+            if (!in_bounds(mg.pos))
+                return (-1);
+
             const int cloud_num = env.cgrid(mg.pos);
             // Don't place friendly god gift in a damaging cloud created by
             // you if that would anger the god.
@@ -2488,10 +2510,7 @@ bool empty_surrounds(const coord_def& where, dungeon_feature_type spc_wanted,
     {
         bool success = false;
 
-        if ( *ri == you.pos() )
-            continue;
-
-        if (mgrd(*ri) != NON_MONSTER)
+        if (actor_at(*ri))
             continue;
 
         // Players won't summon out of LOS, or past transparent walls.
@@ -2713,8 +2732,8 @@ coord_def monster_pathfind::next_pos(const coord_def &c) const
 
 // The main method in the monster_pathfind class.
 // Returns true if a path was found, else false.
-bool monster_pathfind::init_pathfind(monsters *mon, coord_def dest, bool diag,
-                                     bool msg, bool pass_unmapped)
+bool monster_pathfind::init_pathfind(const monsters *mon, coord_def dest,
+                                     bool diag, bool msg, bool pass_unmapped)
 {
     mons   = mon;
 

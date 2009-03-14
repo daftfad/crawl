@@ -218,24 +218,27 @@ int check_your_resists(int hurted, beam_type flavour)
         break;
 
     case BEAM_HOLY:
-        if (is_good_god(you.religion))
+    {
+        // Cleansing flame.
+        const int rhe = you.res_holy_energy(NULL);
+        if (rhe > 0)
             hurted = 0;
-        else if (you.is_undead || you.species != SP_DEMONSPAWN)
-            hurted = (hurted * 3) / 2;
-        else if (!is_evil_god(you.religion))
+        else if (rhe == 0)
             hurted /= 2;
+        else if (rhe < -1)
+            hurted = (hurted * 3) / 2;
 
         if (hurted == 0)
             canned_msg(MSG_YOU_RESIST);
-
         break;
+    }
 
     default:
         break;
     }                           // end switch
 
     return (hurted);
-}                               // end check_your_resists()
+}
 
 void splash_with_acid(int acid_strength, bool corrode_items)
 {
@@ -259,7 +262,7 @@ void splash_with_acid(int acid_strength, bool corrode_items)
 
         if (post_res_dam > 0)
         {
-            mpr( "The acid burns!" );
+            mpr("The acid burns!");
 
             if (post_res_dam < dam)
                 canned_msg(MSG_YOU_RESIST);
@@ -282,7 +285,7 @@ void weapon_acid(int acid_strength)
         ouch(roll_dice(1, acid_strength), NON_MONSTER, KILLED_BY_ACID);
     }
     else if (x_chance_in_y(acid_strength + 1, 20))
-        _item_corrode( hand_thing );
+        _item_corrode(hand_thing);
 }
 
 void _item_corrode(int slot)
@@ -633,7 +636,7 @@ void lose_level()
     xom_is_stimulated(255);
 }
 
-void drain_exp(bool announce_full)
+bool drain_exp(bool announce_full)
 {
     const int protection = player_prot_life();
 
@@ -641,20 +644,23 @@ void drain_exp(bool announce_full)
     {
         if (announce_full)
             canned_msg(MSG_YOU_RESIST);
-        return;
+
+        return (false);
     }
 
     if (you.experience == 0)
     {
         ouch(INSTANT_DEATH, NON_MONSTER, KILLED_BY_DRAINING);
+
         // Return in case death was escaped via wizard mode.
-        return;
+        return (true);
     }
 
     if (you.experience_level == 1)
     {
         you.experience = 0;
-        return;
+
+        return (true);
     }
 
     unsigned long total_exp = exp_needed(you.experience_level + 2)
@@ -705,7 +711,11 @@ void drain_exp(bool announce_full)
 
         if (you.experience < exp_needed(you.experience_level + 1))
             lose_level();
+
+        return (true);
     }
+
+    return (false);
 }
 
 static void _xom_checks_damage(kill_method_type death_type,
@@ -806,11 +816,45 @@ static void _yred_mirrors_injury(int dam, int death_source)
     }
 }
 
+static void _wizard_restore_life()
+{
+    if (you.hp <= 0)
+        set_hp(you.hp_max, false);
+    if (you.strength <= 0)
+    {
+        you.strength        = you.max_strength;
+        you.redraw_strength = true;
+    }
+    if (you.dex <= 0)
+    {
+        you.dex              = you.max_dex;
+        you.redraw_dexterity = true;
+        you.redraw_evasion   = true;
+    }
+    if (you.intel <= 0)
+    {
+        you.intel               = you.max_intel;
+        you.redraw_intelligence = true;
+    }
+}
+
 // death_source should be set to NON_MONSTER for non-monsters. {dlb}
 void ouch(int dam, int death_source, kill_method_type death_type,
           const char *aux, bool see_source)
 {
     ASSERT(!crawl_state.arena);
+
+    if (dam != INSTANT_DEATH && you.species == SP_DEEP_DWARF)
+    {
+        // Deep Dwarves get to shave _any_ hp loss.
+        int shave = 1 + random2(2 + random2(1 + you.experience_level / 3));
+#ifdef DEBUG_DIAGNOSTICS
+        mprf(MSGCH_DIAGNOSTICS, "HP shaved: %d.", shave);
+#endif
+        dam -= shave;
+        if (dam <= 0)
+            return;
+    }
 
     ait_hp_loss hpl(dam, death_type);
     interrupt_activity(AI_HP_LOSS, &hpl);
@@ -824,7 +868,7 @@ void ouch(int dam, int death_source, kill_method_type death_type,
         return;
     }
 
-    if (dam != INSTANT_DEATH)     // that is, a "death" caused by hp loss {dlb}
+    if (dam != INSTANT_DEATH)
     {
         if (dam >= you.hp)
         {
@@ -870,11 +914,11 @@ void ouch(int dam, int death_source, kill_method_type death_type,
             {
                 damage_desc = scorefile_entry(dam, death_source,
                                               death_type, aux, true)
-                              .death_description(scorefile_entry::DDV_TERSE);
+                    .death_description(scorefile_entry::DDV_TERSE);
             }
 
             take_note(
-                Note(NOTE_HP_CHANGE, you.hp, you.hp_max, damage_desc.c_str()) );
+                      Note(NOTE_HP_CHANGE, you.hp, you.hp_max, damage_desc.c_str()) );
 
             _yred_mirrors_injury(dam, death_source);
 
@@ -899,8 +943,12 @@ void ouch(int dam, int death_source, kill_method_type death_type,
         }
 
         // Also don't kill wizards testing Xom acts.
-        if (crawl_state.prev_cmd == CMD_WIZARD && you.religion != GOD_XOM)
+        if ((crawl_state.repeat_cmd == CMD_WIZARD
+             || crawl_state.prev_cmd == CMD_WIZARD)
+            && you.religion != GOD_XOM)
+        {
             return;
+        }
 
         // Okay, you *didn't* escape death.
         you.reset_escaped_death();
@@ -911,7 +959,7 @@ void ouch(int dam, int death_source, kill_method_type death_type,
             if (death_type != KILLED_BY_XOM)
                 aux = "Xom";
         }
-        else if(strstr(aux, "Xom") == NULL)
+        else if (strstr(aux, "Xom") == NULL)
             death_type = KILLED_BY_XOM;
     }
 
@@ -937,7 +985,7 @@ void ouch(int dam, int death_source, kill_method_type death_type,
             {
                 take_note(Note( NOTE_DEATH, you.hp, you.hp_max,
                                 death_desc.c_str()), true);
-                set_hp(you.hp_max, false);
+                _wizard_restore_life();
                 return;
             }
 #else  // !def USE_OPTIONAL_WIZARD_DEATH
@@ -946,7 +994,7 @@ void ouch(int dam, int death_source, kill_method_type death_type,
 
             take_note(Note( NOTE_DEATH, you.hp, you.hp_max,
                             death_desc.c_str()), true);
-            set_hp(you.hp_max, false);
+            _wizard_restore_life();
             return;
 #endif  // USE_OPTIONAL_WIZARD_DEATH
         }

@@ -30,6 +30,7 @@ REVISION("$Rev$");
 #include "output.h"
 #include "randart.h"
 #include "skills2.h"
+#include "spl-mis.h"
 #include "spl-util.h"
 #include "state.h"
 #include "version.h"
@@ -91,6 +92,8 @@ namespace arena
     bool random_uniques      = false;
     bool real_summons        = false;
     bool move_summons        = false;
+
+    bool miscasts            = false;
 
     int  summon_throttle     = INT_MAX;
 
@@ -311,6 +314,7 @@ namespace arena
         allow_zero_xp   =  strip_tag(spec, "allow_zero_xp");
         real_summons    =  strip_tag(spec, "real_summons");
         move_summons    =  strip_tag(spec, "move_summons");
+        miscasts        =  strip_tag(spec, "miscasts");
         summon_throttle = strip_number_tag(spec, "summon_throttle:");
 
         if (summon_throttle <= 0)
@@ -481,7 +485,7 @@ namespace arena
 
     void expand_mlist(int exp)
     {
-        crawl_view.mlistp.y -= exp;
+        crawl_view.mlistp.y  -= exp;
         crawl_view.mlistsz.y += exp;
     }
 
@@ -492,13 +496,13 @@ namespace arena
         parse_monster_spec();
         setup_level();
 
-        // Monster set up may block waiting for matchups.
+        // Monster setup may block waiting for matchups.
         setup_monsters();
 
         setup_others();
     }
 
-    // Temporarily unset craw_state.arena to force a --more-- to happen.
+    // Temporarily unset crawl_state.arena to force a --more-- to happen.
     void more()
     {
         unwind_bool state(crawl_state.arena, false);
@@ -673,6 +677,23 @@ namespace arena
         }
     }
 
+    void do_miscasts()
+    {
+        if (!miscasts)
+            return;
+
+        for (int i = 0; i < MAX_MONSTERS; i++)
+        {
+            monsters* mon = &menv[i];
+
+            if (!mon->alive() || mon->type == MONS_TEST_SPAWNER)
+                continue;
+
+            MiscastEffect(mon, i, SPTYP_RANDOM, random_range(1, 3),
+                          "arena miscast", NH_NEVER);
+        }
+    }
+
     void handle_keypress(int ch)
     {
         if (ch == ESCAPE || tolower(ch) == 'q' || ch == CONTROL('G'))
@@ -713,6 +734,7 @@ namespace arena
 
     void do_fight()
     {
+        viewwindow(true, false);
         mesclr(true);
         {
             cursor_control coff(false);
@@ -744,6 +766,7 @@ namespace arena
                 you.hunger = 10999;
                 //report_foes();
                 world_reacts();
+                do_miscasts();
                 balance_spawners();
                 delay(Options.arena_delay);
                 mesclr();
@@ -863,11 +886,6 @@ namespace arena
             if (i == MONS_PLAYER_GHOST)
                 continue;
 
-            // Skip the royal jelly for now, since if it gets hit by
-            // multiple explosions it can cause an assertion.
-            if (i == MONS_ROYAL_JELLY)
-                continue;
-
             if (mons_is_unique(i)
                 && !arena_veto_random_monster( (monster_type) i))
             {
@@ -926,7 +944,8 @@ namespace arena
 
             if (trials_done < total_trials)
                 delay(Options.arena_delay * 5);
-        } while (!contest_canceled && trials_done < total_trials);
+        }
+        while (!contest_canceled && trials_done < total_trials);
 
         if (total_trials > 0)
         {
@@ -1016,14 +1035,18 @@ bool arena_veto_place_monster(const mgen_data &mg, bool first_band_member,
             || arena::banned_glyphs[mons_char(mg.cls)]);
 }
 
-
-void arena_placed_monster(monsters *monster, const mgen_data &mg,
-                          bool first_band_member)
+void arena_placed_monster(monsters *monster)
 {
     if (monster->attitude == ATT_FRIENDLY)
+    {
         arena::faction_a.active_members++;
+        arena::faction_b.won = false;
+    }
     else if (monster->attitude == ATT_HOSTILE)
+    {
         arena::faction_b.active_members++;
+        arena::faction_a.won = false;
+    }
 
     if (monster->type == MONS_TEST_SPAWNER)
     {

@@ -24,33 +24,44 @@ enum armour_type
     ARM_SPLINT_MAIL,             //    5
     ARM_BANDED_MAIL,
     ARM_PLATE_MAIL,
-    ARM_SHIELD,
+
     ARM_CLOAK,
-    ARM_HELMET,                  //   10
+
     ARM_CAP,
-    ARM_WIZARD_HAT,
+    ARM_WIZARD_HAT,              //   10
+    ARM_HELMET,
+
     ARM_GLOVES,
+
     ARM_BOOTS,
-    ARM_BUCKLER,                 //   15
+
+    ARM_BUCKLER,
+    ARM_SHIELD,                  //   15
     ARM_LARGE_SHIELD,
-    ARM_DRAGON_HIDE,
-    ARM_TROLL_HIDE,
+    ARM_MAX_RACIAL = ARM_LARGE_SHIELD,
+
     ARM_CRYSTAL_PLATE_MAIL,
-    ARM_DRAGON_ARMOUR,           //   20
-    ARM_TROLL_LEATHER_ARMOUR,
+
+    ARM_ANIMAL_SKIN,
+
+    ARM_TROLL_HIDE,
+    ARM_TROLL_LEATHER_ARMOUR,    //   20
+
+    ARM_DRAGON_HIDE,
+    ARM_DRAGON_ARMOUR,
     ARM_ICE_DRAGON_HIDE,
     ARM_ICE_DRAGON_ARMOUR,
-    ARM_STEAM_DRAGON_HIDE,
-    ARM_STEAM_DRAGON_ARMOUR,     //   25
+    ARM_STEAM_DRAGON_HIDE,       //   25
+    ARM_STEAM_DRAGON_ARMOUR,
     ARM_MOTTLED_DRAGON_HIDE,
     ARM_MOTTLED_DRAGON_ARMOUR,
     ARM_STORM_DRAGON_HIDE,
-    ARM_STORM_DRAGON_ARMOUR,
-    ARM_GOLD_DRAGON_HIDE,        //   30
+    ARM_STORM_DRAGON_ARMOUR,     //   30
+    ARM_GOLD_DRAGON_HIDE,
     ARM_GOLD_DRAGON_ARMOUR,
-    ARM_ANIMAL_SKIN,
     ARM_SWAMP_DRAGON_HIDE,
     ARM_SWAMP_DRAGON_ARMOUR,
+
     ARM_CENTAUR_BARDING,         //   35
     ARM_NAGA_BARDING,
 
@@ -254,15 +265,18 @@ enum misc_item_type
 
 enum missile_type
 {
-    MI_STONE,                          //    0
+    MI_DART,                           //    0
+    MI_NEEDLE,
     MI_ARROW,
     MI_BOLT,
-    MI_DART,
-    MI_NEEDLE,
-    MI_LARGE_ROCK,                     //    5
-    MI_SLING_BULLET,
     MI_JAVELIN,
+    MI_MAX_RACIAL = MI_JAVELIN,
+
+    MI_STONE,                          //    5
+    MI_LARGE_ROCK,
+    MI_SLING_BULLET,
     MI_THROWING_NET,
+
     NUM_MISSILES,                      //    9
     MI_NONE             // was MI_EGGPLANT... used for launch type detection
 };
@@ -356,7 +370,7 @@ enum special_missile_type // to separate from weapons in general {dlb}
     SPMSL_FORBID_BRAND = -1,           //   -1
     SPMSL_NORMAL,                      //    0
     SPMSL_FLAME,
-    SPMSL_ICE,
+    SPMSL_FROST,
     SPMSL_POISONED,
     SPMSL_POISONED_II,                 //    unused
     SPMSL_CURARE,                      //    5
@@ -410,7 +424,8 @@ enum stave_type
     STAFF_EARTH,
     STAFF_CHANNELING,           // 12
     // rods
-    STAFF_SMITING,              // must be first rod!
+    STAFF_FIRST_ROD,
+    STAFF_SMITING = STAFF_FIRST_ROD,
     STAFF_SPELL_SUMMONING,
     STAFF_DESTRUCTION_I,
     STAFF_DESTRUCTION_II,
@@ -426,64 +441,76 @@ enum stave_type
 
 enum weapon_type
 {
-// Base weapons
-    WPN_CLUB,                          //    0
+    WPN_WHIP,                          //    0
+    WPN_CLUB,
+    WPN_HAMMER,
     WPN_MACE,
     WPN_FLAIL,
-    WPN_DAGGER,
-    WPN_MORNINGSTAR,
-    WPN_SHORT_SWORD,                   //    5
-    WPN_LONG_SWORD,
-    WPN_GREAT_SWORD,
-    WPN_SCIMITAR,
-    WPN_HAND_AXE,
-    WPN_BATTLEAXE,                     //   10
-    WPN_SPEAR,
-    WPN_HALBERD,
-    WPN_SLING,
-    WPN_BOW,
-    WPN_CROSSBOW,                      //   15
-    WPN_HAND_CROSSBOW,
-    WPN_GLAIVE,
-    WPN_QUARTERSTAFF,
-// these three not created ordinarily
-    WPN_SCYTHE,
-    WPN_GIANT_CLUB,                    //   20
-    WPN_GIANT_SPIKED_CLUB,
-// "rare" weapons - some have special cases and are uncommon
-    WPN_EVENINGSTAR,
-    WPN_QUICK_BLADE,
-    WPN_KATANA,
-    WPN_EXECUTIONERS_AXE,              //   25
-    WPN_DOUBLE_SWORD,
-    WPN_TRIPLE_SWORD,
-    WPN_HAMMER,
-    WPN_ANKUS,
-    WPN_WHIP,                          //   30
-    WPN_SABRE,
-    WPN_DEMON_BLADE,
-    WPN_DEMON_WHIP,
-    WPN_DEMON_TRIDENT,
-    WPN_BROAD_AXE,                     //   35
-// base items (continued)
-    WPN_WAR_AXE,
-    WPN_TRIDENT,
+    WPN_MORNINGSTAR,                   //    5
     WPN_SPIKED_FLAIL,
+    WPN_EVENINGSTAR,
+    WPN_DIRE_FLAIL,
     WPN_GREAT_MACE,
-    WPN_DIRE_FLAIL,                    //   40
-    WPN_KNIFE,
-    WPN_BLOWGUN,
+
+    WPN_DAGGER,                        //   10
+    WPN_QUICK_BLADE,
+    WPN_SHORT_SWORD,
+    WPN_SABRE,
+
     WPN_FALCHION,
-    WPN_BLESSED_EUDEMON_BLADE,
-    WPN_LONGBOW,                       //   45
-    WPN_LAJATANG,
+    WPN_LONG_SWORD,                    //   15
+    WPN_SCIMITAR,
+    WPN_GREAT_SWORD,
+
+    WPN_HAND_AXE,
+    WPN_WAR_AXE,
+    WPN_BROAD_AXE,                     //   20
+    WPN_BATTLEAXE,
+    WPN_EXECUTIONERS_AXE,
+
+    WPN_SPEAR,
+    WPN_TRIDENT,
+    WPN_HALBERD,                       //   25
+    WPN_GLAIVE,
     WPN_BARDICHE,
+
+    WPN_BLOWGUN,
+    WPN_HAND_CROSSBOW,
+    WPN_CROSSBOW,                      //   30
+    WPN_BOW,
+    WPN_LONGBOW,
+    WPN_MAX_RACIAL = WPN_LONGBOW,
+
+    WPN_ANKUS,
+    WPN_DEMON_WHIP,
+    WPN_GIANT_CLUB,                    //   35
+    WPN_GIANT_SPIKED_CLUB,
+
+    WPN_KNIFE,
+
+    WPN_KATANA,
+    WPN_DEMON_BLADE,
+    WPN_DOUBLE_SWORD,                  //   40
+    WPN_TRIPLE_SWORD,
+
+    WPN_DEMON_TRIDENT,
+    WPN_SCYTHE,
+
+    WPN_QUARTERSTAFF,
+    WPN_LAJATANG,                      //   45
+
+    WPN_SLING,
+
+    WPN_MAX_NONBLESSED = WPN_SLING,
+
     WPN_BLESSED_FALCHION,
     WPN_BLESSED_LONG_SWORD,
-    WPN_BLESSED_SCIMITAR,              //   50
+    WPN_BLESSED_SCIMITAR,
+    WPN_BLESSED_GREAT_SWORD,           //   50
+
     WPN_BLESSED_KATANA,
+    WPN_BLESSED_EUDEMON_BLADE,
     WPN_BLESSED_DOUBLE_SWORD,
-    WPN_BLESSED_GREAT_SWORD,
     WPN_BLESSED_TRIPLE_SWORD,
 
     NUM_WEAPONS,                       //   55 - must be last regular member {dlb}
@@ -586,6 +613,9 @@ void init_properties(void);
 // Returns true if this item should be preserved as far as possible.
 bool item_is_critical(const item_def &item);
 
+// Returns true if this item should not normally be enchanted.
+bool item_is_mundane(const item_def &item);
+
 // cursed:
 bool item_cursed( const item_def &item );
 bool item_known_cursed( const item_def &item );
@@ -686,8 +716,9 @@ int double_wpn_awkward_speed( const item_def &item );
 
 bool is_demonic(const item_def &item);
 bool is_blessed_blade(const item_def &item);
-bool is_convertible(const item_def &item);
+bool is_blessed_blade_convertible(const item_def &item);
 bool convert2good(item_def &item, bool allow_blessed = true);
+bool convert2bad(item_def &item);
 
 int get_vorpal_type( const item_def &item );
 int get_damage_type( const item_def &item );

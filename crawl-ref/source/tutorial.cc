@@ -1071,7 +1071,7 @@ void tut_gained_new_skill(int skill)
     case SK_SUMMONINGS:
     case SK_NECROMANCY:
     case SK_TRANSLOCATIONS:
-    case SK_TRANSMUTATION:
+    case SK_TRANSMUTATIONS:
     case SK_DIVINATIONS:
     case SK_FIRE_MAGIC:
     case SK_ICE_MAGIC:
@@ -1220,7 +1220,7 @@ void tutorial_first_monster(const monsters &mon)
     // need to highlight monster
     const coord_def gc = mon.pos();
     tiles.place_cursor(CURSOR_TUTORIAL, gc);
-    tiles.add_text_tag(TAG_TUTORIAL, mon.name(DESC_CAP_A), gc);
+    tiles.add_text_tag(TAG_TUTORIAL, &mon);
 
     text += "monster is a ";
     text += mon.name(DESC_PLAIN).c_str();
@@ -1313,7 +1313,7 @@ void tutorial_first_monster(const monsters &mon)
 void tutorial_first_item(const item_def &item)
 {
     // Happens if monster is standing on dropped corpse or item.
-    if (mgrd(item.pos) != NON_MONSTER)
+    if (monster_at(item.pos))
         return;
 
     if (!Options.tutorial_events[TUT_SEEN_FIRST_OBJECT]
@@ -1323,7 +1323,7 @@ void tutorial_first_item(const item_def &item)
         // corpse, TUT_SEEN_CARRION is done when a corpse is first seen.
         if (!Options.tut_just_triggered
             && item.base_type == OBJ_CORPSES
-            && mgrd(item.pos) == NON_MONSTER)
+            && monster_at(item.pos) == NULL)
         {
             learned_something_new(TUT_SEEN_CARRION, item.pos);
         }
@@ -1634,7 +1634,7 @@ void learned_something_new(tutorial_event_type seen_what, coord_def gc)
 #endif
                 ". You can eat it by typing <w>e</w>"
 #ifdef USE_TILE
-                " or by clicking on it with your <w>left mouse button</w> "
+                " or by clicking on it with your <w>left mouse button</w>"
 #endif
                 ".";
         break;
@@ -1783,7 +1783,7 @@ void learned_something_new(tutorial_event_type seen_what, coord_def gc)
         text << "These ";
 #ifndef USE_TILE
         // Is a monster blocking the view?
-        if (mgrd(gc) != NON_MONSTER)
+        if (monster_at(gc))
             DELAY_EVENT;
 
         object = env.show(e);
@@ -1811,7 +1811,7 @@ void learned_something_new(tutorial_event_type seen_what, coord_def gc)
             DELAY_EVENT;
 
         // monsters standing on stairs
-        if (mgrd(gc) != NON_MONSTER)
+        if (monster_at(gc))
             DELAY_EVENT;
 
         text << "These ";
@@ -1840,7 +1840,7 @@ void learned_something_new(tutorial_event_type seen_what, coord_def gc)
         text << "This ";
 #ifndef USE_TILE
         // Is a monster blocking the view?
-        if (mgrd(gc) != NON_MONSTER)
+        if (monster_at(gc))
             DELAY_EVENT;
 
         // FIXME: Branch entrance character is not being colored yellow.
@@ -1873,7 +1873,7 @@ void learned_something_new(tutorial_event_type seen_what, coord_def gc)
         return;
 #else
         // Monster or player standing on stairs.
-        if (mgrd(gc) != NON_MONSTER || (you.pos() == gc))
+        if (monster_at(gc) || (you.pos() == gc))
             DELAY_EVENT;
 
         text << "If any items are covering stairs or an escape hatch then "
@@ -2643,11 +2643,8 @@ void learned_something_new(tutorial_event_type seen_what, coord_def gc)
     case TUT_MONSTER_BRAND:
 #ifdef USE_TILE
         tiles.place_cursor(CURSOR_TUTORIAL, gc);
-        if (mgrd(gc) != NON_MONSTER)
-        {
-            tiles.add_text_tag(TAG_TUTORIAL, menv[mgrd(gc)].name(DESC_CAP_A),
-                               gc);
-        }
+        if (const monsters *m = monster_at(gc))
+            tiles.add_text_tag(TAG_TUTORIAL, m->name(DESC_CAP_A), gc);
 #endif
         text << "That monster looks a bit unusual. You might wish to examine "
                 "it a bit more closely by "
@@ -2661,11 +2658,8 @@ void learned_something_new(tutorial_event_type seen_what, coord_def gc)
     case TUT_MONSTER_FRIENDLY:
 #ifdef USE_TILE
         tiles.place_cursor(CURSOR_TUTORIAL, gc);
-        if (mgrd(gc) != NON_MONSTER)
-        {
-            tiles.add_text_tag(TAG_TUTORIAL, menv[mgrd(gc)].name(DESC_CAP_A),
-                               gc);
-        }
+        if (const monsters *m = monster_at(gc))
+            tiles.add_text_tag(TAG_TUTORIAL, m->name(DESC_CAP_A), gc);
 #endif
         text << "That monster is friendly to you and will attack your "
                 "enemies, though you'll get only half the experience for "
@@ -2800,9 +2794,9 @@ void learned_something_new(tutorial_event_type seen_what, coord_def gc)
         if (you.religion != GOD_NO_GOD)
             listed.push_back("your religious standing (<w>^</w>)");
 
-        listed.push_back("the character overview screen (<w>%</w>).");
-        text << comma_separated_line(listed.begin(), listed.end(),
-                                     " and ", ", ");
+        listed.push_back("the message history (<w>Ctrl-P</w>)");
+        listed.push_back("the character overview screen (<w>%</w>)");
+        text << comma_separated_line(listed.begin(), listed.end()) << ".";
 
         text << "\nAlternatively, you can dump all information pertaining to "
                 "your character into a text file with the <w>#</w> command. "
@@ -2832,8 +2826,8 @@ formatted_string tut_abilities_info()
     std::string broken = "This screen shows your character's set of talents. "
         "You can gain new abilities via certain items, through religion or by "
         "way of mutations. Activation of an ability usually comes at a cost, "
-        "e.g. nutrition or Magic power. If, from the main screen, you press "
-        "<w>a!</w> you can read your abilities' descriptions.";
+        "e.g. nutrition or Magic power. Press '<w>!</w>' or '<w>?</w>' to "
+        "toggle between ability selection and description.";
     linebreak_string2(broken, _get_tutorial_cols());
     text << broken;
 
@@ -3480,7 +3474,7 @@ void tutorial_inscription_info(bool autoinscribe, std::string prompt)
     text << "<" << colour_to_str(channel_to_colour(MSGCH_TUTORIAL)) << ">";
 
     bool longtext = false;
-    if (!autoinscribe || wherey() <= get_number_of_lines() - 10)
+    if (wherey() <= get_number_of_lines() - (autoinscribe ? 10 : 8))
     {
         text << EOL
          "Inscriptions are a powerful concept of Dungeon Crawl." EOL
@@ -3813,15 +3807,11 @@ static void _tutorial_describe_disturbance(int x, int y)
 
 static bool _water_is_disturbed(int x, int y)
 {
-    int mon_num = mgrd[x][y];
+    const coord_def c(x,y);
+    const monsters *mon = monster_at(c);
 
-    if (mon_num == NON_MONSTER || grd[x][y] != DNGN_SHALLOW_WATER
-        || !see_grid(x, y))
-    {
+    if (mon == NULL || grd(c) != DNGN_SHALLOW_WATER || !see_grid(c))
         return (false);
-    }
-
-    const monsters *mon = &menv[mon_num];
 
     return (!player_monster_visible(mon) && !mons_flies(mon));
 }
@@ -3949,4 +3939,27 @@ void tutorial_describe_monster(const monsters *mons)
     std::string broken = ostr.str();
     linebreak_string2(broken, _get_tutorial_cols());
     formatted_string::parse_block(broken, false).display();
+}
+
+void tutorial_observe_cell(const coord_def& gc)
+{
+    if (grid_is_escape_hatch(grd(gc)))
+        learned_something_new(TUT_SEEN_ESCAPE_HATCH, gc);
+    else if (grid_is_branch_stairs(grd(gc)))
+        learned_something_new(TUT_SEEN_BRANCH, gc);
+    else if (is_feature('>', gc))
+        learned_something_new(TUT_SEEN_STAIRS, gc);
+    else if (is_feature('_', gc))
+        learned_something_new(TUT_SEEN_ALTAR, gc);
+    else if (grd(gc) == DNGN_CLOSED_DOOR)
+        learned_something_new(TUT_SEEN_DOOR, gc);
+    else if (grd(gc) == DNGN_ENTER_SHOP)
+        learned_something_new(TUT_SEEN_SHOP, gc);
+
+    if (igrd(gc) != NON_ITEM
+        && Options.feature_item_brand != CHATTR_NORMAL
+        && (is_feature('>', gc) || is_feature('<', gc)))
+    {
+        learned_something_new(TUT_STAIR_BRAND, gc);
+    }
 }

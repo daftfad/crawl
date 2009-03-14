@@ -7,6 +7,7 @@
 
 #include <string>
 #include <stdarg.h>
+#include <stdio.h>
 
 typedef unsigned short screen_buffer_t;
 

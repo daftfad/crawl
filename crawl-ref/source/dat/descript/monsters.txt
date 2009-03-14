@@ -54,7 +54,7 @@ A violent and wrathful demon, Cerebov appears as a giant human covered in shinin
 %%%%
 Chaos spawn
 
-A being of pure chaos, its form is constantly shifting, growing and then losing eyes, mouths, claws, and tentacles.
+A being of pure chaos, its form is constantly shifting, growing and then losing eyes, mouths, claws and tentacles.
 %%%%
 Daeva
 
@@ -66,7 +66,7 @@ The lord of the Iron City of Dis.
 %%%%
 Dissolution
 
-The Pits of Slime used to be a thriving civilization and Dissolution was the prophet of their god.  When the city was overtaken by its current residents and their god became the Slime God, only Dissolution survived, becoming a tremendous mass of acidic ooze.  He retained his intelligence but is filled with hate for anything that can hold a form.
+The Pits of Slime used to be a thriving civilization, and Dissolution was the prophet of their god.  When the city was overtaken by its current residents, only Dissolution survived, for he alone turned faithfully to the Slime God.  Dissolution become a tremendous mass of acidic ooze, yet retained his intelligence.  He is filled with hatred for anything that can hold a form.
 %%%%
 Donald
 
@@ -90,7 +90,7 @@ A comely spellweaver.
 %%%%
 Erolcha
 
-An especially cunning ogre mage.
+An especially cunning ogre-mage.
 %%%%
 Eustachio
 
@@ -254,7 +254,7 @@ A fair-haired mage, wandering and seemingly half-mad with grief and guilt.
 %%%%
 Roxanne
 
-A beautiful sapphire statue of a famous earth mage who disappeared after a catastrophic spell failure.
+A beautiful sapphire statue of a famous earth mage who disappeared after a catastrophic spell failure. It is clutching a book.
 %%%%
 Rupert
 
@@ -262,7 +262,7 @@ An evil crusader.
 %%%%
 Saint Roka
 
-A mighty warlord. Some orcs even say he is the Chosen One of Beogh.
+A mighty warlord.  Some orcs even say he is the Chosen One of Beogh.
 %%%%
 Serpent of Hell
 
@@ -281,7 +281,7 @@ Sigmund
 
  And the song, and the tinkling of harp-strings to the roof-tree winded up;
  And Sigmund was dreamy with wine and the wearing of many a year;
- And the noise and the glee of the people as the sound of the wild woods were 
+ And the noise and the glee of the people as the sound of the wild woods were
  And the blossoming boughs of the Branstock were the wild trees waving about;
 
  So he said: 'Well seen, my fosterling; let the lip then strain it out.'"
@@ -494,11 +494,11 @@ This is a deep elf wizard, learned in the ways of subtle magic.
 %%%%
 deep elf master archer
 
-This legendary deep elf archer has devoted her whole life to the pursuit of archery, dismissing magic as a frivolous distraction.
+This legendary deep elf archer has devoted a lifetime to the pursuit of archery, dismissing magic as a frivolous distraction.
 %%%%
 deep elf priest
 
-This deep elf is a servant of an ancient dark god.  Deep elves are extremely hostile towards any alien outside their tribe, including deep elves from elsewhere.  No one has ever succeeded in understanding the religious standings of these elves.
+This deep elf is a servant of an ancient dark god.  Deep elves are extremely hostile towards any alien outside their tribe, including deep elves from elsewhere.  The religious standings of these elves remain mysterious.
 %%%%
 deep elf soldier
 
@@ -578,7 +578,7 @@ A huge grey slug with folds of wrinkled skin.
 %%%%
 elf
 
-One of the race of elves which inhabits this dreary cave. 
+One of the race of elves which inhabits this dreary cave.
 %%%%
 ettin
 
@@ -619,7 +619,7 @@ A small dragon, puffing clouds of smoke.
 %%%%
 flaming corpse
 
-The remains of an adventurer who was burned to death, covered in unquenchable fire.  It now rushes madly through the dungeon seeking others to ignite.
+The remains of an adventurer who was burned to death, covered in unquenchable fire.  It now rushes madly through the dungeon, seeking others to ignite.
 %%%%
 flayed ghost
 
@@ -647,7 +647,7 @@ A hideous stone statue come to life.
 %%%%
 ghoul
 
-An undead humanoid creature created from a decaying corpse by some unholy means of necromancy. It exists to spread disease and decay, and gains power from decaying corpses in the same way a necrophage does.
+An undead humanoid creature, created from a decaying corpse by some unholy means of necromancy. It exists to spread disease and decay, and gains power from decaying corpses in the same way a necrophage does.
 %%%%
 giant amoeba
 
@@ -723,7 +723,7 @@ A huge wrinkled brain, floating just off the floor. Every now and then it seems 
 %%%%
 giant slug
 
-A huge and disgusting gastropod. 
+A huge and disgusting gastropod.
 %%%%
 giant snail
 
@@ -779,7 +779,7 @@ A very large grey python.
 %%%%
 griffon
 
-A large creature with the hindquarters of a lion and the wings, head, and talons of a great eagle.
+A large creature with the hindquarters of a lion and the wings, head and talons of a great eagle.
 %%%%
 grizzly bear
 
@@ -819,7 +819,7 @@ Although one of the smaller giant varieties, this hill giant is still big enough
 %%%%
 hippogriff
 
-A large creature with the hindquarters of a horse and the wings, head, and talons of a great eagle.
+A large creature with the hindquarters of a horse and the wings, head and talons of a great eagle.
 %%%%
 hobgoblin
 
@@ -1085,7 +1085,7 @@ A globe of raw primordial fire, capable of impressive pyrotechnics.
 %%%%
 orc
 
-An ugly subterranean race, orcs combine the worst features of humans, pigs, and several other unpleasant creatures.
+An ugly subterranean race, orcs combine the worst features of humans, pigs and several other unpleasant creatures.
 %%%%
 orc high priest
 
@@ -1173,7 +1173,7 @@ A small marsupial.  Don't call it a rat.
 %%%%
 rakshasa
 
-A demon in the form of a tiger who comes to the material world in search of power and knowledge. Rakshasas are experts in the art of illusion, and are simultaneously intelligent and cruel.
+A demon in the form of a tiger who comes to the material world in search of power and knowledge.  Rakshasas are experts in the art of illusion, and are simultaneously intelligent and cruel.
 %%%%
 rat
 

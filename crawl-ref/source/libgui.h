@@ -12,6 +12,8 @@
 #define LIBGUI_H
 #ifdef USE_TILE
 
+#include <stdio.h>
+
 #include "defines.h"
 
 typedef unsigned int screen_buffer_t;

@@ -56,14 +56,20 @@ public:
 
 // Circular buffer for keeping past messages.
 message_item Store_Message[ NUM_STORED_MESSAGES ];    // buffer of old messages
+message_item prev_message;
+bool did_flush_message = false;
+
 int Next_Message = 0;                                 // end of messages
 
 int Message_Line = 0;                // line of next (previous?) message
 int New_Message_Count = 0;
 
+static FILE* _msg_dump_file = NULL;
+
 static bool suppress_messages = false;
 static void base_mpr(const char *inf, msg_channel_type channel, int param,
-                     unsigned char colour);
+                     unsigned char colour, int repeats = 1,
+                     bool check_previous_msg = true);
 static unsigned char prepare_message(const std::string& imsg,
                                      msg_channel_type channel,
                                      int param);
@@ -229,6 +235,7 @@ static char god_message_altar_colour( god_type god )
     case GOD_NO_GOD:
     case NUM_GODS:
     case GOD_RANDOM:
+    case GOD_NAMELESS:
         return (YELLOW);
     }
     return (YELLOW);            // for stupid compilers
@@ -415,8 +422,16 @@ void mprf( const char *format, ... )
     va_end( argp );
 }
 
+static bool _updating_view = false;
+
 void mpr(const char *inf, msg_channel_type channel, int param)
 {
+    if (_msg_dump_file != NULL)
+        fprintf(_msg_dump_file, "%s\n", inf);
+
+    if (crawl_state.game_crashed)
+        return;
+
     if (crawl_state.arena)
     {
         switch(channel)
@@ -451,6 +466,15 @@ void mpr(const char *inf, msg_channel_type channel, int param)
         return;
     }
 
+    // Flush out any "comes into view" monster announcements before the
+    // monster has a chance to give any other messages.
+    if (!_updating_view)
+    {
+        _updating_view = true;
+        flush_comes_into_view();
+        _updating_view = false;
+    }
+
     if (channel == MSGCH_GOD && param == 0)
         param = you.religion;
 
@@ -470,7 +494,7 @@ void mpr(const char *inf, msg_channel_type channel, int param)
 
     char mbuf[400];
     size_t i = 0;
-    const int stepsize = get_number_of_cols() - 1;
+    const int stepsize  = get_number_of_cols() - 1;
     const size_t msglen = strlen(inf);
     const int lookback_size = (stepsize < 12 ? 0 : 12);
 
@@ -627,7 +651,7 @@ static bool channel_message_history(msg_channel_type channel)
 // Adds a given message to the message history.
 static void mpr_store_messages(const std::string& message,
                                msg_channel_type channel, int param,
-                               unsigned char colour)
+                               unsigned char colour, int repeats = 1)
 {
     const int num_lines = crawl_view.msgsz.y;
 
@@ -640,13 +664,13 @@ static void mpr_store_messages(const std::string& message,
         if (prev_message_num < 0)
             prev_message_num = NUM_STORED_MESSAGES - 1;
 
-        message_item &prev_message = Store_Message[prev_message_num];
+        message_item &prev_msg = Store_Message[prev_message_num];
 
-        if (prev_message.repeats > 0 && prev_message.channel == channel
-            && prev_message.param == param && prev_message.text == message
-            && prev_message.colour == colour)
+        if (prev_msg.repeats > 0 && prev_msg.channel == channel
+            && prev_msg.param == param && prev_msg.text == message
+            && prev_msg.colour == colour)
         {
-            prev_message.repeats++;
+            prev_msg.repeats += repeats;
             was_repeat = true;
         }
     }
@@ -671,7 +695,7 @@ static void mpr_store_messages(const std::string& message,
         Store_Message[ Next_Message ].colour  = colour;
         Store_Message[ Next_Message ].channel = channel;
         Store_Message[ Next_Message ].param   = param;
-        Store_Message[ Next_Message ].repeats = 1;
+        Store_Message[ Next_Message ].repeats = repeats;
         Next_Message++;
 
         if (Next_Message >= NUM_STORED_MESSAGES)
@@ -730,13 +754,61 @@ static void handle_more(int colour)
     }
 }
 
-static void base_mpr(const char *inf, msg_channel_type channel, int param,
-                     unsigned char colour)
+// Output the previous message.
+// Needs to be called whenever the player gets a turn or needs to do
+// something, e.g. answer a prompt.
+void flush_prev_message()
 {
-    const std::string imsg = inf;
+    if (did_flush_message || prev_message.text.empty())
+        return;
 
+    did_flush_message = true;
+    base_mpr(prev_message.text.c_str(), prev_message.channel,
+             prev_message.param, prev_message.colour, prev_message.repeats,
+             false);
+
+    prev_message = message_item();
+}
+
+static void base_mpr(const char *inf, msg_channel_type channel, int param,
+                     unsigned char colour, int repeats, bool check_previous_msg)
+{
     if (colour == MSGCOL_MUTED)
         return;
+
+    const std::string imsg = inf;
+
+    if (check_previous_msg)
+    {
+        if (!prev_message.text.empty())
+        {
+            // If a message is identical to the previous one, increase the
+            // counter.
+            if (Options.msg_condense_repeats && prev_message.channel == channel
+                && prev_message.param == param && prev_message.text == imsg
+                && prev_message.colour == colour)
+            {
+                prev_message.repeats += repeats;
+                return;
+            }
+            flush_prev_message();
+        }
+
+        // Always output prompts right away.
+        if (channel == MSGCH_PROMPT)
+            prev_message = message_item();
+        else
+        {
+            // Store other messages until later.
+            prev_message.text    = imsg;
+            prev_message.channel = channel;
+            prev_message.param   = param;
+            prev_message.colour  = colour;
+            prev_message.repeats = repeats;
+            did_flush_message = false;
+            return;
+        }
+    }
 
     handle_more(colour);
 
@@ -746,6 +818,11 @@ static void base_mpr(const char *inf, msg_channel_type channel, int param,
         need_prefix = false;
     }
 
+    if (repeats > 1)
+    {
+        snprintf(info, INFO_SIZE, "%s (x%d)", inf, repeats);
+        inf = info;
+    }
     message_out( Message_Line, colour, inf,
                  Options.delay_message_clear? 2 : 1 );
 
@@ -763,7 +840,7 @@ static void base_mpr(const char *inf, msg_channel_type channel, int param,
         }
     }
 
-    mpr_store_messages(imsg, channel, param, colour);
+    mpr_store_messages(imsg, channel, param, colour, repeats);
 
     if (channel == MSGCH_ERROR)
         interrupt_activity( AI_FORCE_INTERRUPT );
@@ -812,6 +889,8 @@ static void mpr_formatted_output(formatted_string fs, int colour)
 void formatted_mpr(const formatted_string& fs, msg_channel_type channel,
                    int param)
 {
+    flush_prev_message();
+
     const std::string imsg = fs.tostring();
     const int colour = prepare_message(imsg, channel, param);
     if (colour == MSGCOL_MUTED)
@@ -840,6 +919,8 @@ void formatted_message_history(const std::string &st_nocolor,
                                msg_channel_type channel,
                                int param, int wrap_col)
 {
+    flush_prev_message();
+
     if (suppress_messages)
         return;
 
@@ -901,6 +982,9 @@ bool any_messages(void)
 
 void mesclr( bool force )
 {
+    if (crawl_state.game_crashed)
+        return;
+
     New_Message_Count = 0;
 
     // If no messages, return.
@@ -930,6 +1014,9 @@ void reset_more_autoclear()
 
 void more(bool user_forced)
 {
+    if (crawl_state.game_crashed)
+        return;
+
 #ifdef DEBUG_DIAGNOSTICS
     if (you.running)
     {
@@ -1002,7 +1089,15 @@ std::string get_last_messages(int mcount)
     bool full_buffer = (Store_Message[NUM_STORED_MESSAGES - 1].text.empty());
     int initial = Next_Message - mcount;
     if (initial < 0 || initial > NUM_STORED_MESSAGES)
-        initial = full_buffer ? initial + NUM_STORED_MESSAGES : 0;
+    {
+        if (full_buffer)
+        {
+            initial++;
+            initial = (initial + NUM_STORED_MESSAGES) % NUM_STORED_MESSAGES;
+        }
+        else
+            initial = 0;
+    }
 
     std::string text;
     int count = 0;
@@ -1275,3 +1370,8 @@ void replay_messages(void)
 
     return;
 }                               // end replay_messages()
+
+void set_msg_dump_file(FILE* file)
+{
+    _msg_dump_file = file;
+}

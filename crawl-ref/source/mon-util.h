@@ -161,7 +161,6 @@ enum mon_event_type
     ME_ANNOY,                           // annoy at range
     ME_ALERT,                           // alert to presence
     ME_WHACK,                           // physical attack
-    ME_SHOT,                            // attack at range
     ME_SCARE,                           // frighten monster
     ME_CORNERED                         // cannot flee
 };
@@ -459,7 +458,7 @@ mon_resist_def get_mons_resists(const monsters *mon);
 /* ***********************************************************************
  * called from: acr
  * *********************************************************************** */
-void init_monsters( FixedVector<unsigned short, 1000>& colour );
+void init_monsters();
 void init_monster_symbols();
 
 monsters *monster_at(const coord_def &pos);
@@ -566,7 +565,7 @@ mon_holy_type mons_class_holiness(int mc);
 mon_holy_type mons_holiness(const monsters *mon);
 
 bool mons_is_mimic( int mc );
-bool mons_is_statue( int mc );
+bool mons_is_statue( int mc, bool allow_disintegrate = false );
 bool mons_is_demon( int mc );
 
 bool mons_class_wields_two_weapons(int mc);
@@ -618,14 +617,16 @@ bool mons_skeleton(int mc);
  * called from: describe - fight - items - misc - monstuff - mon-util -
  *              player - spells2 - spells3
  * *********************************************************************** */
-int mons_weight(int mclass);
+int mons_weight(int mc);
 
 
 // last updated 08may2001 {gdl}
 /* ***********************************************************************
  * called from: monplace mon-util
  * *********************************************************************** */
-int mons_speed(int mc);
+int mons_class_base_speed(int mc);
+int mons_class_zombie_base_speed(int zombie_base_mc);
+int mons_base_speed(const monsters *mon);
 
 
 // last updated 12may2000 {dlb}
@@ -679,6 +680,8 @@ int mons_class_colour(int mc);
 int mons_colour(const monsters *mon);
 
 void mons_load_spells( monsters *mon, mon_spellbook_type book );
+
+monster_type random_draconian_monster_species();
 
 // last updated 12may2000 {dlb}
 /* ***********************************************************************
@@ -740,7 +743,6 @@ bool mons_atts_aligned(mon_attitude_type fr1, mon_attitude_type fr2);
 /* ***********************************************************************
  * called from: monstuff acr
  * *********************************************************************** */
-size_type mons_size(const monsters *m);
 bool mons_friendly(const monsters *m);
 bool mons_friendly_real(const monsters *m);
 bool mons_neutral(const monsters *m);
@@ -768,8 +770,11 @@ bool mons_is_panicking(const monsters *m);
 bool mons_is_cornered(const monsters *m);
 bool mons_is_lurking(const monsters *m);
 bool mons_is_batty(const monsters *m);
+bool mons_is_influenced_by_sanctuary(const monsters *m);
+bool mons_is_fleeing_sanctuary(const monsters *m);
 bool mons_was_seen(const monsters *m);
 bool mons_is_known_mimic(const monsters *m);
+bool mons_is_unknown_mimic(const monsters *m);
 bool mons_is_holy(const monsters *mon);
 bool mons_is_evil(const monsters *mon);
 bool mons_is_unholy(const monsters *mon);
@@ -777,11 +782,15 @@ bool mons_is_evil_or_unholy(const monsters *mon);
 bool mons_is_icy(int mc);
 bool mons_is_skeletal(int mc);
 bool mons_has_lifeforce(const monsters *mon);
+bool mons_eats_corpses(const monsters *m);
 monster_type mons_genus(int mc);
 monster_type mons_species(int mc);
 
 bool mons_looks_stabbable(const monsters *m);
 bool mons_looks_distracted(const monsters *m);
+
+void mons_start_fleeing_from_sanctuary(monsters *monster);
+void mons_stop_fleeing_from_sanctuary(monsters *monster);
 
 bool mons_has_smite_attack(const monsters *monster);
 

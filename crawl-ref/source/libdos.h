@@ -12,6 +12,7 @@
 #define __LIBDOS_H__
 
 #include <conio.h>
+#include <stdio.h>
 
 typedef unsigned char screen_buffer_t;
 

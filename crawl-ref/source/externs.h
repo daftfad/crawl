@@ -63,11 +63,6 @@ protected:
 
 extern char info[INFO_SIZE];         // defined in acr.cc {dlb}
 
-extern unsigned char show_green;     // defined in view.cc {dlb}
-
-// defined in mon-util.cc -- w/o this screen redraws *really* slow {dlb}
-extern FixedVector<unsigned short, 1000> mcolour;
-
 const int kNameLen = 30;
 #ifdef SHORT_FILE_NAMES
     const int kFileNameLen = 6;
@@ -335,7 +330,9 @@ public:
     virtual bool can_safely_mutate() const = 0;
     virtual bool can_bleed() const = 0;
     virtual bool mutate() = 0;
-    virtual void rot(actor *agent, int amount, int immediate = 0) = 0;
+    virtual bool drain_exp(actor *agent, bool quiet = false, int pow = 3) = 0;
+    virtual bool rot(actor *agent, int amount, int immediate = 0,
+                     bool quiet = false) = 0;
     virtual int  hurt(const actor *attacker, int amount,
                       beam_type flavour = BEAM_MISSILE,
                       bool cleanup_dead = true) = 0;
@@ -385,6 +382,7 @@ public:
     virtual int res_asphyx() const = 0;
     virtual int res_poison() const = 0;
     virtual int res_sticky_flame() const = 0;
+    virtual int res_holy_energy(const actor *attacker) const = 0;
     virtual int res_negative_energy() const = 0;
     virtual int res_rotting() const = 0;
     virtual int res_torment() const = 0;
@@ -409,11 +407,6 @@ public:
     virtual bool incapacitated() const
     {
         return cannot_move() || asleep() || confused() || caught();
-    }
-
-    virtual int holy_aura() const
-    {
-        return (0);
     }
 
     virtual int warding() const
@@ -627,9 +620,9 @@ public:
         *this = item_def();
     }
 private:
-    std::string name_aux( description_level_type desc,
-                          bool terse, bool ident,
-                          unsigned long ignore_flags ) const;
+    std::string name_aux(description_level_type desc,
+                         bool terse, bool ident,
+                         unsigned long ignore_flags) const;
 };
 
 class runrest
@@ -804,8 +797,6 @@ public:
   bool redraw_dexterity;
   bool redraw_experience;
   bool redraw_armour_class;
-
-  bool redraw_gold;
   bool redraw_evasion;
 
   unsigned char flash_colour;
@@ -819,7 +810,7 @@ public:
   char class_name[30];
   int time_taken;
 
-  char shield_blocks;         // number of shield blocks since last action
+  int shield_blocks;         // number of shield blocks since last action
 
   FixedVector< item_def, ENDOFPACK > inv;
 
@@ -880,6 +871,11 @@ public:
   // Human-readable name for portal vault. Will be set to level_type_tag
   // if not explicitly set by the entry portal.
   std::string level_type_name;
+
+  // Three-letter extension for portal vault bones files. Will be set
+  // to first three letters of level_type_tag if not explicitly set by
+  // the entry portal.
+  std::string level_type_ext;
 
   // Abbreviation of portal vault name, for use in notes.  If not
   // explicitly set by the portal vault, will be set from level_type_name
@@ -942,6 +938,10 @@ public:
   bool entering_level;
   int lava_in_sight;       // Is there lava in LoS?
   int water_in_sight;      // Is there deep water in LoS?
+#ifdef USE_TILE
+  coord_def last_clicked_grid; // The map position the player last clicked on.
+  int last_clicked_item; // The inventory cell the player last clicked on.
+#endif
 
   // Warning: these two are quite different.
   //
@@ -977,6 +977,8 @@ public:
 
     // Low-level move the player. Use this instead of changing pos directly.
     void moveto(const coord_def &c);
+    // Move the player during an abyss shift.
+    void shiftto(const coord_def &c);
 
     void reset_prev_move();
 
@@ -1073,12 +1075,12 @@ public:
     void slow_down(actor *, int str);
     void confuse(actor *, int strength);
     void heal(int amount, bool max_too = false);
-    void rot(actor *, int amount, int immediate = 0);
+    bool drain_exp(actor *, bool quiet = false, int pow = 3);
+    bool rot(actor *, int amount, int immediate = 0, bool quiet = false);
     int hurt(const actor *attacker, int amount,
              beam_type flavour = BEAM_MISSILE,
              bool cleanup_dead = true);
 
-    int holy_aura() const;
     int warding() const;
 
     int mons_species() const;
@@ -1091,13 +1093,12 @@ public:
     int res_asphyx() const;
     int res_poison() const;
     int res_sticky_flame() const;
+    int res_holy_energy(const actor *) const;
     int res_negative_energy() const;
     int res_rotting() const;
     int res_torment() const;
     bool confusable() const;
     bool slowable() const;
-
-    bool omnivorous() const;
 
     flight_type flight_mode() const;
     bool permanent_levitation() const;
@@ -1150,6 +1151,8 @@ public:
 
     bool did_escape_death() const;
     void reset_escaped_death();
+protected:
+    void base_moveto(const coord_def &c);
 };
 
 extern player you;
@@ -1250,7 +1253,7 @@ public:
 
     coord_def target;
     coord_def patrol_point;
-    montravel_target_type travel_target;
+    mutable montravel_target_type travel_target;
     std::vector<coord_def> travel_path;
     FixedVector<short, NUM_MONSTER_SLOTS> inv;
     monster_spells spells;
@@ -1348,7 +1351,8 @@ public:
     bool needs_transit() const;
     void set_transit(const level_id &destination);
     bool find_place_to_live(bool near_player = false);
-    bool find_place_near_player();
+    bool find_home_near_place(const coord_def &c);
+    bool find_home_near_player();
     bool find_home_around(const coord_def &c, int radius);
     bool find_home_anywhere();
 
@@ -1465,6 +1469,7 @@ public:
     int res_asphyx() const;
     int res_poison() const;
     int res_sticky_flame() const;
+    int res_holy_energy(const actor *) const;
     int res_negative_energy() const;
     int res_rotting() const;
     int res_torment() const;
@@ -1487,9 +1492,9 @@ public:
     bool backlit(bool check_haloed = true) const;
     bool haloed() const;
 
-    int holy_aura() const;
-
     bool has_spell(spell_type spell) const;
+
+    bool has_attack_flavour(int flavour) const;
 
     bool can_throw_large_rocks() const;
 
@@ -1502,7 +1507,8 @@ public:
     void petrify(actor *, int str);
     void slow_down(actor *, int str);
     void confuse(actor *, int strength);
-    void rot(actor *, int amount, int immediate = 0);
+    bool drain_exp(actor *, bool quiet = false, int pow = 3);
+    bool rot(actor *, int amount, int immediate = 0, bool quiet = false);
     int hurt(const actor *attacker, int amount,
              beam_type flavour = BEAM_MISSILE,
              bool cleanup_dead = true);
@@ -1531,7 +1537,6 @@ public:
     std::string describe_enchantments() const;
 
     int action_energy(energy_use_type et) const;
-    static int base_speed(int mcls);
 
     bool do_shaft();
 
@@ -1675,6 +1680,7 @@ private:
 typedef FixedArray<dungeon_feature_type, GXM, GYM> feature_grid;
 typedef FixedArray<unsigned, ENV_SHOW_DIAMETER, ENV_SHOW_DIAMETER>
     env_show_grid;
+class crawl_exit_hook;
 
 struct crawl_environment
 {
@@ -1724,7 +1730,7 @@ public:
     map_markers                              markers;
 
     // Place to associate arbitrary data with a particular level.
-    // Sort of like player::atribute
+    // Sort of like player::attribute
     CrawlHashTable properties;
 
     // Rate at which random monsters spawn, with lower numbers making
@@ -1957,6 +1963,11 @@ public:
     bool        list_rotten;     // list slots for rotting corpses/chunks
     bool        prefer_safe_chunks; // prefer clean chunks to contaminated ones
     bool        easy_eat_chunks; // make 'e' auto-eat the oldest safe chunk
+    bool        easy_eat_gourmand; // with easy_eat_chunks, and wearing a
+                                   // "OfGourmand, auto-eat contaminated
+                                   // chunks if no safe ones are present
+    bool        easy_eat_contaminated; // like easy_eat_gourmand, but
+                                       // always active.
     bool        default_target;  // start targeting on a real target
     bool        autopickup_no_burden;   // don't autopickup if it changes burden
 
@@ -1979,6 +1990,7 @@ public:
                                          // selection screen
     int         weapon;          // auto-choose weapon for character
     int         book;            // auto-choose book for character
+    int         wand;            // auto-choose wand for character
     int         chaos_knight;    // choice of god for Chaos Knights (Xom/Makleb)
     int         death_knight;    // choice of god/necromancy for Death Knights
     god_type    priest;          // choice of god for priests (Zin/Yred)
@@ -2007,6 +2019,8 @@ public:
     FixedVector<unsigned, NUM_DCHAR_TYPES> char_table;
 
     int         num_colours;     // used for setting up curses colour table (8 or 16)
+
+    std::string pizza;
 
 #ifdef WIZARD
     int         wiz_mode;        // yes, no, never in wiz mode to start
@@ -2107,6 +2121,7 @@ public:
 
     int         dump_item_origins;  // Show where items came from?
     int         dump_item_origin_price;
+    bool        dump_book_spells;
 
     // Order of sections in the character dump.
     std::vector<std::string> dump_order;
@@ -2219,6 +2234,7 @@ public:
     god_type    prev_pr;
     int         prev_weapon;
     int         prev_book;
+    int         prev_wand;
     bool        prev_randpick;
 
     ///////////////////////////////////////////////////////////////////////

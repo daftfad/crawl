@@ -18,75 +18,58 @@
 // initfile.cc (str_to_colour)!
 enum element_type
 {
-    EC_FIRE = 32,       // fiery colours (must be first and > highest colour)
-    EC_ICE,             // icy colours
-    EC_EARTH,           // earthy colours
-    EC_ELECTRICITY,     // electrical side of air
-    EC_AIR,             // non-electric and general air magic
-    EC_POISON,          // used only for venom mage and stalker stuff
-    EC_WATER,           // used only for the elemental
-    EC_MAGIC,           // general magical effect
-    EC_MUTAGENIC,       // transmute, poly, radiation effects
-    EC_WARP,            // teleportation and anything similar
-    EC_ENCHANT,         // magical enhancements
-    EC_HEAL,            // holy healing (not necromantic stuff)
-    EC_HOLY,            // general "good" god effects
-    EC_DARK,            // darkness
-    EC_DEATH,           // currently only assassin (and equal to EC_NECRO)
-    EC_NECRO,           // necromancy stuff
-    EC_UNHOLY,          // demonology stuff
-    EC_VEHUMET,         // vehumet's odd-ball colours
-    EC_BEOGH,           // Beogh altar colours
-    EC_CRYSTAL,         // colours of crystal
-    EC_BLOOD,           // colours of blood
-    EC_SMOKE,           // colours of smoke
-    EC_SLIME,           // colours of slime
-    EC_JEWEL,           // colourful
-    EC_ELVEN,           // used for colouring elf fabric items
-    EC_DWARVEN,         // used for colouring dwarf fabric items
-    EC_ORCISH,          // used for colouring orc fabric items
-    EC_GILA,            // gila monster colours
-    EC_FLOOR,           // colour of the area's floor
-    EC_ROCK,            // colour of the area's rock
-    EC_STONE,           // colour of the area's stone
-    EC_MIST,            // colour of mist
-    EC_SHIMMER_BLUE,    // shimmering colours of blue.
-    EC_DECAY,           // colour of decay/swamp
-    EC_SILVER,          // colour of silver
-    EC_GOLD,            // colour of gold
-    EC_IRON,            // colour of iron
-    EC_BONE,            // colour of bone
-    EC_RANDOM           // any colour (except BLACK)
+    ETC_FIRE = 32,      // fiery colours (must be first and > highest colour)
+    ETC_ICE,            // icy colours
+    ETC_EARTH,          // earthy colours
+    ETC_ELECTRICITY,    // electrical side of air
+    ETC_AIR,            // non-electric and general air magic
+    ETC_POISON,         // used only for venom mage and stalker stuff
+    ETC_WATER,          // used only for the elemental
+    ETC_MAGIC,          // general magical effect
+    ETC_MUTAGENIC,      // transmute, poly, radiation effects
+    ETC_WARP,           // teleportation and anything similar
+    ETC_ENCHANT,        // magical enhancements
+    ETC_HEAL,           // holy healing (not necromantic stuff)
+    ETC_HOLY,           // general "good" god effects
+    ETC_DARK,           // darkness
+    ETC_DEATH,          // currently only assassin (and equal to ETC_NECRO)
+    ETC_NECRO,          // necromancy stuff
+    ETC_UNHOLY,         // demonology stuff
+    ETC_VEHUMET,        // vehumet's oddball colours
+    ETC_BEOGH,          // Beogh altar colours
+    ETC_CRYSTAL,        // colours of crystal
+    ETC_BLOOD,          // colours of blood
+    ETC_SMOKE,          // colours of smoke
+    ETC_SLIME,          // colours of slime
+    ETC_JEWEL,          // colourful
+    ETC_ELVEN,          // used for colouring elf fabric items
+    ETC_DWARVEN,        // used for colouring dwarf fabric items
+    ETC_ORCISH,         // used for colouring orc fabric items
+    ETC_GILA,           // gila monster colours
+    ETC_FLOOR,          // colour of the area's floor
+    ETC_ROCK,           // colour of the area's rock
+    ETC_STONE,          // colour of the area's stone
+    ETC_MIST,           // colour of mist
+    ETC_SHIMMER_BLUE,   // shimmering colours of blue.
+    ETC_DECAY,          // colour of decay/swamp
+    ETC_SILVER,         // colour of silver
+    ETC_GOLD,           // colour of gold
+    ETC_IRON,           // colour of iron
+    ETC_BONE,           // colour of bone
+    ETC_RANDOM          // any colour (except BLACK)
 };
 
 void init_char_table(char_set_type set);
 void init_feature_table();
 void init_monsters_seens();
 
-/* called from: beam - fight */
 void beogh_follower_convert(monsters *monster, bool orc_hit = false);
-
-// last updated 29may2000 {dlb}
-/* ***********************************************************************
- * called from: bang - beam - direct - effects - fight - monstuff -
- *              mstuff2 - spells1 - spells2
- * *********************************************************************** */
 bool mons_near(const monsters *monster, unsigned short foe = MHITYOU);
 bool mon_enemies_around(const monsters *monster);
-
-// last updated 12may2000 {dlb}
-/* ***********************************************************************
- * called from: acr - view
- * *********************************************************************** */
-void item(void);
 
 void find_features(const std::vector<coord_def>& features,
         unsigned char feature, std::vector<coord_def> *found);
 
-// last updated 12may2000 {dlb}
-/* ***********************************************************************
- * called from: direct - monstufff - view
- * *********************************************************************** */
 void losight(env_show_grid &sh, feature_grid &gr,
              const coord_def& center, bool clear_walls_block = false,
              bool ignore_clouds = false);
@@ -95,41 +78,17 @@ void losight(env_show_grid &sh, feature_grid &gr,
 bool magic_mapping(int map_radius, int proportion, bool suppress_msg,
                    bool force = false);
 
-
-// last updated 12may2000 {dlb}
-/* ***********************************************************************
- * called from: acr - effects - it_use2 - it_use3 - item_use - spell -
- *              spells - spells3 - spells4
- * *********************************************************************** */
 bool noisy(int loudness, const coord_def& where, const char *msg = NULL,
            bool mermaid = false);
 void blood_smell( int strength, const coord_def& where);
 void handle_monster_shouts(monsters* monster, bool force = false);
 
-// last updated 12may2000 {dlb}
-/* ***********************************************************************
- * called from: acr - spells3
- * *********************************************************************** */
 void show_map( coord_def &spec_place, bool travel_mode );
-
-// last updated 19jun2000 (gdl)
-/* ***********************************************************************
- * called from: acr view
- * *********************************************************************** */
 void setLOSRadius(int newLR);
-
-// last updated 02apr2001 (gdl)
-/* ***********************************************************************
- * called from: view monstuff
- * *********************************************************************** */
 bool check_awaken(monsters* monster);
-
 int count_detected_mons(void);
-
 void clear_map(bool clear_items = true, bool clear_mons = true);
-
 bool is_feature(int feature, const coord_def& where);
-
 void get_item_glyph(const item_def *item, unsigned *glych,
                     unsigned short *glycol);
 void get_mons_glyph(const monsters *mons, unsigned *glych,
@@ -142,7 +101,7 @@ int multibyte_strlen(const std::string &s);
 void get_item_symbol(unsigned int object, unsigned *ch,
                      unsigned short *colour);
 
-// Applies EC_ colour substitutions and brands.
+// Applies ETC_ colour substitutions and brands.
 unsigned real_colour(unsigned raw_colour);
 int get_mons_colour(const monsters *mons);
 
@@ -150,6 +109,9 @@ const feature_def &get_feature_def(dungeon_feature_type feat);
 
 void set_envmap_obj( const coord_def& where, int object );
 unsigned get_envmap_char(int x, int y);
+inline unsigned get_envmap_char(const coord_def& c) {
+    return get_envmap_char(c.x, c.y);
+}
 bool inside_level_bounds(int x, int y);
 bool inside_level_bounds(const coord_def &p);
 int get_envmap_obj(int x, int y);
@@ -171,6 +133,10 @@ bool is_sanctuary( const coord_def& p );
 bool is_bloodcovered( const coord_def& p );
 
 bool is_envmap_detected_item(int x, int y);
+inline bool is_envmap_detected_item(const coord_def& c) {
+    return is_envmap_detected_item(c.x, c.y);
+}
+
 bool is_envmap_detected_mons(int x, int y);
 inline bool is_envmap_detected_mons(const coord_def& c) {
     return is_envmap_detected_mons(c.x, c.y);
@@ -250,8 +216,10 @@ void view_update_at(const coord_def &pos);
 void flash_monster_colour(const monsters *mon, unsigned char fmc_colour,
                           int fmc_delay);
 #endif
+void calc_show_los();
 void viewwindow(bool draw_it, bool do_updates);
-void fire_monster_alerts();
+void update_monsters_in_view();
+void flush_comes_into_view();
 
 struct ray_def;
 bool find_ray( const coord_def& source, const coord_def& target,

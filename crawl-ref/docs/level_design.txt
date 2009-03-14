@@ -24,27 +24,35 @@ the existing ones and modify them. Currently, the following .des files are in
 use:
 
  altar.des    - minivaults containing altars
+ arena.des    - arenas for the arena mode
  bazaar.des   - entrances to bazaar portal vaults, and bazaars proper
- crypt.des    - Crypt:5, Tomb:1, Tomb:2, Tomb:3
- elf.des      - Elf:7
+ crypt.des    - random vaults for Crypt, the Crypt:5 branch ends, and the
+                predefined maps for Tomb:1, Tomb:2 and Tomb:3
+ didact.des   - lua and vaults for syntax checking - not used in-game
+ dummy.des    - global dummy balancers
+ elf.des      - arrival and random vaults for Elf, and Elf:7 branch ends
  entry.des    - entry vaults (each game - but not tutorial games - uses one of
                 these premade maps for the vicinity of the entrance)
  float.des    - floating vaults
  hells.des    - hell entrances, Geryon's vestibule, Coc:7, Tar:7, Dis:7, Geh:7
- hive.des     - hive entrances, Hive:4
+ hive.des     - hive entrances, random hive vaults, Hive:2
  icecave.des  - the ice cave portal vault
  lab.des      - labyrinths exits and flavour vaults
- lair.des     - lair entrances, Shoals:5, Swamp:5, Snake:5, Slime:6
- large.des    - all regular vaults which have ORIENT:encompass/northwest etc.
- layout.des   - Level layout code that has been moved from dungeon.cc and
+ lair.des     - lair entrances, random vaults for lair proper and sub-branches,
+                and the branch ends: Shoals:5, Swamp:5, Snake:5, Slime:6
+ large.des    - all regular vaults which have ORIENT:encompass/northwest etc
+ layout.des   - level layout code that has been moved from dungeon.cc and
                 rewritten in Lua.
  mini.des     - minivaults (no ORIENT line at all)
  minitomb.des - the minitomb portal vault
  orc.des      - orcish mine entrances, orc only vaults
  pan.des      - vaults of the Pan demon lords, Pan minivaults
+ rooms.des    - special monster rooms, such as orc, kobold and jelly rooms
  sewer.des    - the sewer portal vault
  temple.des   - Ecumenical Temples, and Temple entrances
- vaults.des   - entrances for the Vaults, and Vaults:8
+ vaults.des   - entrances for the Vaults, Vaults-specific vaults, the
+                Hall of Blades, and Vaults:8
+ ziggurat.des - the ziggurat entry vaults, pillars and arenas
  zot.des      - vaults for the Zot branch and the maps for Zot:5
 
 Kinds of Vaults
@@ -509,23 +517,23 @@ BFLAGS:   Persistent, changeable per-*branch* flags which affect game
                               they've been (like in the Abyss)
           * no_magic_map    - which prevents magic mapping from working.
 
-FLOORCOL: blue
-          FLOORCOL: allows you to set the floor colour for the level the
+LFLOORCOL: blue
+          LFLOORCOL: allows you to set the floor colour for the level the
           vault appears in. Should only be used for bazaars and other
           portal vaults.
 
-ROCKCOL:  yellow
-          ROCKCOL: allows you to set the colour of rock walls for the level
+LROCKCOL: yellow
+          LROCKCOL: allows you to set the colour of rock walls for the level
           the vault appears in. Should only be used for bazaars and other
           portal vaults.
 
-FLOORTILE: (tile name string, e.g. "floor_tomb")
-          Like FLOORCOL, this overrides the default floor tiles used for
+LFLOORTILE: (tile name string, e.g. "floor_tomb")
+          Like LFLOORCOL, this overrides the default floor tiles used for
           this level. If the tile specified has variations, those will be
           used automatically.
 
-ROCKTILE: (tile name string, e.g. "wall_hive")
-          Same as FLOORTILE, but for rock walls.
+LROCKTILE: (tile name string, e.g. "wall_hive")
+          Same as LFLOORTILE, but for rock walls.
 
 ITEM:     (list of items, separated by comma)
           These are used to help place specified items at specific places
@@ -561,6 +569,8 @@ ITEM:     (list of items, separated by comma)
             "good_item").  If set to -2 then the object's item level will
             be the same as a "*" symbol item (five plus twice the
             vault's level number).
+          * "damaged" sets the item plusses to -1..-4.
+          * "cursed" gets a curse plus plusses as in "damaged".
           * "any" by itself gives a random choice; you can combine "any" with
             "good_item."
           * "any book", "any misc" etc. gives a random item of that class.
@@ -580,6 +590,9 @@ ITEM:     (list of items, separated by comma)
             trying "any weapon ego:vorpal" or "any armour ego:positive_energy"
             will result in an error.  Trying to give an ego to something which
             can't accept an ego will also result in an error.
+          * "fixed:item_name" will make a given fixedart by a given name,
+            like "long sword fixed:singing_sword".  If the unique already
+            exists, the base item will be given instead.
 
             WARNING: While checks are done to make sure that an armour ego
             isn't given to a weapon, a weapon ego to a missile, and so on, and
@@ -587,9 +600,9 @@ ITEM:     (list of items, separated by comma)
             missiles, no other checking is done.  Thus it is possible to create
             a demonic weapon of holy wrath or a helmet of running.
 
-          Limitations: You can't specify curse status, specificy pluses or
-          number of charges, force a randart or give fixedarts.  You also
-          can't lay down corpses, skeletons, or chunks.
+          Limitations: You can't specify specific pluses or number of charges
+          or force a randart.  You also can't lay down corpses, skeletons, or
+          chunks.
 
 MONS:     (list of monsters)
           These are used to help place specific monsters at specific places
@@ -685,6 +698,30 @@ COLOUR:   . = green / blue:5 / red / none
           COLOUR: should be used very sparingly, and only for features
           where it won't cause confusion (i.e.: never re-colour features
           like lava or traps unless you really know what you do!)
+
+          If you apply COLOUR to a glyph and then apply a SUBST,
+          the COLOUR will transfer to the resulting transformed glyph.
+
+FTILE:    . = floor_grass:20 / floor_dirt / none
+          Similar to COLOUR, FTILE allows you to attach explicit floor
+          tiles to any glyph.  In non-tiles builds, this does nothing.
+          If the tile specified has variations, those will be used
+          automatically.  Only tiles from the dungeon image can be used.
+
+          This will not (necessarily) replace the feature tile itself,
+          only the floor.  If you set the FTILE on a fountain glyph,
+          then the fountain will still appear normally, but the floor
+          underneath it will be the tile that was specified.
+
+          If a feature that normally covers the floor (e.g. rock walls) is
+          destroyed, this floor tile will be used in place of the normal floor.
+          Thus, it can be useful even for non-floor features.
+
+          Like COLOUR, this should be used sparingly.
+
+RTILE:    x = wall_hive:15 / wall_lair / none
+          Identical to FTILE, but for rock walls.  Not useful for anything
+          but the rock wall feature.
 
 SHUFFLE:  def, 12/3?
           This allows you to randomly permute glyphs on the map. There are
@@ -1293,15 +1330,15 @@ portal vaults in the following steps (no compilation is necessary):
 
 Before going into the details of portal vault creation, some words about
 their uses: Portal vaults are different from branches in that they are
-not guaranteed. Also, there is only one go at a portal vault - if you 
+not guaranteed. Also, there is only one go at a portal vault - if you
 leave, it's gone for good. You can apply special rules to a portal vault,
 like enforcing maprot.
 
-Portal vaults can be particulary thematic, using specialised monster 
+Portal vaults can be particulary thematic, using specialised monster
 sets, fitting loot, coloured dungeon features etc. Avoid death traps; it
 is no fun to enter a vault, being unable to leave and be killed outright.
 In order to provide fun and reduce spoiler effects, randomise. For portal
-vaults, it is desirable to have several different layouts (ideally each 
+vaults, it is desirable to have several different layouts (ideally each
 of the maps has some randomisation on its own). Often, it is a good idea
 to skew the map distribution: e.g. with four destination vaults, weights
 like 40,30,20,10 might be more interesting than 25,25,25,25.
@@ -1350,6 +1387,11 @@ the name shown on the overmap will be the "dstname" parameter, or if
 that isn't present the "dst" paremeter.  It can be set to something else
 with the "overmap" parameter.  A note can be made to accompany the
 portal's position on the overmap with the "overmap_note" parameter.
+
+Bones files for characters killed in the portal vault will normally
+use an extension derived from the first three letters of the 'dst'
+property. You can override this by setting the 'dstext' property to
+your preferred extension.
 
 This will produce a portal, but attempting to use it will trigger an
 ASSERT since there's no map for the destination. So we create a
@@ -1435,6 +1477,32 @@ end
 Instead of the MARKER and KFEAT lines introduced above you now just use
   :generic_portal(_G)
 and the resulting portal glyphs will even be magenta!
+
+Defining a random monster set
+-----------------------------
+
+Portal vaults require a defined random monster set to make the Shadow
+Creatures spell work. This is done by calling dgn.set_random_mon_list()
+manually. Here's an example from ice_cave_small_02 in icecave.des:
+  : dgn.set_random_mon_list("ice beast w:90 / ice dragon / nothing")
+You can use "nothing" to have the spell fail sometimes.
+
+If you are using the same random monster list in several destination maps,
+you can define a lua block and call it from the destination map definition.
+This example is from sewer.des:
+
+{{
+function sewer_random_monster_list(e)
+  e.set_random_mon_list("giant bat w:20 / giant newt w:20 / small snake / \
+                         ooze / worm / snake / giant mosquito w:15")
+end
+}}
+
+You can then use this line in the map definition to execute the lua block:
+  : sewer_random_monster_list(_G)
+
+You can also set env.spawn_random_rate() to have monsters generated from the
+list during play.
 
 
 I.    Lua reference
@@ -1729,7 +1797,8 @@ original_map, glyphs_connected, orig_glyphs_connected, orig_gly_point,
 orig_gly_points, load_des_file, feature_number, feature_name,
 dgn_event_type, register_listener, remove_listener, remove_marker,
 num_matching_markers, feature_desc, feature_desc_at, item_from_index,
-mons_from_index, change_level_flags, change_branch_flags
+mons_from_index, change_level_flags, change_branch_flags,
+set_random_mon_list
 
 
 Lua API - global game state

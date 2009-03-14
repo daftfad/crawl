@@ -195,7 +195,7 @@ int cards_in_deck(const item_def &deck)
     const CrawlHashTable &props = deck.props;
     ASSERT(props.exists("cards"));
 
-    return static_cast<unsigned long>(props["cards"].get_vector().size());
+    return (props["cards"].get_vector().size());
 }
 
 static void _shuffle_deck(item_def &deck)
@@ -1085,7 +1085,7 @@ bool deck_triple_draw()
         card_type     card = _draw_top_card(deck, false, _flags);
 
         draws.push_back(card);
-        flags.push_back(_flags | CFLAG_SEEN | CFLAG_MARKED);
+        flags.push_back(_flags);
     }
 
     mpr("You draw... (choose one card)");
@@ -1109,8 +1109,21 @@ bool deck_triple_draw()
 
     // Note how many cards were removed from the deck.
     deck.plus2 += num_to_draw;
+
+    // Don't forget to update the number of marked ones, too.
+    // But don't reduce the number of non-brownie draws.
+    char num_marked_left = deck.props["num_marked"].get_byte();
     for (int i = 0; i < num_to_draw; ++i)
+    {
         _remember_drawn_card(deck, draws[i], false);
+        if (flags[i] & CFLAG_MARKED)
+        {
+            ASSERT(num_marked_left > 0);
+            --num_marked_left;
+        }
+    }
+    deck.props["num_marked"] = num_marked_left;
+
     you.wield_change = true;
 
     // Make deck disappear *before* the card effect, since we
@@ -1126,7 +1139,8 @@ bool deck_triple_draw()
     }
 
     // Note that card_effect() might cause you to unwield the deck.
-    card_effect(draws[selected], rarity, flags[selected], false);
+    card_effect(draws[selected], rarity,
+                flags[selected] | CFLAG_SEEN | CFLAG_MARKED, false);
 
     return (true);
 }
@@ -1361,9 +1375,7 @@ static void _swap_monster_card(int power, deck_rarity_type rarity)
     // Don't choose yourself unless there are no monsters nearby.
     monsters *mon_to_swap = choose_random_nearby_monster(0);
     if (!mon_to_swap)
-    {
         mpr("You spin around.");
-    }
     else
     {
         monsters& mon(*mon_to_swap);
@@ -1376,16 +1388,18 @@ static void _swap_monster_card(int power, deck_rarity_type rarity)
             return;
         }
 
-        bool mon_caught = mons_is_caught(&mon);
-        bool you_caught = you.attribute[ATTR_HELD];
+        const bool mon_caught = mons_is_caught(&mon);
+        const bool you_caught = you.attribute[ATTR_HELD];
+
+        // If it was submerged, it surfaces first.
+        mon.del_ench(ENCH_SUBMERGED);
 
         // Pick the monster up.
         mgrd(newpos) = NON_MONSTER;
-
         mon.moveto(you.pos());
 
         // Plunk it down.
-        mgrd(mon.pos()) = monster_index(mon_to_swap);
+        mgrd(mon.pos()) = mon_to_swap->mindex();
 
         if (you_caught)
         {
@@ -1395,8 +1409,7 @@ static void _swap_monster_card(int power, deck_rarity_type rarity)
         }
 
         // Move you to its previous location.
-        // FIXME: this should also handle merfolk swimming, etc.
-        you.moveto(newpos);
+        move_player_to_grid(newpos, false, true, true, false);
 
         if (mon_caught)
         {
@@ -1716,36 +1729,21 @@ static void _stairs_card(int power, deck_rarity_type rarity)
     stair_draw_count++;
 }
 
-static int _drain_monsters(coord_def where, int pow, int garbage)
+static int _drain_monsters(coord_def where, int pow, int, actor *)
 {
-    UNUSED( garbage );
     if (where == you.pos())
         drain_exp();
     else
     {
-        const int mnstr = mgrd(where);
-        if (mnstr == NON_MONSTER)
-            return 0;
+        monsters* mon = monster_at(where);
+        if (mon == NULL)
+            return (0);
 
-        monsters& mon = menv[mnstr];
-
-        if (mons_res_negative_energy(&mon))
-            simple_monster_message(&mon, " is unaffected.");
-        else
-        {
-            simple_monster_message(&mon, " is drained.");
-
-            if (x_chance_in_y(pow / 60, 20))
-            {
-                mon.hit_dice--;
-                mon.experience = 0;
-            }
-
-            mon.max_hit_points -= 2 + random2(pow/50);
-            mon.hurt(&you, 2 + random2(50), BEAM_NEG);
-        }
+        if (!mon->drain_exp(&you, false, pow / 50))
+            simple_monster_message(mon, " is unaffected.");
     }
-    return 1;
+
+    return (1);
 }
 
 static void _mass_drain(int pow)
@@ -1814,8 +1812,7 @@ static bool _damaging_card(card_type card, int power, deck_rarity_type rarity)
     }
 
     snprintf(info, INFO_SIZE, "You have drawn %s.  Aim where? ",
-                              card_name(card));
-
+             card_name(card));
 
     bolt beam;
     beam.range = LOS_RADIUS;
@@ -1841,18 +1838,18 @@ static void _elixir_card(int power, deck_rarity_type rarity)
     if (power_level == 0)
     {
         if (coinflip())
-            potion_effect( POT_HEAL_WOUNDS, 40 ); // power doesn't matter
+            potion_effect(POT_HEAL_WOUNDS, 40); // power doesn't matter
         else
-            cast_regen( random2(power / 4) );
+            cast_regen(random2(power / 4));
     }
     else if (power_level == 1)
     {
-        you.hp = you.hp_max;
+        set_hp(you.hp_max, false);
         you.magic_points = 0;
     }
     else if (power_level >= 2)
     {
-        you.hp = you.hp_max;
+        set_hp(you.hp_max, false);
         you.magic_points = you.max_magic_points;
     }
     you.redraw_hit_points = true;
@@ -2029,7 +2026,13 @@ static void _potion_card(int power, deck_rarity_type rarity)
         pot = (coinflip() ? POT_CURE_MUTATION : POT_MUTATION);
 
     if (power_level >= 2 && one_chance_in(5))
-        pot = POT_MAGIC;
+    {
+        // +1 to a random stat.
+        const potion_type gain_stat_pots[] = {
+            POT_GAIN_STRENGTH, POT_GAIN_DEXTERITY, POT_GAIN_INTELLIGENCE
+        };
+        pot = RANDOM_ELEMENT(gain_stat_pots);
+    }
 
     potion_effect(pot, random2(power/4));
 }
@@ -2369,13 +2372,13 @@ static void _deepen_water(const coord_def& center, int radius)
         const coord_def p = *ri;
         if (grd(p) == DNGN_SHALLOW_WATER
             && p != you.pos()
-            && x_chance_in_y(1+count_neighbours(p.x, p.y, DNGN_DEEP_WATER), 8))
+            && x_chance_in_y(1+count_neighbours(p, DNGN_DEEP_WATER), 8))
         {
             dungeon_terrain_changed(p, DNGN_DEEP_WATER);
         }
         if (grd(p) == DNGN_FLOOR
-            && random2(3) < random2(count_neighbours(p.x,p.y,DNGN_DEEP_WATER)
-                               + count_neighbours(p.x,p.y,DNGN_SHALLOW_WATER)))
+            && random2(3) < random2(count_neighbours(p, DNGN_DEEP_WATER)
+                                    + count_neighbours(p, DNGN_SHALLOW_WATER)))
         {
             dungeon_terrain_changed(p, DNGN_SHALLOW_WATER);
         }
@@ -2510,7 +2513,7 @@ static bool _trowel_card(int power, deck_rarity_type rarity)
             if (create_monster(
                     mgen_data(RANDOM_ELEMENT(golems),
                               BEH_FRIENDLY, 5, 0,
-                              you.pos(), you.pet_target)) != -1)
+                              you.pos(), MHITYOU)) != -1)
             {
                 mpr("You construct a golem!");
                 num_made++;
@@ -2525,7 +2528,7 @@ static bool _trowel_card(int power, deck_rarity_type rarity)
         {
             // Do-nothing (effectively): create a cosmetic feature
             const coord_def pos = pick_adjacent_free_square(you.pos());
-            if (pos.x >= 0 && pos.y >= 0)
+            if (in_bounds(pos))
             {
                 const dungeon_feature_type statfeat[] = {
                     DNGN_GRANITE_STATUE, DNGN_ORCISH_IDOL
@@ -2574,9 +2577,7 @@ static void _genie_card(int power, deck_rarity_type rarity)
     {
         mpr("A genie takes form and thunders: "
             "\"You disturbed me, fool!\"");
-        // Use 41, not 40, to tell potion_effect() that this isn't a
-        // real potion.
-        potion_effect( coinflip() ? POT_DEGENERATION : POT_DECAY, 41 );
+        potion_effect(coinflip() ? POT_DEGENERATION : POT_DECAY, 40);
     }
 }
 
@@ -2639,7 +2640,8 @@ static void _crusade_card(int power, deck_rarity_type rarity)
         for (int i = 0; i < MAX_MONSTERS; ++i)
         {
             monsters* const monster = &menv[i];
-            if (monster->type == -1 || !mons_near(monster)
+            if (!monster->alive()
+                || !mons_near(monster)
                 || mons_friendly(monster)
                 || mons_holiness(monster) != MH_NATURAL
                 || mons_is_unique(monster->type)
@@ -2693,10 +2695,20 @@ static void _summon_demon_card(int power, deck_rarity_type rarity)
     else
         dct = DEMON_LESSER;
 
-    create_monster(
-        mgen_data(summon_any_demon(dct), BEH_FRIENDLY,
-                  std::min(power / 50, 6), 0,
-                  you.pos(), you.pet_target));
+    // FIXME: The manual testing for message printing is there because
+    // we can't rely on create_monster() to do it for us. This is
+    // because if you are completely surrounded by walls, create_monster()
+    // will never manage to give a position which isn't (-1,-1)
+    // and thus not print the message.
+    // This hack appears later in this file as well.
+    if (create_monster(
+            mgen_data(summon_any_demon(dct), BEH_FRIENDLY,
+                      std::min(power / 50, 6), 0,
+                      you.pos(), MHITYOU),
+            false) == -1)
+    {
+        mpr("You see a puff of smoke.");
+    }
 }
 
 static void _summon_any_monster(int power, deck_rarity_type rarity)
@@ -2745,12 +2757,13 @@ static void _summon_any_monster(int power, deck_rarity_type rarity)
 
     const bool friendly = (power_level > 0 || !one_chance_in(4));
 
-    create_monster(
-        mgen_data(mon_chosen,
-                  friendly ? BEH_FRIENDLY : BEH_HOSTILE,
-                  3, 0,
-                  chosen_spot,
-                  friendly ? you.pet_target : MHITYOU));
+    if (create_monster(mgen_data(mon_chosen,
+                                 friendly ? BEH_FRIENDLY : BEH_HOSTILE,
+                                 3, 0, chosen_spot, MHITYOU),
+                       false) == -1)
+    {
+        mpr("You see a puff of smoke.");
+    }
 }
 
 static void _summon_dancing_weapon(int power, deck_rarity_type rarity)
@@ -2762,8 +2775,8 @@ static void _summon_dancing_weapon(int power, deck_rarity_type rarity)
         create_monster(
             mgen_data(MONS_DANCING_WEAPON,
                       friendly ? BEH_FRIENDLY : BEH_HOSTILE,
-                      power_level + 3, 0, you.pos(),
-                      friendly ? you.pet_target : MHITYOU));
+                      power_level + 3, 0, you.pos(), MHITYOU),
+            false);
 
     // Given the abundance of Nemelex decks, not setting hard reset
     // leaves a trail of weapons behind, most of which just get
@@ -2809,6 +2822,10 @@ static void _summon_dancing_weapon(int power, deck_rarity_type rarity)
         }
         menv[mon].flags |= MF_HARD_RESET;
     }
+    else
+    {
+        mpr("You see a puff of smoke.");
+    }
 }
 
 static void _summon_flying(int power, deck_rarity_type rarity)
@@ -2835,8 +2852,7 @@ static void _summon_flying(int power, deck_rarity_type rarity)
             mgen_data(result,
                       friendly ? BEH_FRIENDLY : BEH_HOSTILE,
                       std::min(power / 50, 6), 0,
-                      you.pos(),
-                      friendly ? you.pet_target : MHITYOU));
+                      you.pos(), MHITYOU));
     }
 }
 
@@ -2848,13 +2864,14 @@ static void _summon_skeleton(int power, deck_rarity_type rarity)
         MONS_SKELETON_LARGE, MONS_SKELETAL_WARRIOR, MONS_SKELETAL_DRAGON
     };
 
-    create_monster(
-        mgen_data(
-            skeltypes[power_level],
-            friendly ? BEH_FRIENDLY : BEH_HOSTILE,
-            std::min(power / 50, 6), 0,
-            you.pos(),
-            friendly ? you.pet_target : MHITYOU));
+    if (create_monster(mgen_data(skeltypes[power_level],
+                                 friendly ? BEH_FRIENDLY : BEH_HOSTILE,
+                                 std::min(power / 50, 6), 0,
+                                 you.pos(), MHITYOU),
+                       false) == -1)
+    {
+        mpr("You see a puff of smoke.");
+    }
 }
 
 static void _summon_ugly(int power, deck_rarity_type rarity)
@@ -2869,12 +2886,14 @@ static void _summon_ugly(int power, deck_rarity_type rarity)
     else
         ugly = MONS_UGLY_THING;
 
-    create_monster(
-        mgen_data(ugly,
-                  friendly ? BEH_FRIENDLY : BEH_HOSTILE,
-                  std::min(power / 50, 6), 0,
-                  you.pos(),
-                  friendly ? you.pet_target : MHITYOU));
+    if (create_monster(mgen_data(ugly,
+                                 friendly ? BEH_FRIENDLY : BEH_HOSTILE,
+                                 std::min(power / 50, 6), 0,
+                                 you.pos(), MHITYOU),
+                       false) == -1)
+    {
+        mpr("You see a puff of smoke.");
+    }
 }
 
 static int _card_power(deck_rarity_type rarity)

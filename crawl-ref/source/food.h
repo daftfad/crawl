@@ -49,7 +49,7 @@ bool butchery(int which_corpse = -1);
 /* ***********************************************************************
  * called from: acr
  * *********************************************************************** */
-bool eat_food(bool run_hook = true, int slot = -1);
+bool eat_food(int slot = -1);
 
 
 // last updated 19jun2000 {dlb}
@@ -86,6 +86,7 @@ bool causes_rot(const item_def &food);
 bool is_inedible(const item_def &item);
 bool is_preferred_food(const item_def &food);
 bool is_forbidden_food(const item_def &food);
+bool check_amu_the_gourmand(bool reqid);
 
 bool can_ingest(int what_isit, int kindof_thing, bool suppress_msg,
                 bool reqid = false, bool check_hunger = true);
@@ -94,7 +95,7 @@ void eat_floor_item(int item_link);
 
 int eat_from_floor(bool skip_chunks = true);
 bool eat_from_inventory();
-bool eat_chunks();
+int prompt_eat_chunks();
 
 bool food_change(bool suppress_message = false);
 void eat_inventory_item(int which_inventory_slot);

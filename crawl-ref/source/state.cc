@@ -19,12 +19,13 @@ REVISION("$Rev$");
 #include "mon-util.h"
 #include "output.h"
 #include "player.h"
+#include "religion.h"
 #include "state.h"
 #include "tutorial.h"
 #include "view.h"
 
 game_state::game_state()
-    : mouse_enabled(false), waiting_for_command(false),
+    : game_crashed(false), mouse_enabled(false), waiting_for_command(false),
       terminal_resized(false), io_inited(false), need_save(false),
       saving_game(false), updating_scores(false), seen_hups(0),
       map_stat_gen(false), arena(false), arena_suspended(false),
@@ -194,9 +195,9 @@ bool interrupt_cmd_repeat( activity_interrupt_type ai,
 #ifndef DEBUG_DIAGNOSTICS
         if (at.context == "newly seen")
         {
-            std::string text = get_monster_desc(mon, false);
+            std::string text = get_monster_equipment_desc(mon, false);
             text += " comes into view.";
-            print_formatted_paragraph(text, get_number_of_cols(), MSGCH_WARN);
+            print_formatted_paragraph(text, MSGCH_WARN);
         }
 
         if (Options.tutorial_left)
@@ -214,7 +215,7 @@ bool interrupt_cmd_repeat( activity_interrupt_type ai,
         return (true);
     }
 
-    // If command repitition is being used to immitate the rest command,
+    // If command repetition is being used to imitate the rest command,
     // then everything interrupts it.
     if (crawl_state.repeat_cmd == CMD_MOVE_NOWHERE
         || crawl_state.repeat_cmd == CMD_SEARCH)
@@ -371,4 +372,157 @@ std::vector<god_act_state> game_state::other_gods_acting() const
 {
     ASSERT(is_god_acting());
     return god_act_stack;
+}
+
+bool game_state::is_mon_acting() const
+{
+    return (mon_act != NULL);
+}
+
+monsters* game_state::which_mon_acting() const
+{
+    return (mon_act);
+}
+
+void game_state::inc_mon_acting(monsters* mon)
+{
+    ASSERT(!invalid_monster(mon));
+
+    if (mon_act != NULL)
+        mon_act_stack.push_back(mon_act);
+
+    mon_act = mon;
+}
+
+void game_state::dec_mon_acting(monsters* mon)
+{
+    ASSERT(mon_act == mon);
+
+    mon_act = NULL;
+
+    const unsigned int size = mon_act_stack.size();
+    if (size > 0)
+    {
+        mon_act = mon_act_stack[size - 1];
+        ASSERT(!invalid_monster(mon_act));
+        mon_act_stack.pop_back();
+    }
+}
+
+void game_state::clear_mon_acting()
+{
+    mon_act = NULL;
+    mon_act_stack.clear();
+}
+
+void game_state::mon_gone(monsters* mon)
+{
+    for (unsigned int i = 0, size = mon_act_stack.size(); i < size; i++)
+    {
+        if (mon_act_stack[i] == mon)
+        {
+            mon_act_stack.erase(mon_act_stack.begin() + i);
+            i--;
+            size--;
+        }
+    }
+
+    if (mon_act == mon)
+        dec_mon_acting(mon);
+}
+
+void game_state::dump()
+{
+    fprintf(stderr, EOL "Game state:" EOL EOL);
+
+    fprintf(stderr, "mouse_enabled: %d, waiting_for_command: %d, "
+                  "terminal_resized: %d" EOL,
+            mouse_enabled, waiting_for_command, terminal_resized);
+    fprintf(stderr, "io_inited: %d, need_save: %d, saving_game: %d, "
+                  "updating_scores: %d:" EOL,
+            io_inited, need_save, saving_game, updating_scores);
+    fprintf(stderr, "seen_hups: %d, map_stat_gen: %d, arena: %d, "
+                  "arena_suspended: %d, unicode_ok: %d" EOL,
+            seen_hups, map_stat_gen, arena, arena_suspended, unicode_ok);
+
+    fprintf(stderr, EOL);
+
+    // Arena mode can change behavior of the rest of the code and/or lead
+    // to asserts.
+    unwind_bool _arena(arena, false);
+    unwind_bool _arena_suspended(arena_suspended, false);
+
+    if (!startup_errors.empty())
+    {
+        fprintf(stderr, "Startup errors:" EOL);
+        for (unsigned int i = 0; i < startup_errors.size(); i++)
+            fprintf(stderr, "%s" EOL, startup_errors[i].c_str());
+        fprintf(stderr, EOL);
+    }
+
+    fprintf(stderr, "prev_cmd = %s" EOL, command_to_name(prev_cmd).c_str());
+
+    if (doing_prev_cmd_again)
+    {
+        fprintf(stderr, "Doing prev_cmd again with keys: ");
+        for (unsigned int i = 0; i < prev_cmd_keys.size(); i++)
+            fprintf(stderr, "%d, ", prev_cmd_keys[i]);
+        fprintf(stderr, EOL);
+        fprintf(stderr, "As ASCII keys: ");
+        for (unsigned int i = 0; i < prev_cmd_keys.size(); i++)
+            fprintf(stderr, "%c", (char) prev_cmd_keys[i]);
+        fprintf(stderr, EOL EOL);
+    }
+    fprintf(stderr, "repeat_cmd = %s" EOL, command_to_name(repeat_cmd).c_str());
+
+    if (cmd_repeat_count > 0 || cmd_repeat_goal > 0)
+    {
+        fprintf(stderr, "Doing command repetition:" EOL);
+        fprintf(stderr, "cmd_repeat_start:%d, cmd_repeat_count: %d, "
+                      "cmd_repeat_goal:%d" EOL
+                      "prev_cmd_repeat_goal: %d" EOL,
+                cmd_repeat_start, cmd_repeat_count, cmd_repeat_goal,
+                prev_cmd_repeat_goal);
+        fprintf(stderr, "Keys being repeated: ");
+        for (unsigned int i = 0; i < repeat_cmd_keys.size(); i++)
+            fprintf(stderr, "%d, ", repeat_cmd_keys[i]);
+        fprintf(stderr, EOL);
+        fprintf(stderr, "As ASCII keys: ");
+        for (unsigned int i = 0; i < repeat_cmd_keys.size(); i++)
+            fprintf(stderr, "%c", (char) repeat_cmd_keys[i]);
+        fprintf(stderr, EOL);
+    }
+
+    fprintf(stderr, EOL);
+
+    if (god_act.which_god != GOD_NO_GOD || god_act.depth != 0)
+    {
+        fprintf(stderr, "God %s currently acting with depth %d" EOL EOL,
+                god_name(god_act.which_god).c_str(), god_act.depth);
+    }
+
+    if (god_act_stack.size() != 0)
+    {
+        fprintf(stderr, "Other gods acting:" EOL);
+        for (unsigned int i = 0; i < god_act_stack.size(); i++)
+            fprintf(stderr, "God %s with depth %d" EOL,
+                    god_name(god_act_stack[i].which_god).c_str(),
+                    god_act_stack[i].depth);
+        fprintf(stderr, EOL EOL);
+    }
+
+    if (mon_act != NULL)
+    {
+        fprintf(stderr, "%s currently acting:" EOL EOL,
+                debug_mon_str(mon_act).c_str());
+        debug_dump_mon(mon_act, true);
+    }
+
+    if (mon_act_stack.size() != 0)
+    {
+        fprintf(stderr, "Others monsters acting:" EOL);
+        for (unsigned int i = 0; i < mon_act_stack.size(); i++)
+            fprintf(stderr, "    %s" EOL,
+                    debug_mon_str(mon_act_stack[i]).c_str());
+    }
 }

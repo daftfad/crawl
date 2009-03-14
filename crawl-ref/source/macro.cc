@@ -597,10 +597,16 @@ static void write_map(std::ofstream &f, const macromap &mp, const char *key)
 /*
  * Saves macros into the macrofile, overwriting the old one.
  */
-void macro_save( void )
+void macro_save()
 {
     std::ofstream f;
-    f.open( get_macro_file().c_str() );
+    const std::string macrofile = get_macro_file();
+    f.open(macrofile.c_str());
+    if (!f)
+    {
+        mprf(MSGCH_ERROR, "Couldn't open %s for writing!", macrofile.c_str());
+        return;
+    }
 
     f << "# WARNING: This file is entirely auto-generated." << std::endl
       << std::endl << "# Key Mappings:" << std::endl;
@@ -657,6 +663,7 @@ static keyseq getch_mul( int (*rgetch)() = NULL )
  */
 int getchm( int (*rgetch)() )
 {
+    flush_prev_message();
     return getchm( KC_DEFAULT, rgetch );
 }
 

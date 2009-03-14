@@ -77,7 +77,7 @@ static std::string _purchase_keys(const std::string &s)
 
     std::string list = "<w>" + s.substr(0, 1);
     char last = s[0];
-    for (int i = 1; i < (int) s.length(); ++i)
+    for (unsigned int i = 1; i < s.length(); ++i)
     {
         if (s[i] == s[i - 1] + 1)
             continue;
@@ -92,7 +92,7 @@ static std::string _purchase_keys(const std::string &s)
     return (list);
 }
 
-static void _list_shop_keys(const std::string &purchasable)
+static void _list_shop_keys(const std::string &purchasable, bool viewing)
 {
     char buf[200];
     const int numlines = get_number_of_lines();
@@ -100,10 +100,18 @@ static void _list_shop_keys(const std::string &purchasable)
 
     std::string pkeys = _purchase_keys(purchasable);
     if (!pkeys.empty())
-        pkeys = "[" + pkeys + "] Select Item";
-
+    {
+        pkeys = "[" + pkeys + "] Select Item to "
+                + (viewing ? "Examine" : "Buy");
+    }
     snprintf(buf, sizeof buf,
-            "[<w>x</w>/<w>Esc</w>] Exit       [<w>v</w>] Examine Items  %s",
+#ifdef USE_TILE
+            "[<w>x</w>/<w>Esc</w>/<w>R-Click</w>] Exit"
+#else
+            "[<w>x</w>/<w>Esc</w>] Exit"
+#endif
+            "       [<w>!</w>] %s  %s",
+            (viewing ? "Select Items " : "Examine Items"),
             pkeys.c_str());
 
     formatted_string fs = formatted_string::parse_string(buf);
@@ -112,8 +120,13 @@ static void _list_shop_keys(const std::string &purchasable)
     cgotoxy(1, numlines, GOTO_CRT);
 
     fs = formatted_string::parse_string(
-            "[<w>?</w>/<w>*</w>]   Inventory  "
-            "[<w>\\</w>] Known Items    [<w>Enter</w>] Make Purchase");
+#ifdef USE_TILE
+            "[<w>?</w>/<w>*</w>]           Inventory  [<w>\\</w>] Known Items    "
+            "[<w>Enter</w>/<w>L-Click</w>] Make Purchase");
+#else
+            "[<w>?</w>/<w>*</w>]   Inventory  [<w>\\</w>] Known Items    "
+            "[<w>Enter</w>] Make Purchase");
+#endif
     fs.cprintf("%*s", get_number_of_cols() - fs.length() - 1, "");
     fs.display();
 }
@@ -121,14 +134,10 @@ static void _list_shop_keys(const std::string &purchasable)
 static std::vector<int> _shop_get_stock(int shopidx)
 {
     std::vector<int> result;
-
-    int itty = igrd[0][5 + shopidx];
-
-    while ( itty != NON_ITEM )
-    {
-        result.push_back( itty );
-        itty = mitm[itty].link;
-    }
+    // Shop items are heaped up at this cell.
+    const coord_def stack_location(0, 5 + shopidx);
+    for (stack_iterator si(stack_location); si; ++si)
+        result.push_back(si.link());
     return result;
 }
 
@@ -157,8 +166,8 @@ static std::string _shop_print_stock( const std::vector<int>& stock,
     std::string purchasable;
     for (unsigned int i = 0; i < stock.size(); ++i)
     {
-        const int gp_value = _shop_get_item_value(mitm[stock[i]], shop.greed,
-                                                  id);
+        const item_def& item = mitm[stock[i]];
+        const int gp_value = _shop_get_item_value(item, shop.greed, id);
         const bool can_afford = (you.gold >= gp_value);
 
         cgotoxy(1, i+1, GOTO_CRT);
@@ -193,8 +202,8 @@ static std::string _shop_print_stock( const std::vector<int>& stock,
         if (Options.menu_colour_shops)
         {
             // Colour stock according to menu colours.
-            const std::string colprf = menu_colour_item_prefix(mitm[stock[i]]);
-            const int col = menu_colour(mitm[stock[i]].name(DESC_NOCAP_A),
+            const std::string colprf = menu_colour_item_prefix(item);
+            const int col = menu_colour(item.name(DESC_NOCAP_A),
                                         colprf, "shop");
             textcolor(col != -1 ? col : LIGHTGREY);
         }
@@ -202,11 +211,10 @@ static std::string _shop_print_stock( const std::vector<int>& stock,
             textcolor(i % 2 ? LIGHTGREY : WHITE);
 
         cprintf("%-56s%5d gold",
-                mitm[stock[i]].name(DESC_NOCAP_A, false, id).substr(0, 56).
-                    c_str(),
+                item.name(DESC_NOCAP_A, false, id).substr(0, 56).c_str(),
                 gp_value);
 
-        si.add_item(mitm[stock[i]], gp_value);
+        si.add_item(item, gp_value);
     }
     textcolor(LIGHTGREY);
 
@@ -225,13 +233,12 @@ static std::string _shop_print_stock( const std::vector<int>& stock,
 //  * Enter buys (with prompt), as now
 //  * \ shows discovered items, as now
 //  * x exits (also Esc), as now
-//  --------
-//  * ? toggles examination mode (where letter keys view items)
-//  * * lists inventory  (currently also ?)
+//  * ! toggles examination mode (where letter keys view items)
+//  * *, ? lists inventory
 //
 //  For the ? key, the text should read:
-//  [?] switch to examination mode
-//  [?] switch to selection mode
+//  [!] switch to examination mode
+//  [!] switch to selection mode
 static bool _in_a_shop( int shopidx )
 {
     const shop_struct& shop = env.shop[shopidx];
@@ -247,19 +254,19 @@ static bool _in_a_shop( int shopidx )
     const bool id_stock = shoptype_identifies_stock(shop.type);
     std::vector<bool> selected;
     bool bought_something = false;
+    bool viewing = false;
     while (true)
     {
         StashTrack.get_shop(shop.pos).reset();
 
         std::vector<int> stock = _shop_get_stock(shopidx);
-        for (unsigned int k = 0; k < stock.size(); k++)
+
+        // Autoinscribe randarts in the shop.
+        for (unsigned int i = 0; i < stock.size(); i++)
         {
-            if (Options.autoinscribe_randarts
-                && is_random_artefact(mitm[stock[k]]))
-            {
-                mitm[stock[k]].inscription =
-                    randart_auto_inscription(mitm[stock[k]]);
-            }
+            item_def& item = mitm[stock[i]];
+            if (Options.autoinscribe_randarts && is_random_artefact(item))
+                item.inscription = randart_auto_inscription(item);
         }
 
         // Deselect all.
@@ -281,12 +288,12 @@ static bool _in_a_shop( int shopidx )
 
         const std::string purchasable = _shop_print_stock(stock, selected, shop,
                                                           total_cost);
-        _list_shop_keys(purchasable);
+        _list_shop_keys(purchasable, viewing);
 
         if (!total_cost)
         {
             snprintf( info, INFO_SIZE, "You have %d gold piece%s.", you.gold,
-                      you.gold == 1 ? "" : "s" );
+                      you.gold > 1 ? "s" : "" );
 
             textcolor(YELLOW);
         }
@@ -295,9 +302,9 @@ static bool _in_a_shop( int shopidx )
             snprintf( info, INFO_SIZE, "You now have %d gold piece%s. "
                             "You are short %d gold piece%s for the purchase.",
                       you.gold,
-                      you.gold == 1 ? "" : "s",
+                      you.gold > 1 ? "s" : "",
                       total_cost - you.gold,
-                      (total_cost - you.gold == 1) ? "" : "s" );
+                      (total_cost - you.gold > 1) ? "s" : "" );
 
             textcolor(LIGHTRED);
         }
@@ -306,9 +313,9 @@ static bool _in_a_shop( int shopidx )
             snprintf( info, INFO_SIZE, "You now have %d gold piece%s. "
                       "After the purchase, you will have %d gold piece%s.",
                       you.gold,
-                      you.gold == 1 ? "" : "s",
+                      you.gold > 1 ? "s" : "",
                       you.gold - total_cost,
-                      (you.gold - total_cost == 1) ? "" : "s" );
+                      (you.gold - total_cost > 1) ? "s" : "" );
 
             textcolor(YELLOW);
         }
@@ -322,28 +329,33 @@ static bool _in_a_shop( int shopidx )
                       hello.c_str() );
         }
         else
-        {
-            snprintf( info, INFO_SIZE, "What would you like to do? ");
-        }
+            snprintf(info, INFO_SIZE, "What would you like to do? ");
 
         textcolor(CYAN);
         _shop_print(info, 1);
 
         textcolor(LIGHTGREY);
 
-        int ft = get_ch();
+        mouse_control mc(MOUSE_MODE_MORE);
+        int key = getch();
 
-        if (ft == '\\')
-            check_item_knowledge();
-        else if (ft == 'x' || ft == ESCAPE)
+        if (key == '\\')
+        {
+            if (!check_item_knowledge(true))
+            {
+                _shop_print("You don't recognize anything yet!", 1);
+                _shop_more();
+            }
+        }
+        else if (key == 'x' || key == ESCAPE || key == CK_MOUSE_CMD)
             break;
-        else if (ft == '\r')
+        else if (key == '\r' || key == CK_MOUSE_CLICK)
         {
             // Do purchase.
             if (total_cost > you.gold)
             {
-                _shop_print("I'm sorry, you don't seem to have enough money.", 1);
-                _shop_more();
+                _shop_print("I'm sorry, you don't seem to have enough money.",
+                            1);
             }
             else if (!total_cost)
                 continue;
@@ -402,74 +414,59 @@ static bool _in_a_shop( int shopidx )
             _shop_more();
             continue;
         }
-        else if (ft == 'v')
+        else if (key == '!')
         {
-            textcolor(CYAN);
-            _shop_print("Examine which item?", 1);
-            textcolor(LIGHTGREY);
-
-            bool is_ok = true;
-
-            ft = get_ch();
-            if (!isalpha(ft))
-                is_ok = false;
-            else
-            {
-                ft = tolower(ft) - 'a';
-                if ( ft >= static_cast<int>(stock.size()) )
-                    is_ok = false;
-            }
-
-            if (!is_ok)
-            {
-                _shop_print("Huh?", 1);
-                _shop_more();
-                continue;
-            }
-
-            // A hack to make the description more useful.
-            // In theory, the user could kill the process at this
-            // point and end up with valid ID for the item.
-            // That's not very useful, though, because it doesn't set
-            // type-ID and once you can access the item (by buying it)
-            // you have its full ID anyway. Worst case, it won't get
-            // noted when you buy it.
-            item_def& item = mitm[stock[ft]];
-            const unsigned long old_flags = item.flags;
-            if (id_stock)
-            {
-                item.flags |= (ISFLAG_IDENT_MASK | ISFLAG_NOTED_ID |
-                               ISFLAG_NOTED_GET);
-            }
-            describe_item(item);
-            if (id_stock)
-                item.flags = old_flags;
+            // Toggle between browsing and shopping.
+            viewing = !viewing;
         }
-        else if (ft == '?' || ft == '*')
+        else if (key == '?' || key == '*')
             browse_inventory(false);
-        else if (!isalpha(ft))
+        else if (!isalpha(key))
         {
             _shop_print("Huh?", 1);
             _shop_more();
         }
         else
         {
-            ft = tolower(ft) - 'a';
-            if (ft >= static_cast<int>(stock.size()) )
+            key = tolower(key) - 'a';
+            if (key >= static_cast<int>(stock.size()) )
             {
                 _shop_print("No such item.", 1);
                 _shop_more();
                 continue;
             }
 
-            item_def& item = mitm[stock[ft]];
-            const int gp_value = _shop_get_item_value(item, shop.greed, id_stock);
-
-            selected[ft] = !selected[ft];
-            if (selected[ft])
-                total_cost += gp_value;
+            item_def& item = mitm[stock[key]];
+            if (viewing)
+            {
+                // A hack to make the description more useful.
+                // In theory, the user could kill the process at this
+                // point and end up with valid ID for the item.
+                // That's not very useful, though, because it doesn't set
+                // type-ID and once you can access the item (by buying it)
+                // you have its full ID anyway. Worst case, it won't get
+                // noted when you buy it.
+                const unsigned long old_flags = item.flags;
+                if (id_stock)
+                {
+                    item.flags |= (ISFLAG_IDENT_MASK | ISFLAG_NOTED_ID
+                                   | ISFLAG_NOTED_GET);
+                }
+                describe_item(item);
+                if (id_stock)
+                    item.flags = old_flags;
+            }
             else
-                total_cost -= gp_value;
+            {
+                const int gp_value = _shop_get_item_value(item, shop.greed,
+                                                          id_stock);
+
+                selected[key] = !selected[key];
+                if (selected[key])
+                    total_cost += gp_value;
+                else
+                    total_cost -= gp_value;
+            }
         }
     }
     return (bought_something);
@@ -830,6 +827,7 @@ unsigned int item_value( item_def item, bool ident )
             case SPWPN_FROST:
             case SPWPN_HOLY_WRATH:
             case SPWPN_REACHING:
+            case SPWPN_RETURNING:
                 valued *= 50;
                 break;
 
@@ -939,27 +937,17 @@ unsigned int item_value( item_def item, bool ident )
         break;
 
     case OBJ_MISSILES:          // ammunition
-        if (item_ident( item, ISFLAG_KNOW_PLUSES ))
-        {
-            // assume not cursed (can they be anyway?)
-            if (item.plus < 0)
-                valued -= 11150;
-
-            if (item.plus >= 0)
-                valued += (item.plus * 2);
-        }
-
         switch (item.sub_type)
         {
         case MI_DART:
-        case MI_LARGE_ROCK:
         case MI_STONE:
+        case MI_LARGE_ROCK:
         case MI_NONE:
             valued++;
             break;
+        case MI_NEEDLE:
         case MI_ARROW:
         case MI_BOLT:
-        case MI_NEEDLE:
             valued += 2;
             break;
         case MI_JAVELIN:
@@ -971,6 +959,67 @@ unsigned int item_value( item_def item, bool ident )
         default:
             valued += 5;
             break;
+        }
+
+        if (item_type_known(item))
+        {
+            switch (get_ammo_brand( item ))
+            {
+            case SPMSL_NORMAL:
+            default:
+                valued *= 10;
+                break;
+
+            case SPMSL_RETURNING:
+                valued *= 50;
+                break;
+
+            case SPMSL_CHAOS:
+                valued *= 40;
+                break;
+
+            case SPMSL_CURARE:
+                valued *= 30;
+                break;
+
+            case SPMSL_FLAME:
+            case SPMSL_FROST:
+                valued *= 25;
+                break;
+
+            case SPMSL_POISONED:
+                valued *= 23;
+                break;
+            }
+
+            valued /= 10;
+        }
+
+        if (get_equip_race(item) == ISFLAG_ELVEN
+            || get_equip_race(item) == ISFLAG_DWARVEN)
+        {
+            valued *= 12;
+            valued /= 10;
+        }
+
+        if (get_equip_race(item) == ISFLAG_ORCISH)
+        {
+            valued *= 8;
+            valued /= 10;
+        }
+
+        if (item_ident( item, ISFLAG_KNOW_PLUSES ))
+        {
+            if (item.plus >= 0)
+                valued += (item.plus * 2);
+
+            if (item.plus < 0)
+            {
+                valued += item.plus * item.plus * item.plus;
+
+                if (valued < 1)
+                    valued = 1;
+            }
         }
         break;
 
@@ -1285,8 +1334,6 @@ unsigned int item_value( item_def item, bool ident )
                 valued += 150;
                 break;
             case POT_MAGIC:
-                valued += 120;
-                break;
             case POT_RESISTANCE:
                 valued += 70;
                 break;
@@ -1406,6 +1453,7 @@ unsigned int item_value( item_def item, bool ident )
                 break;
             case SCR_TORMENT:
             case SCR_HOLY_WORD:
+            case SCR_VULNERABILITY:
                 valued += 75;
                 break;
             case SCR_ENCHANT_WEAPON_II:
@@ -1614,26 +1662,48 @@ unsigned int item_value( item_def item, bool ident )
         valued = 150;
         if (item_type_known(item))
         {
-            int rarity = 0;
+            double rarity = 0;
             if (is_random_artefact(item))
             {
-                // Consider spellbook as rare as its rarest spell.
-                // NOTE: This probably undervalues a book if it contains
-                // lots of rare spells.
+                // Consider spellbook as rare as the average of its
+                // three rarest spells.
+                int rarities[SPELLBOOK_SIZE];
+                int count_valid = 0;
                 for (int i = 0; i < SPELLBOOK_SIZE; i++)
                 {
                     spell_type spell = which_spell_in_book(item, i);
                     if (spell == SPELL_NO_SPELL)
+                    {
+                        rarities[i] = 0;
                         continue;
+                    }
 
-                    if (rarity > spell_rarity(spell))
-                        rarity = spell_rarity(spell);
+                    rarities[i] = spell_rarity(spell);
+                    count_valid++;
                 }
+                ASSERT(count_valid > 0);
+
+                if (count_valid > 3)
+                    count_valid = 3;
+
+                std::sort(rarities, rarities + SPELLBOOK_SIZE);
+                for (int i = SPELLBOOK_SIZE - 1;
+                     i >= SPELLBOOK_SIZE - count_valid; i--)
+                {
+                    rarity += rarities[i];
+                }
+
+                rarity /= count_valid;
+
+                // Fixed level randarts get a bonus for the really low and
+                // really high level spells.
+                if (item.sub_type == BOOK_RANDART_LEVEL)
+                    valued += 50 * abs(5 - item.plus);
             }
             else
                 rarity = book_rarity(item.sub_type);
 
-            valued += book_rarity(item.sub_type) * 50;
+            valued += rarity * 50;
         }
         break;
 
@@ -1673,12 +1743,12 @@ unsigned int item_value( item_def item, bool ident )
 static void _delete_shop(int i)
 {
     grd(you.pos()) = DNGN_ABANDONED_SHOP;
-//    env.shop.erase(i);
     unnotice_feature(level_pos(level_id::current(), you.pos()));
 }
 
 void shop()
 {
+    flush_prev_message();
     int i;
 
     for (i = 0; i < MAX_SHOPS; i++)
@@ -1704,7 +1774,7 @@ void shop()
     const std::string shopname = shop_name(env.shop[i].pos);
 
     // If the shop is now empty, erase it from the overmap.
-    if ( _shop_get_stock(i).empty() )
+    if (_shop_get_stock(i).empty())
         _delete_shop(i);
 
     burden_change();
@@ -1719,15 +1789,13 @@ shop_struct *get_shop(const coord_def& where)
     if (grd(where) != DNGN_ENTER_SHOP)
         return (NULL);
 
-    // Find shop.
-    for (int shoppy = 0; shoppy < MAX_SHOPS; shoppy ++)
+    // Check all shops for one at the correct position.
+    for (int i = 0; i < MAX_SHOPS; i ++)
     {
-        // Find shop index plus a little bit of paranoia.
-        if (env.shop[shoppy].pos == where
-            && env.shop[shoppy].type != SHOP_UNASSIGNED)
-        {
-            return (&env.shop[shoppy]);
-        }
+        shop_struct& shop = env.shop[i];
+        // A little bit of paranoia.
+        if (shop.pos == where && shop.type != SHOP_UNASSIGNED)
+            return (&shop);
     }
     return (NULL);
 }
@@ -1754,7 +1822,7 @@ std::string shop_name(const coord_def& where)
         return ("Buggy Shop");
     }
 
-    int shop_type = cshop->type;
+    const shop_type type = cshop->type;
 
     unsigned long seed = static_cast<unsigned long>( cshop->keeper_name[0] )
         | (static_cast<unsigned long>( cshop->keeper_name[1] ) << 8)
@@ -1762,35 +1830,39 @@ std::string shop_name(const coord_def& where)
 
     std::string sh_name = apostrophise(make_name(seed, false)) + " ";
 
-    if (shop_type == SHOP_WEAPON_ANTIQUE || shop_type == SHOP_ARMOUR_ANTIQUE)
+    if (type == SHOP_WEAPON_ANTIQUE || type == SHOP_ARMOUR_ANTIQUE)
         sh_name += "Antique ";
 
     sh_name +=
-        (shop_type == SHOP_WEAPON
-         || shop_type == SHOP_WEAPON_ANTIQUE) ? "Weapon" :
-        (shop_type == SHOP_ARMOUR
-         || shop_type == SHOP_ARMOUR_ANTIQUE) ? "Armour" :
+        (type == SHOP_WEAPON
+         || type == SHOP_WEAPON_ANTIQUE) ? "Weapon" :
+        (type == SHOP_ARMOUR
+         || type == SHOP_ARMOUR_ANTIQUE) ? "Armour" :
 
-        (shop_type == SHOP_JEWELLERY)         ? "Jewellery" :
-        (shop_type == SHOP_WAND)              ? "Magical Wand" :
-        (shop_type == SHOP_BOOK)              ? "Book" :
-        (shop_type == SHOP_FOOD)              ? "Food" :
-        (shop_type == SHOP_SCROLL)            ? "Magic Scroll" :
-        (shop_type == SHOP_GENERAL_ANTIQUE)   ? "Assorted Antiques" :
-        (shop_type == SHOP_DISTILLERY)        ? "Distillery" :
-        (shop_type == SHOP_GENERAL)           ? "General Store"
-                                              : "Bug";
+        (type == SHOP_JEWELLERY)         ? "Jewellery" :
+        (type == SHOP_WAND)              ? "Magical Wand" :
+        (type == SHOP_BOOK)              ? "Book" :
+        (type == SHOP_FOOD)              ? "Food" :
+        (type == SHOP_SCROLL)            ? "Magic Scroll" :
+        (type == SHOP_GENERAL_ANTIQUE)   ? "Assorted Antiques" :
+        (type == SHOP_DISTILLERY)        ? "Distillery" :
+        (type == SHOP_GENERAL)           ? "General Store"
+                                         : "Bug";
 
-    if (shop_type != SHOP_GENERAL
-        && shop_type != SHOP_GENERAL_ANTIQUE && shop_type != SHOP_DISTILLERY)
+    if (type != SHOP_GENERAL
+        && type != SHOP_GENERAL_ANTIQUE
+        && type != SHOP_DISTILLERY)
     {
-        int temp = where.x + where.y % 4;
-        sh_name += (temp == 0) ? " Shoppe" :
-                   (temp == 1) ? " Boutique" :
-                   (temp == 2) ? " Emporium"
-                               : " Shop";
+        const char* suffixnames[] = {"Shoppe", "Boutique", "Emporium", "Shop"};
+        const int temp = (where.x + where.y) % 4;
+        sh_name += ' ';
+        sh_name += suffixnames[temp];
     }
 
     return (sh_name);
 }
 
+bool is_shop_item(const item_def &item)
+{
+    return (item.pos.x == 0 && item.pos.y >= 5 && item.pos.y < (MAX_SHOPS + 5));
+}

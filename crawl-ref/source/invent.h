@@ -123,6 +123,7 @@ class InvMenu : public Menu
 public:
     InvMenu(int mflags = MF_MULTISELECT);
 
+public:
     unsigned char getkey() const;
 
     void set_preselect(const std::vector<SelItem> *pre);

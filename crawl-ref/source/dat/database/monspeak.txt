@@ -1,19 +1,19 @@
 ############################################################
-# As of Stone Soup 0.3 the previously hardcoded monster 
-# speech has been outsourced. This makes changing existing 
+# As of Stone Soup 0.3 the previously hardcoded monster
+# speech has been outsourced. This makes changing existing
 # messages, and adding new ones really easy.
 #
-# monspeak.txt contains the messages of monsters that "talk" 
-# to the player, or at least the biggest part there-of. 
+# monspeak.txt contains the messages of monsters that "talk"
+# to the player, or at least the biggest part there-of.
 #
-# For an explanation of how to read shout.txt and monspeak.txt 
+# For an explanation of how to read shout.txt and monspeak.txt
 # and how to add new messages, see monster_speech.txt in the
 # docs directory.
 ############################################################
 
 ############################################################
 # Library of randomised word/phrase substitutions.
-# The keys will have to be changed in the unlikely event that 
+# The keys will have to be changed in the unlikely event that
 # monsters are ever given names like "yells" or "begs".
 ############################################################
 %%%%
@@ -119,7 +119,7 @@ smoke
 steam
 %%%%
 ############################################################
-# Library of speeches for types of monsters, like priests, 
+# Library of speeches for types of monsters, like priests,
 # wizards, guards and so on.
 ############################################################
 %%%%
@@ -255,7 +255,7 @@ ENCHANT:@The_monster@ becomes transparent for a moment.
 
 ENCHANT:@The_monster@ glows brightly for a moment.
 
-ENCHANT:@Possessive@ fingertips start to glow.
+ENCHANT:@The_monster@'s fingertips start to glow.
 %%%%
 _wizard_medium_
 
@@ -451,7 +451,7 @@ _fleeing_silenced_rare_
 
 VISUAL:@The_monster@ opens @possessive@ mouth, as if shouting.
 
-VISUAL:@The_monster@ frantically looks around. 
+VISUAL:@The_monster@ frantically looks around.
 
 VISUAL:@The_monster@ ponders the situation.
 ## END fleeing silenced humanoid ##
@@ -844,6 +844,10 @@ VISUAL:@The_monster@ flies around in tight circles.
 
 @The_monster@ hisses menacingly.
 %%%%
+'j'
+
+VISUAL:@The_monster@ briefly extends @possessive@ eye-stalks.
+%%%%
 'r'
 
 VISUAL:@The_monster@ twitches @possessive@ whiskers.
@@ -925,7 +929,7 @@ __NONE
 w:1
 @_friendly_imp_@
 ####################################################################
-# Player ghost phrases.  Ghosts with different classes can be given 
+# Player ghost phrases.  Ghosts with different classes can be given
 # different messages.
 ####################################################################
 %%%%
@@ -1054,7 +1058,7 @@ _Agnes_common_
 
 VISUAL:@The_monster@ grins evilly.
 
-@The_monster@ says @to_foe@, "I need a new robe.  I'll buy it with your money." 
+@The_monster@ says @to_foe@, "I need a new robe.  I'll buy it with your money."
 
 @The_monster@ says @to_foe@, "How can you wear that ugly dress?"
 
@@ -1104,7 +1108,7 @@ VISUAL:@The_monster@ blows smoke rings.
 
 VISUAL: @The_monster@'s eyes look fiery.
 
-VISUAL: @The_monster@ is momentarily hid by a cloud of flames.
+VISUAL: @The_monster@ is momentarily hidden by a cloud of flames.
 %%%%
 _Azrael_rare_
 
@@ -1241,7 +1245,7 @@ _Boris_rare_
 
 @The_monster@ says @to_foe@, "I didn't invite you."
 
-@The_monster@ says @to_foe@, "The world, the flesh, and the devil."
+@The_monster@ says @to_foe@, "The world, the flesh and the devil."
 
 @The_monster@ says "Magic.  You know nothing about it."
 
@@ -1321,7 +1325,7 @@ dissolution_rare
 @The_monster@ says, "Resolve to dissolve!"
 
 w:2
-@The_monster@ says, "There is a problem solver and it's name is Dissolver!"
+@The_monster@ says, "There is a problem solver and its name is Dissolver!"
 ## END Dissolution ##
 %%%%
 # An adventurer hating competition
@@ -1622,7 +1626,7 @@ VISUAL:@The_monster@ gazes at @foe@ @hypnot_or_seductively@.
 
 @The_monster@ sings, "To sleep, to sleep... mayhap to drown."
 
-@The_monster@ says @to_foe@, "It's lovely beneath the waves -- you'll see!"
+@The_monster@ says @to_foe@, "It's lovely beneath the waves - you'll see!"
 
 @The_monster@ asks @foe,@ "Do you dare to walk upon the beach?"
 
@@ -1713,7 +1717,7 @@ VISUAL:@The_monster@ tries to grin evilly.
 
 @The_monster@ says @to_foe@, "I'm here to kill trespassers. I like my job."
 
-@The_monster@ says @to_foe@, "You must be punished!  Or...  I want to punish you!"
+@The_monster@ says @to_foe@, "You must be punished!  Or... I want to punish you!"
 %%%%
 _Joseph_rare_
 
@@ -2046,7 +2050,7 @@ VISUAL:@The_monster@ smiles happily.
 
 @The_monster@ says @to_foe@, "I love killing ugly monsters like you."
 
-@The_monster@ says @to_foe@, "Another dead monster...  It must be my lucky day!"
+@The_monster@ says @to_foe@, "Another dead monster... It must be my lucky day!"
 
 @The_monster@ screams @at_foe@, "Die, monster!"
 
@@ -2402,7 +2406,7 @@ w:1
 @The_monster@ shouts @at_foe@, "There can only be one messiah: ME!"
 
 w:1
-@The_monster@ shouts, "Orcs, take notice: this deceiver is a mere Hill Orc!" 
+@The_monster@ shouts, "Orcs, take notice: this deceiver is a mere Hill Orc!"
 ## END Saint Roka ##
 %%%%
 # Mad old wizard
@@ -2719,6 +2723,10 @@ VISUAL:@The_monster@ pokes out @possessive@ tongue.
 @The_monster@ says @to_foe@, "Come and play with me!"
 ## END Killer Klown ##
 %%%%
+moth of wrath
+
+VISUAL:@The_monster@ angrily waves @possessive@ antennae.
+%%%%
 # The moth of wrath doesn't buzz like the other 'y' monsters, what
 # with it being a moth.
 default confused moth of wrath
@@ -2837,12 +2845,12 @@ w:1
 @The_monster@ says @to_foe@, "Thou must remain pure in the battle against evil."
 
 w:1
-@The_monster@ says @to_foe@, "May @player_god@ always shine on thee, @player_name@!"
+@The_monster@ says @to_foe@, "May @player_god@ always shine on thee, @foe_name@!"
 
 w:1
 @The_monster@ says @to_foe@, "@player_god@ be with thee, mortal!"
 
-# The good gods are assumed to work closely together, so a Daeva praising 
+# The good gods are assumed to work closely together, so a Daeva praising
 # Elyvilon is actually flavour.
 w:1
 @The_monster@ says @to_foe@, "Praised be @good_god@ in the heavens above!"
@@ -2883,8 +2891,24 @@ good_god_neutral_holy_being_speech
 
 @The_monster@ says @to_foe@, "Carry on, mortal."
 %%%%
+good_god_nonneutral_holy_being_reaction
+
+@The_monster@ ignores your imperfect holy aura.
+
+@The_monster@ frowns, and retains its fighting stance.
+
+@The_monster@ refuses to salute you.
+%%%%
+good_god_nonneutral_holy_being_speech
+
+@The_monster@ shouts @at_foe@, "Seek the light more diligently, mortal!"
+
+@The_monster@ says @to_foe@, "Thou art not yet worthy, servant of @player_god@."
+
+@The_monster@ says @to_foe@, "I sense wickedness within thee, mortal!"
+%%%%
 #############################################################
-# evil monsters may also have some choicy things to say...
+# evil monsters may also have some choice things to say...
 #############################################################
 good god '&'
 
@@ -3121,7 +3145,7 @@ _hostile_orc_beogh_believer_speech_common_
 
 @The_monster@ @shouts@ @at_foe@, "Die, @orc_heathen@!"
 
-@The_monster@ @shouts@, "Die, @player_name@, for besmirching Beogh's name!"
+@The_monster@ @shouts@, "Die, @foe_name@, for besmirching Beogh's name!"
 
 VISUAL:@The_monster@ grimaces.
 %%%%
@@ -3137,7 +3161,7 @@ _hostile_orc_beogh_believer_speech_rare_
 
 @The_monster@ laughs @at_foe@, "You, our saviour!?"
 
-@The_monster@ @shouts@ @at_foe@, "Orcs!  @foe_name@ is lying!"
+@The_monster@ @shouts@ @at_foe@, "Orcs! @foe_name@ is lying!"
 
 @The_monster@ @orc_says_to_foe@, "For a messiah, you look rather @orc_pathetic@."
 
@@ -3286,7 +3310,7 @@ w:4
 @related beogh orc@
 %%%%
 ###############################
-# orc conversion speech 
+# orc conversion speech
 ###############################
 # on sight
 beogh_converted_orc_reaction_sight

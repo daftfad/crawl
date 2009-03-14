@@ -28,6 +28,7 @@ REVISION("$Rev$");
 #include "message.h"
 #include "misc.h"
 #include "mon-util.h"
+#include "monstuff.h"
 #include "notes.h"
 #include "overmap.h"
 #include "place.h"
@@ -120,9 +121,9 @@ void describe_stash(int x, int y)
         Stash *s = ls->find_stash(x, y);
         if (s)
         {
-            std::string desc = "[Stash: "
-                               + s->description() + "]";
-            mpr(desc.c_str(), MSGCH_EXAMINE_FILTER);
+            const std::string desc = s->description();
+            if (!desc.empty())
+                mprf(MSGCH_EXAMINE_FILTER, "[Stash: %s]", desc.c_str());
         }
     }
 }
@@ -141,7 +142,8 @@ std::vector<item_def> item_list_in_stash( coord_def pos )
     if (ls)
     {
         Stash *s = ls->find_stash(pos.x, pos.y);
-        ret = s->get_items();
+        if (s)
+            ret = s->get_items();
     }
 
     return ret;
@@ -300,6 +302,30 @@ bool Stash::is_boring_feature(dungeon_feature_type feat)
     }
 }
 
+static bool _grid_has_mimic_item(const coord_def& pos)
+{
+    const monsters *mon = monster_at(pos);
+    return (mon && mons_is_unknown_mimic(mon));
+}
+
+static bool _grid_has_perceived_item(const coord_def& pos)
+{
+    return (igrd(pos) != NON_ITEM || _grid_has_mimic_item(pos));
+}
+
+static bool _grid_has_perceived_multiple_items(const coord_def& pos)
+{
+    int count = 0;
+
+    if (_grid_has_mimic_item(pos))
+        ++count;
+
+    for (stack_iterator si(pos); si && count < 2; ++si)
+        ++count;
+
+    return (count > 1);
+}
+
 void Stash::update()
 {
     coord_def p(x,y);
@@ -312,7 +338,6 @@ void Stash::update()
     if (grid_is_trap(feat))
         trap = get_trap_type(p);
 
-    int objl = igrd[x][y];
     // If this is your position, you know what's on this square
     if (p == you.pos())
     {
@@ -320,12 +345,9 @@ void Stash::update()
         items.clear();
 
         // Now, grab all items on that square and fill our vector
-        while (objl != NON_ITEM)
-        {
-            if (!is_filtered(mitm[objl]))
-                add_item(mitm[objl]);
-            objl = mitm[objl].link;
-        }
+        for (stack_iterator si(p); si; ++si)
+            if (!is_filtered(*si))
+                add_item(*si);
 
         verified = true;
     }
@@ -333,19 +355,31 @@ void Stash::update()
     // what the player sees on the square is the first item in this vector.
     else
     {
-        if (objl == NON_ITEM)
+        if (!_grid_has_perceived_item(p))
         {
             items.clear();
             verified = true;
-            return ;
+            return;
         }
 
         // There's something on this square. Take a squint at it.
-        const item_def &item = mitm[objl];
+        const item_def *pitem;
+        item_def mimic_item;
+        if (_grid_has_mimic_item(p))
+        {
+            get_mimic_item(monster_at(p), mimic_item);
+            pitem = &mimic_item;
+        }
+        else
+        {
+            pitem = &mitm[igrd(p)];
+        }
+
+        const item_def& item = *pitem;
 
         tutorial_first_item(item);
 
-        if (item.link == NON_ITEM)
+        if (!_grid_has_perceived_multiple_items(p))
             items.clear();
 
         // We knew of nothing on this square, so we'll assume this is the
@@ -355,15 +389,18 @@ void Stash::update()
         {
             if (!is_filtered(item))
                 add_item(item);
-            verified = (item.link == NON_ITEM);
-            return ;
+            // Note that we could be lying here, since we can have
+            // a verified falsehood (if there's a mimic.)
+            verified = !_grid_has_perceived_multiple_items(p);
+            return;
         }
 
         // There's more than one item in this pile. As long as the top item is
         // not filtered, we can check to see if it matches what we think the
         // top item is.
 
-        if (is_filtered(item)) return;
+        if (is_filtered(item))
+            return;
 
         const item_def &first = items[0];
         // Compare these items
@@ -381,9 +418,7 @@ void Stash::update()
                     if (are_items_same(items[i], item))
                     {
                         // Found it. Swap it to the front of the vector.
-                        item_def temp   = items[i];
-                        items[i]        = items[0];
-                        items[0]        = temp;
+                        std::swap(items[i], items[0]);
 
                         // We don't set verified to true. If this stash was
                         // already unverified, it remains so.
@@ -521,8 +556,8 @@ bool Stash::show_menu(const std::string &prefix, bool can_travel) const
     StashMenu menu;
 
     MenuEntry *mtitle = new MenuEntry("Stash (" + prefix, MEL_TITLE);
-    menu.can_travel = can_travel;
-    mtitle->quantity = items.size();
+    menu.can_travel   = can_travel;
+    mtitle->quantity  = items.size();
     menu.set_title(mtitle);
     menu.load_items( InvMenu::xlat_itemvect(items), stash_menu_fixup);
 
@@ -1080,8 +1115,14 @@ level_id LevelStashes::where() const
 
 Stash *LevelStashes::find_stash(int x, int y)
 {
-    return const_cast<Stash *>(
-        const_cast<const LevelStashes *>(this)->find_stash(x, y) );
+    if (x == -1 || y == -1)
+    {
+        x = you.pos().x;
+        y = you.pos().y;
+    }
+    const int abspos = (GXM * y) + x;
+    stashes_t::iterator st = m_stashes.find(abspos);
+    return (st == m_stashes.end()? NULL : &st->second);
 }
 
 const Stash *LevelStashes::find_stash(int x, int y) const
@@ -1485,7 +1526,7 @@ void StashTracker::update_visible_stashes(
             const dungeon_feature_type grid = grd[cx][cy];
             if ((!lev || !lev->update_stash(cx, cy))
                 && mode == ST_AGGRESSIVE
-                && (igrd[cx][cy] != NON_ITEM
+                && (_grid_has_perceived_item(coord_def(cx,cy))
                     || !Stash::is_boring_feature(grid)))
             {
                 if (!lev)
@@ -1737,14 +1778,13 @@ public:
     StashSearchMenu(const char* sort_style_)
         : Menu(), can_travel(true),
           request_toggle_sort_method(false),
-          menu_action(ACT_TRAVEL),
+//          allow_toggle(true), menu_action(ACT_EXECUTE),
           sort_style(sort_style_)
     { }
 
 public:
     bool can_travel;
     bool request_toggle_sort_method;
-    enum action { ACT_TRAVEL, ACT_EXAMINE, ACT_NUM } menu_action;
     const char* sort_style;
 
 protected:
@@ -1765,8 +1805,8 @@ void StashSearchMenu::draw_title()
 
         char buf[200];
         snprintf(buf, 200,
-                 "<lightgrey>  [<w>a-z</w>: %s  <w>?</w>: change action  <w>/</w>: change sort]",
-                 menu_action == ACT_TRAVEL ? "travel" : "examine");
+                 "<lightgrey>  [<w>a-z</w>: %s  <w>?</w>/<w>!</w>: change action  <w>/</w>: change sort]",
+                 menu_action == ACT_EXECUTE ? "travel" : "examine");
 
         draw_title_suffix(formatted_string::parse_string(buf), false);
     }
@@ -1775,14 +1815,7 @@ void StashSearchMenu::draw_title()
 
 bool StashSearchMenu::process_key(int key)
 {
-    if (key == '?')
-    {
-        sel.clear();
-        menu_action = (action)((menu_action+1) % ACT_NUM);
-        update_title();
-        return (true);
-    }
-    else if (key == '/')
+    if (key == '/')
     {
         request_toggle_sort_method = true;
         return (false);
@@ -1804,6 +1837,8 @@ bool StashTracker::display_search_results(
     StashSearchMenu stashmenu(sort_style);
     stashmenu.set_tag("stash");
     stashmenu.can_travel = travelable;
+    stashmenu.allow_toggle = true;
+    stashmenu.menu_action = Menu::ACT_EXECUTE;
     std::string title = "match";
 
     MenuEntry *mtitle = new MenuEntry(title, MEL_TITLE);
@@ -1879,7 +1914,7 @@ bool StashTracker::display_search_results(
     }
 
     redraw_screen();
-    if (sel.size() == 1 && stashmenu.menu_action == StashSearchMenu::ACT_TRAVEL)
+    if (sel.size() == 1 && stashmenu.menu_action == Menu::ACT_EXECUTE)
     {
         const stash_search_result *res =
                 static_cast<stash_search_result *>(sel[0]->data);

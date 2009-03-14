@@ -82,6 +82,7 @@ void pray();
 void end_prayer();
 void handle_god_time(void);
 int god_colour(god_type god);
+bool player_can_join_god(god_type which_god);
 void god_pitch(god_type which_god);
 int piety_rank(int piety = -1);
 void offer_items();
@@ -100,8 +101,9 @@ bool zin_sustenance(bool actual = true);
 bool yred_injury_mirror(bool actual = true);
 bool beogh_water_walk();
 void good_god_holy_attitude_change(monsters *holy);
+void good_god_holy_fail_attitude_change(monsters *holy);
 void yred_make_enslaved_soul(monsters *mon, bool force_hostile = false,
-                             bool quiet = false, bool allow_fail = true);
+                             bool quiet = false, bool unlimited = false);
 void beogh_convert_orc(monsters *orc, bool emergency,
                        bool converted_by_follower = false);
 bool is_holy_item(const item_def& item);
@@ -120,13 +122,14 @@ bool is_spellbook_type(const item_def& item, bool book_or_rod,
 bool is_holy_spellbook(const item_def& item);
 bool is_evil_spellbook(const item_def& item);
 bool is_chaotic_spellbook(const item_def& item);
-bool god_dislikes_spellbook(const item_def& item);
+bool god_hates_spellbook(const item_def& item);
 bool is_holy_rod(const item_def& item);
 bool is_evil_rod(const item_def& item);
 bool is_chaotic_rod(const item_def& item);
-bool god_dislikes_rod(const item_def& item);
-bool good_god_dislikes_item_handling(const item_def &item);
-bool god_dislikes_item_handling(const item_def &item);
+bool god_hates_rod(const item_def& item);
+bool good_god_hates_item_handling(const item_def &item);
+bool god_hates_item_handling(const item_def &item);
+bool god_hates_spell_type(spell_type spell, god_type god = you.religion);
 
 // NOTE: As of now, these two functions only say if a god won't give a
 // spell/school when giving a gift.
@@ -159,5 +162,5 @@ bool god_likes_items(god_type god);
 void religion_turn_start();
 void religion_turn_end();
 
-int  get_tension(god_type god = you.religion);
+int get_tension(god_type god = you.religion);
 #endif

@@ -14,27 +14,17 @@
 
 struct dist;
 
-// last updated 24may2000 {dlb}
-/* ***********************************************************************
- * called from: spell
- * *********************************************************************** */
 bool brand_weapon(brand_type which_brand, int power);
-
-
-// last updated 24may2000 {dlb}
-/* ***********************************************************************
- * called from: spell
- * *********************************************************************** */
-bool burn_freeze(int pow, beam_type flavour, int targetmon);
+bool burn_freeze(int pow, beam_type flavour, monsters *monster);
 
 void corpse_rot();
 
 
 struct dist;
 bool vampiric_drain(int pow, const dist &vmove);
-int detect_creatures( int pow, bool telepathic = false );
-int detect_items( int pow );
-int detect_traps( int pow );
+int detect_creatures(int pow, bool telepathic = false);
+int detect_items(int pow);
+int detect_traps(int pow);
 void cast_refrigeration(int pow);
 void cast_toxic_radiance(void);
 void drain_life(int pow);
@@ -61,12 +51,8 @@ bool summon_berserker(int pow, god_type god = GOD_NO_GOD, int spell = 0,
 bool summon_holy_warrior(int pow, god_type god = GOD_NO_GOD, int spell = 0,
                          bool force_hostile = false, bool permanent = false,
                          bool quiet = false);
-bool summon_holy_being_type(monster_type mon, int pow,
-                            god_type god = GOD_NO_GOD, int spell = 0);
 bool cast_tukimas_dance(int pow, god_type god = GOD_NO_GOD,
                         bool force_hostile = false);
 bool cast_conjure_ball_lightning(int pow, god_type god = GOD_NO_GOD);
-void turn_undead(int pow);      // what should I use for pow?
-
 
 #endif

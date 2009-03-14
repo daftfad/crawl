@@ -11,6 +11,7 @@ REVISION("$Rev$");
 
 #include "it_use3.h"
 
+#include <algorithm>
 #include <cstdlib>
 #include <string.h>
 
@@ -61,20 +62,17 @@ static bool efreet_flask(void);
 
 void special_wielded()
 {
-    const int wpn = you.equip[EQ_WEAPON];
-    const int old_plus = you.inv[wpn].plus;
-    const int old_plus2 = you.inv[wpn].plus2;
-    const char old_colour = you.inv[wpn].colour;
-    bool makes_noise = false;
+    item_def&  weapon     = *you.weapon();
+    const int  old_plus   = weapon.plus;
+    const int  old_plus2  = weapon.plus2;
+    const char old_colour = weapon.colour;
 
     switch (you.special_wield)
     {
     case SPWLD_SING:
     case SPWLD_NOISE:
     {
-        makes_noise = (one_chance_in(20) && !silenced(you.pos()));
-
-        if (makes_noise)
+        if (!silenced(you.pos()) && one_chance_in(20))
         {
             std::string msg;
 
@@ -150,7 +148,7 @@ void special_wielded()
             // replace weapon references
             msg = replace_all(msg, "@The_weapon@", "The @weapon@");
             msg = replace_all(msg, "@the_weapon@", "the @weapon@");
-            msg = replace_all(msg, "@weapon@", you.inv[wpn].name(DESC_BASENAME));
+            msg = replace_all(msg, "@weapon@", weapon.name(DESC_BASENAME));
             // replace references to player name and god
             msg = replace_all(msg, "@player_name@", you.your_name);
             msg = replace_all(msg, "@player_god@",
@@ -159,7 +157,8 @@ void special_wielded()
 
             mpr(msg.c_str(), channel);
 
-        } // makes_noise
+            noisy(25, you.pos());
+        }
         break;
     }
 
@@ -169,25 +168,25 @@ void special_wielded()
         break;
 
     case SPWLD_VARIABLE:
-        do_uncurse_item( you.inv[wpn] );
+        do_uncurse_item(weapon);
 
-        if (x_chance_in_y(2, 5))     // 40% chance {dlb}
-            you.inv[wpn].plus  += (coinflip() ? +1 : -1);
+        if (x_chance_in_y(2, 5))
+            weapon.plus  += (coinflip() ? +1 : -1);
 
-        if (x_chance_in_y(2, 5))     // 40% chance {dlb}
-            you.inv[wpn].plus2 += (coinflip() ? +1 : -1);
+        if (x_chance_in_y(2, 5))
+            weapon.plus2 += (coinflip() ? +1 : -1);
 
-        if (you.inv[wpn].plus < -4)
-            you.inv[wpn].plus = -4;
-        else if (you.inv[wpn].plus > 16)
-            you.inv[wpn].plus = 16;
+        if (weapon.plus < -4)
+            weapon.plus = -4;
+        else if (weapon.plus > 16)
+            weapon.plus = 16;
 
-        if (you.inv[wpn].plus2 < -4)
-            you.inv[wpn].plus2 = -4;
-        else if (you.inv[wpn].plus2 > 16)
-            you.inv[wpn].plus2 = 16;
+        if (weapon.plus2 < -4)
+            weapon.plus2 = -4;
+        else if (weapon.plus2 > 16)
+            weapon.plus2 = 16;
 
-        you.inv[wpn].colour = random_colour();
+        weapon.colour = random_colour();
         break;
 
     case SPWLD_TORMENT:
@@ -207,28 +206,27 @@ void special_wielded()
         break;
 
     case SPWLD_POWER:
-        you.inv[wpn].plus  = stepdown_value( -4 + (you.hp / 5), 4, 4, 4, 20 );
-        you.inv[wpn].plus2 = you.inv[wpn].plus;
+        weapon.plus  = stepdown_value( -4 + (you.hp / 5), 4, 4, 4, 20 );
+        weapon.plus2 = weapon.plus;
         break;
 
     case SPWLD_OLGREB:
         // Giving Olgreb's staff a little lift since staves of poison have
         // been made better. -- bwr
-        you.inv[wpn].plus  = you.skills[SK_POISON_MAGIC] / 3;
-        you.inv[wpn].plus2 = you.inv[wpn].plus;
+        weapon.plus  = you.skills[SK_POISON_MAGIC] / 3;
+        weapon.plus2 = weapon.plus;
         break;
 
     case SPWLD_WUCAD_MU:
-        you.inv[wpn].plus  = ((you.intel > 25) ? 22 : you.intel - 3);
-        you.inv[wpn].plus2 = ((you.intel > 25) ? 13 : you.intel / 2);
+        weapon.plus  = std::min(you.intel - 3, 22);
+        weapon.plus2 = std::min(you.intel / 2, 13);
         break;
 
     case SPWLD_SHADOW:
         if (x_chance_in_y(player_spec_death() + 1, 8))
         {
             create_monster(
-                mgen_data(MONS_SHADOW, BEH_FRIENDLY,
-                          2, 0, you.pos(), you.pet_target));
+                mgen_data(MONS_SHADOW, BEH_FRIENDLY, 2, 0, you.pos(), MHITYOU));
             did_god_conduct(DID_NECROMANCY, 1);
         }
         break;
@@ -238,16 +236,13 @@ void special_wielded()
         return;
     }
 
-    if (makes_noise)
-        noisy(25, you.pos());
-
-    if (old_plus != you.inv[wpn].plus
-        || old_plus2 != you.inv[wpn].plus2
-        || old_colour != you.inv[wpn].colour)
+    if (old_plus != weapon.plus
+        || old_plus2 != weapon.plus2
+        || old_colour != weapon.colour)
     {
         you.wield_change = true;
     }
-}                               // end special_wielded()
+}
 
 static bool _reaching_weapon_attack(const item_def& wpn)
 {
@@ -269,6 +264,7 @@ static bool _reaching_weapon_attack(const item_def& wpn)
     const coord_def delta = beam.target - you.pos();
     const int x_distance = abs(delta.x);
     const int y_distance = abs(delta.y);
+    monsters* mons = monster_at(beam.target);
 
     if (x_distance > 2 || y_distance > 2)
     {
@@ -280,12 +276,10 @@ static bool _reaching_weapon_attack(const item_def& wpn)
         mpr("There's a wall in the way.");
         return (false);
     }
-    else if (mgrd(beam.target) == NON_MONSTER)
+    else if (mons == NULL)
     {
         // Must return true, otherwise you get a free discovery
-        // of invisible monsters. Maybe we shouldn't do practice
-        // here to prevent scumming...but that would just encourage
-        // finding popcorn monsters.
+        // of invisible monsters.
         mpr("You attack empty space.");
         return (true);
     }
@@ -297,21 +291,24 @@ static bool _reaching_weapon_attack(const item_def& wpn)
     // If we're attacking more than a space away...
     if (x_distance > 1 || y_distance > 1)
     {
-        const int x_middle = MAX(beam.target.x, you.pos().x) - (x_distance / 2);
-        const int y_middle = MAX(beam.target.y, you.pos().y) - (y_distance / 2);
+        const int x_middle = std::max(beam.target.x, you.pos().x)
+            - (x_distance / 2);
+        const int y_middle = std::max(beam.target.y, you.pos().y)
+            - (y_distance / 2);
+        const coord_def middle(x_middle, y_middle);
 
         bool success = false;
         // If either the x or the y is the same, we should check for
         // a monster:
         if ((beam.target.x == you.pos().x || beam.target.y == you.pos().y)
-            && mgrd[x_middle][y_middle] != NON_MONSTER)
+            && monster_at(middle))
         {
             const int skill = weapon_skill( wpn.base_type, wpn.sub_type );
 
             if (x_chance_in_y(5 + (3 * skill), 40))
             {
                 mpr("You reach to attack!");
-                success = you_attack(mgrd(beam.target), false);
+                success = you_attack(mons->mindex(), false);
             }
             else
             {
@@ -322,22 +319,19 @@ static bool _reaching_weapon_attack(const item_def& wpn)
         else
         {
             mpr("You reach to attack!");
-            success = you_attack(mgrd(beam.target), false);
+            success = you_attack(mons->mindex(), false);
         }
 
         if (success)
         {
-            int mid = mgrd(beam.target);
-            if (mid != NON_MONSTER)
-            {
-                monsters *mon = &menv[mgrd(beam.target)];
-                if (mons_is_mimic( mon->type ))
-                    mimic_alert(mon);
-            }
+            // Monster might have died or gone away.
+            if (monsters* m = monster_at(beam.target))
+                if (mons_is_mimic(m->type))
+                    mimic_alert(m);
         }
     }
     else
-        you_attack(mgrd(beam.target), false);
+        you_attack(mons->mindex(), false);
 
     return (true);
 }
@@ -453,14 +447,14 @@ bool evoke_wielded()
         canned_msg( MSG_TOO_BERSERK );
         return (false);
     }
-    else if (wield == -1)
+    else if (!you.weapon())
     {
         mpr("You aren't wielding anything!");
         crawl_state.zero_turns_taken();
         return (false);
     }
 
-    item_def& wpn = you.inv[wield];
+    item_def& wpn = *you.weapon();
     bool unevokable = false;
 
     // Check inscriptions.
@@ -480,7 +474,7 @@ bool evoke_wielded()
             else
                 return (false);
         }
-        else if (is_fixed_artefact( wpn ))
+        else if (is_fixed_artefact(wpn))
         {
             switch (wpn.special)
             {
@@ -718,8 +712,7 @@ static bool efreet_flask(void)
             mgen_data(MONS_EFREET,
                       friendly ? BEH_FRIENDLY : BEH_HOSTILE,
                       0, 0, you.pos(),
-                      friendly ? you.pet_target : MHITYOU,
-                      MG_FORCE_BEH));
+                      MHITYOU, MG_FORCE_BEH));
 
     if (monster != -1)
     {
@@ -885,23 +878,8 @@ void tome_of_power(int slot)
             dec_inv_item_quantity( slot, 1 );
         }
 
-        bolt beam;
-        beam.type = dchar_glyph(DCHAR_FIRED_BURST);
-        beam.damage = dice_def( 3, 15 );
-        // unsure about this    // BEAM_EXPLOSION instead? [dlb]
-        beam.flavour = BEAM_FIRE;
-        beam.target = you.pos();
-        beam.name = "fiery explosion";
-        beam.colour = RED;
-        // your explosion, (not someone else's explosion)
-        beam.beam_source = NON_MONSTER;
-        beam.thrower = KILL_YOU;
-        beam.aux_source = "an exploding tome of Destruction";
-        beam.ex_size = 2;
-        beam.is_tracer = false;
-        beam.is_explosion = true;
+        immolation(15, IMMOLATION_TOME, you.pos(), false, &you);
 
-        beam.explode();
         xom_is_stimulated(255);
     }
     else if (one_chance_in(36))
@@ -1001,17 +979,13 @@ static bool box_of_beasts()
         while (player_will_anger_monster(beasty));
 
         beh_type beha = BEH_FRIENDLY;
-        unsigned short hitting = you.pet_target;
 
         if (one_chance_in(you.skills[SK_EVOCATIONS] + 5))
-        {
             beha = BEH_HOSTILE;
-            hitting = MHITYOU;
-        }
 
         if (create_monster(
                 mgen_data(beasty, beha, 2 + random2(4), 0,
-                          you.pos(), hitting)) != -1)
+                          you.pos(), MHITYOU)) != -1)
         {
             success = true;
 

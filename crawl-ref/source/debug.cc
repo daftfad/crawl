@@ -19,10 +19,7 @@ REVISION("$Rev$");
 #include <time.h>
 #include <ctype.h>
 #include <algorithm>
-
-#ifdef UNIX
 #include <errno.h>
-#endif
 
 #ifdef DOS
 #include <conio.h>
@@ -34,6 +31,7 @@ REVISION("$Rev$");
 #include "branch.h"
 #include "chardump.h"
 #include "cio.h"
+#include "crash.h"
 #include "decks.h"
 #include "delay.h"
 #include "describe.h"
@@ -44,24 +42,16 @@ REVISION("$Rev$");
 #include "files.h"
 #include "food.h"
 #include "ghost.h"
-
-#ifdef DEBUG_DIAGNOSTICS
 #include "initfile.h"
-#endif
-
 #include "invent.h"
 #include "it_use2.h"
 #include "itemname.h"
 #include "itemprop.h"
 #include "item_use.h"
 #include "items.h"
-
-#ifdef WIZARD
-#include "macro.h"
-#endif
-
 #include "makeitem.h"
 #include "mapdef.h"
+#include "mapmark.h"
 #include "maps.h"
 #include "message.h"
 #include "misc.h"
@@ -85,6 +75,7 @@ REVISION("$Rev$");
 #include "spl-cast.h"
 #include "spl-mis.h"
 #include "spl-util.h"
+#include "stash.h"
 #include "state.h"
 #include "stuff.h"
 #include "terrain.h"
@@ -94,9 +85,18 @@ REVISION("$Rev$");
 #include "version.h"
 #include "view.h"
 
+#ifdef WIZARD
+#include "macro.h"
+#include "shopping.h"
+#include "xom.h"
+#endif
+
+
 // ========================================================================
 //      Internal Functions
 // ========================================================================
+
+static void _dump_levgen();
 
 //---------------------------------------------------------------
 // BreakStrToDebugger
@@ -128,6 +128,8 @@ static void _BreakStrToDebugger(const char *mesg)
 //
 //---------------------------------------------------------------
 #if DEBUG
+static std::string _assert_msg;
+
 void AssertFailed(const char *expr, const char *file, int line)
 {
     char mesg[512];
@@ -139,6 +141,8 @@ void AssertFailed(const char *expr, const char *file, int line)
 
     sprintf(mesg, "ASSERT(%s) in '%s' at line %d failed.", expr, fileName,
             line);
+
+    _assert_msg = mesg;
 
     _BreakStrToDebugger(mesg);
 }
@@ -200,7 +204,7 @@ static int _debug_prompt_for_skill( const char *prompt )
     for (int i = 0; i < NUM_SKILLS; i++)
     {
         // Avoid the bad values.
-        if (i == SK_UNUSED_1 || (i > SK_UNARMED_COMBAT && i < SK_SPELLCASTING))
+        if (is_invalid_skill(i))
             continue;
 
         char sk_name[80];
@@ -706,20 +710,21 @@ bool _take_portal_vault_stairs( const bool down )
 
     coord_def stair_pos(-1, -1);
 
-    for (int x = 0; x < GXM; x++)
-        for (int y = 0; y < GYM; y++)
+    for (rectangle_iterator ri(1); ri; ++ri)
+    {
+        if (grid_stair_direction(grd(*ri)) == cmd)
         {
-             if (grid_stair_direction(grd[x][y]) == cmd)
-             {
-                stair_pos.set(x, y);
-                break;
-             }
+            stair_pos = *ri;
+            break;
         }
+    }
 
     if (!in_bounds(stair_pos))
         return (false);
 
+    clear_trapping_net();
     you.position = stair_pos;
+
     if (down)
         down_stairs(you.your_level);
     else
@@ -972,7 +977,7 @@ static void _rune_from_specs(const char* _specs, item_def &item)
             NUM_RUNE_TYPES
         };
 
-        item.plus = static_cast<int>(types[keyin - 'a']);
+        item.plus = types[keyin - 'a'];
 
         return;
     }
@@ -1108,9 +1113,8 @@ static void _deck_from_specs(const char* _specs, item_def &item)
         }
     }
 
-    int              base   = static_cast<int>(DECK_RARITY_COMMON);
-    deck_rarity_type rarity =
-        static_cast<deck_rarity_type>(base + rarity_val);
+    const deck_rarity_type rarity =
+        static_cast<deck_rarity_type>(DECK_RARITY_COMMON + rarity_val);
     item.special = rarity;
 
     int num = _debug_prompt_for_int("How many cards? ", false);
@@ -1171,11 +1175,11 @@ void wizard_create_spec_object()
     while (class_wanted == OBJ_UNASSIGNED)
     {
         mpr(") - weapons     ( - missiles  [ - armour  / - wands    ?  - scrolls",
-             MSGCH_PROMPT);
+            MSGCH_PROMPT);
         mpr("= - jewellery   ! - potions   : - books   | - staves   0  - The Orb",
-             MSGCH_PROMPT);
+            MSGCH_PROMPT);
         mpr("} - miscellany  X - corpses   % - food    $ - gold    ESC - exit",
-             MSGCH_PROMPT);
+            MSGCH_PROMPT);
 
         mpr("What class of item? ", MSGCH_PROMPT);
 
@@ -1322,8 +1326,13 @@ void wizard_create_spec_object()
         // orig_monnum is used in corpses for things like the Animate
         // Dead spell, so leave it alone.
         if (class_wanted != OBJ_CORPSES)
-            origin_acquired( mitm[thing_created], AQ_WIZMODE );
-        canned_msg( MSG_SOMETHING_APPEARS );
+            origin_acquired(mitm[thing_created], AQ_WIZMODE);
+        canned_msg(MSG_SOMETHING_APPEARS);
+
+        // Tell the stash tracker.
+        StashTrack.update_visible_stashes(
+            Options.stash_tracking == STM_ALL ? StashTracker::ST_AGGRESSIVE
+                                              : StashTracker::ST_PASSIVE);
     }
 }
 
@@ -1552,12 +1561,16 @@ bool get_item_by_name(item_def *item, char* specs,
                 item->plus2 = 3 + random2(15);
             }
             else
-                mpr( "Sorry, no books on that skill today." );
+                mpr("Sorry, no books on that skill today.");
         }
         else if (type_wanted == BOOK_RANDART_THEME)
-            make_book_theme_randart(*item);
+            make_book_theme_randart(*item, 0, 0, 5 + coinflip(), 20);
         else if (type_wanted == BOOK_RANDART_LEVEL)
-            make_book_level_randart(*item);
+        {
+            int level = random_range(1, 9);
+            int max_spells = 5 + level/3;
+            make_book_level_randart(*item, level, max_spells);
+        }
         break;
 
     case OBJ_WANDS:
@@ -1583,13 +1596,16 @@ bool get_item_by_name(item_def *item, char* specs,
         {
             const char* prompt;
             if (item->sub_type == POT_BLOOD)
+            {
                 prompt = "# turns away from coagulation? "
                          "[ENTER for fully fresh] ";
+            }
             else
+            {
                 prompt = "# turns away from rotting? "
                          "[ENTER for fully fresh] ";
-            int age =
-                _debug_prompt_for_int(prompt, false);
+            }
+            int age = _debug_prompt_for_int(prompt, false);
 
             if (age <= 0)
                 age = -1;
@@ -1811,11 +1827,15 @@ void wizard_tweak_object(void)
             mpr( you.inv[item].name(DESC_INVENTORY_EQUIP).c_str() );
 
             if (is_art)
+            {
                 mpr( "a - plus  b - plus2  c - art props  d - quantity  "
                      "e - flags  ESC - exit", MSGCH_PROMPT );
+            }
             else
+            {
                 mpr( "a - plus  b - plus2  c - special  d - quantity  "
                      "e - flags  ESC - exit", MSGCH_PROMPT );
+            }
 
             mpr( "Which field? ", MSGCH_PROMPT );
 
@@ -1866,7 +1886,8 @@ void wizard_tweak_object(void)
             return;
 
         char *end;
-        int   new_value = strtol( specs, &end, 0 );
+        const bool hex = (keyin == 'e');
+        int   new_value = strtol(specs, &end, hex ? 16 : 0);
 
         if (new_value == 0 && end == specs)
             return;
@@ -1899,12 +1920,85 @@ static bool _make_book_randart(item_def &book)
     {
         mpr("Make book fixed [t]heme or fixed [l]evel? ", MSGCH_PROMPT);
         type = tolower(getch());
-    } while (type != 't' && type != 'l');
+    }
+    while (type != 't' && type != 'l');
 
     if (type == 'l')
         return make_book_level_randart(book);
     else
         return make_book_theme_randart(book);
+}
+
+void wizard_value_randart()
+{
+    int i = prompt_invent_item( "Value of which randart?", MT_INVLIST, -1 );
+
+    if (!prompt_failed(i))
+    {
+        if (!is_random_artefact( you.inv[i] ))
+            mpr("That item is not an artefact!");
+        else
+            mprf("randart val: %d", randart_value(you.inv[i]));
+    }
+}
+
+void wizard_create_all_artefacts()
+{
+    // Create all unrandarts. Start at 1; the unrandart at 0 is a dummy.
+    for (int i = 1; i < NO_UNRANDARTS; i++)
+    {
+        int islot = get_item_slot();
+        if (islot == NON_ITEM)
+            break;
+
+        item_def& item = mitm[islot];
+        make_item_unrandart(item, i);
+        item.quantity = 1;
+        set_ident_flags(item, ISFLAG_IDENT_MASK);
+
+        msg::streams(MSGCH_DIAGNOSTICS) << "Made " << item.name(DESC_NOCAP_A)
+                                        << std::endl;
+        move_item_to_grid(&islot, you.pos());
+    }
+
+    // Create all fixed artefacts.
+    for (int i = SPWPN_START_FIXEDARTS; i < SPWPN_START_NOGEN_FIXEDARTS; i++)
+    {
+        int islot = get_item_slot();
+        if (islot == NON_ITEM)
+            break;
+
+        item_def& item = mitm[islot];
+        if (make_item_fixed_artefact(item, false, i))
+        {
+            item.quantity = 1;
+            item_colour(item);
+            set_ident_flags(item, ISFLAG_IDENT_MASK);
+            move_item_to_grid( &islot, you.pos() );
+
+            msg::streams(MSGCH_DIAGNOSTICS) << "Made "
+                                            << item.name(DESC_NOCAP_A)
+                                            << std::endl;
+        }
+    }
+
+    // Create Horn of Geryon
+    int islot = get_item_slot();
+    if (islot != NON_ITEM)
+    {
+        item_def& item = mitm[islot];
+        item.clear();
+        item.base_type = OBJ_MISCELLANY;
+        item.sub_type  = MISC_HORN_OF_GERYON;
+        item.quantity  = 1;
+        item_colour(item);
+
+        set_ident_flags(item, ISFLAG_IDENT_MASK);
+        move_item_to_grid(&islot, you.pos());
+
+        msg::streams(MSGCH_DIAGNOSTICS) << "Made " << item.name(DESC_NOCAP_A)
+                                        << std::endl;
+    }
 }
 
 void wizard_make_object_randart()
@@ -1923,31 +2017,19 @@ void wizard_make_object_randart()
         return;
     }
 
-    int j;
-    // Set j == equipment slot of chosen item, remove old randart benefits.
-    for (j = 0; j < NUM_EQUIP; j++)
-    {
-        if (you.equip[j] == i)
-        {
-            if (j == EQ_WEAPON)
-                you.wield_change = true;
-
-            if (is_random_artefact( item ))
-                unuse_randart( i );
-            break;
-        }
-    }
+    if (you.weapon() == &item)
+        you.wield_change = true;
 
     if (is_random_artefact(item))
     {
         if (!yesno("Is already a randart; wipe and re-use?"))
         {
-            canned_msg( MSG_OK );
-            // If equipped, re-apply benefits.
-            if (j != NUM_EQUIP)
-                use_randart( i );
+            canned_msg(MSG_OK);
             return;
         }
+
+        if (item_is_equipped(item))
+            unuse_randart(item);
 
         item.special = 0;
         item.flags  &= ~ISFLAG_RANDART;
@@ -1957,7 +2039,7 @@ void wizard_make_object_randart()
     mpr("Fake item as gift from which god (ENTER to leave alone): ",
         MSGCH_PROMPT);
     char name[80];
-    if (!cancelable_get_line( name, sizeof( name ) ) && name[0])
+    if (!cancelable_get_line(name, sizeof( name )) && name[0])
     {
         god_type god = string_to_god(name, false);
         if (god == GOD_NO_GOD)
@@ -1977,7 +2059,7 @@ void wizard_make_object_randart()
             return;
         }
     }
-    else if (!make_item_randart( item ))
+    else if (!make_item_randart(item))
     {
         mpr("Failed to turn item into randart.");
         return;
@@ -1990,10 +2072,443 @@ void wizard_make_object_randart()
     }
 
     // If equipped, apply new randart benefits.
-    if (j != NUM_EQUIP)
-        use_randart( i );
+    if (item_is_equipped(item))
+        use_randart(item);
 
-    mpr( item.name(DESC_INVENTORY_EQUIP).c_str() );
+    mpr(item.name(DESC_INVENTORY_EQUIP).c_str());
+}
+
+// Returns whether an item of this type can be cursed.
+static bool _item_type_can_be_cursed(int type)
+{
+    return (type == OBJ_WEAPONS || type == OBJ_ARMOUR || type == OBJ_JEWELLERY);
+}
+
+void wizard_uncurse_item()
+{
+    const int i = prompt_invent_item("(Un)curse which item?", MT_INVLIST, -1);
+
+    if (!prompt_failed(i))
+    {
+        item_def& item(you.inv[i]);
+
+        if (item_cursed(item))
+            do_uncurse_item(item);
+        else if (_item_type_can_be_cursed(item.base_type))
+            do_curse_item(item);
+        else
+            mpr("That type of item cannot be cursed.");
+    }
+}
+
+void wizard_heal(bool super_heal)
+{
+    if (super_heal)
+    {
+        // Clear more stuff and give a HP boost.
+        you.magic_contamination = 0;
+        you.duration[DUR_LIQUID_FLAMES] = 0;
+        if (you.duration[DUR_MESMERISED])
+        {
+            you.duration[DUR_MESMERISED] = 0;
+            you.mesmerised_by.clear();
+        }
+        // If we're repeating then do the HP increase all at once.
+        int amount = 10;
+        if (crawl_state.cmd_repeat_goal > 0)
+        {
+            amount *= crawl_state.cmd_repeat_goal;
+            crawl_state.cancel_cmd_repeat();
+        }
+
+        inc_hp(amount, true);
+    }
+
+    // Clear most status ailments.
+    you.rotting = 0;
+    you.disease = 0;
+    you.duration[DUR_CONF] = 0;
+    you.duration[DUR_POISONING] = 0;
+    set_hp(you.hp_max, false);
+    set_mp(you.max_magic_points, false);
+    set_hunger(10999, true);
+    you.redraw_hit_points = true;
+}
+
+void wizard_set_hunger_state()
+{
+    mpr( "Set hunger state to s(T)arving, (N)ear starving, "
+         "(H)ungry, (S)atiated, (F)ull or (E)ngorged?", MSGCH_PROMPT );
+    const int c = tolower(getch());
+
+    // Values taken from food.cc.
+    switch (c)
+    {
+    case 't': you.hunger = 500;   break;
+    case 'n': you.hunger = 1200;  break;
+    case 'h': you.hunger = 2400;  break;
+    case 's': you.hunger = 5000;  break;
+    case 'f': you.hunger = 8000;  break;
+    case 'e': you.hunger = 12000; break;
+    default:  canned_msg(MSG_OK); break;
+    }
+    food_change();
+    if (you.species == SP_GHOUL && you.hunger_state >= HS_SATIATED)
+        mpr("Ghouls can never be full or above!");
+}
+
+void wizard_spawn_control()
+{
+    mpr("(c)hange spawn rate or (s)pawn monsters? ", MSGCH_PROMPT);
+    const int c = tolower(getch());
+
+    char specs[256];
+    bool done = false;
+
+    if (c == 'c')
+    {
+        mprf(MSGCH_PROMPT, "Set monster spawn rate to what? (now %d) ",
+             env.spawn_random_rate);
+
+        if (!cancelable_get_line(specs, sizeof(specs)))
+        {
+            const int rate = atoi(specs);
+            if (rate)
+            {
+                env.spawn_random_rate = rate;
+                done = true;
+            }
+        }
+    }
+    else if (c == 's')
+    {
+        // 50 spots are reserved for non-wandering monsters.
+        int max_spawn = MAX_MONSTERS - 50;
+        for (int i = 0; i < MAX_MONSTERS; i++)
+            if (menv[i].alive())
+                max_spawn--;
+
+        if (max_spawn <= 0)
+        {
+            mpr("Level already filled with monsters, get rid of some "
+                "of them first.", MSGCH_PROMPT);
+            return;
+        }
+
+        mprf(MSGCH_PROMPT, "Spawn how many random monsters (max %d)? ",
+             max_spawn);
+
+        if (!cancelable_get_line(specs, sizeof(specs)))
+        {
+            const int num = std::min(atoi(specs), max_spawn);
+            if (num > 0)
+            {
+                int curr_rate = env.spawn_random_rate;
+                // Each call to spawn_random_monsters() will spawn one with
+                // the rate at 5 or less.
+                env.spawn_random_rate = 5;
+
+                for (int i = 0; i < num; i++)
+                    spawn_random_monsters();
+
+                env.spawn_random_rate = curr_rate;
+                done = true;
+            }
+        }
+    }
+
+    if (!done)
+        canned_msg(MSG_OK);
+}
+
+void wizard_create_portal()
+{
+    mpr("Destination for portal (defaults to 'bazaar')? ", MSGCH_PROMPT);
+    char specs[256];
+    if (cancelable_get_line(specs, sizeof(specs)))
+    {
+        canned_msg( MSG_OK );
+        return;
+    }
+
+    std::string dst = specs;
+    dst = trim_string(dst);
+    dst = replace_all(dst, " ", "_");
+
+    if (dst.empty())
+        dst = "bazaar";
+
+    if (!find_map_by_name(dst) && !random_map_for_tag(dst))
+    {
+        mprf("No map named '%s' or tagged '%s'.", dst.c_str(), dst.c_str());
+    }
+    else
+    {
+        map_wiz_props_marker *marker = new map_wiz_props_marker(you.pos());
+        marker->set_property("dst", dst);
+        marker->set_property("desc", "wizard portal, dest = " + dst);
+        env.markers.add(marker);
+        dungeon_terrain_changed(you.pos(), DNGN_ENTER_PORTAL_VAULT, false);
+    }
+}
+
+void wizard_identify_pack()
+{
+    mpr( "You feel a rush of knowledge." );
+    for (int i = 0; i < ENDOFPACK; i++)
+    {
+        item_def& item = you.inv[i];
+        if (is_valid_item(item))
+        {
+            set_ident_type(item, ID_KNOWN_TYPE);
+            set_ident_flags(item, ISFLAG_IDENT_MASK);
+        }
+    }
+    you.wield_change  = true;
+    you.redraw_quiver = true;
+}
+
+void wizard_unidentify_pack()
+{
+    mpr( "You feel a rush of antiknowledge." );
+    for (int i = 0; i < ENDOFPACK; i++)
+    {
+        item_def& item = you.inv[i];
+        if (is_valid_item(item))
+        {
+            set_ident_type(item, ID_UNKNOWN_TYPE);
+            unset_ident_flags(item, ISFLAG_IDENT_MASK);
+        }
+    }
+    you.wield_change  = true;
+    you.redraw_quiver = true;
+
+    // Forget things that nearby monsters are carrying, as well.
+    // (For use with the "give monster an item" wizard targetting
+    // command.)
+    for (int i = 0; i < MAX_MONSTERS; i++)
+    {
+        monsters* mon = &menv[i];
+
+        if (mon->alive() && mons_near(mon))
+        {
+            for (int j = 0; j < NUM_MONSTER_SLOTS; j++)
+            {
+                if (mon->inv[j] == NON_ITEM)
+                    continue;
+
+                item_def &item = mitm[mon->inv[j]];
+
+                if (!is_valid_item(item))
+                    continue;
+
+                set_ident_type(item, ID_UNKNOWN_TYPE);
+                unset_ident_flags(item, ISFLAG_IDENT_MASK);
+            }
+        }
+    }
+}
+
+void wizard_create_feature_number()
+{
+    char specs[256];
+    int feat_num;
+    mpr("Create which feature (by number)? ", MSGCH_PROMPT);
+
+    if (!cancelable_get_line(specs, sizeof(specs))
+        && (feat_num = atoi(specs)))
+    {
+        dungeon_feature_type feat = static_cast<dungeon_feature_type>(feat_num);
+        dungeon_terrain_changed(you.pos(), feat, false);
+#ifdef USE_TILE
+        env.tile_flv(you.pos()).special = 0;
+#endif
+    }
+    else
+        canned_msg(MSG_OK);
+}
+
+void wizard_create_feature_name()
+{
+    char specs[256];
+    mpr("Create which feature (by name)? ", MSGCH_PROMPT);
+    if (!cancelable_get_line(specs, sizeof(specs)) && specs[0] != 0)
+    {
+        // Accept both "shallow_water" and "Shallow water"
+        std::string name = lowercase_string(specs);
+        name = replace_all(name, " ", "_");
+
+        dungeon_feature_type feat = dungeon_feature_by_name(name);
+        if (feat == DNGN_UNSEEN) // no exact match
+        {
+            std::vector<std::string> matches = dungeon_feature_matches(name);
+
+            if (matches.empty())
+            {
+                mprf(MSGCH_DIAGNOSTICS, "No features matching '%s'",
+                     name.c_str());
+                return;
+            }
+
+            // Only one possible match, use that.
+            if (matches.size() == 1)
+            {
+                name = matches[0];
+                feat = dungeon_feature_by_name(name);
+            }
+            // Multiple matches, list them to wizard
+            else
+            {
+                std::string prefix = "No exact match for feature '" +
+                    name +  "', possible matches are: ";
+
+                // Use mpr_comma_separated_list() because the list
+                // might be *LONG*.
+                mpr_comma_separated_list(prefix, matches, " and ", ", ",
+                                         MSGCH_DIAGNOSTICS);
+                return;
+            }
+        }
+
+        mprf(MSGCH_DIAGNOSTICS, "Setting (%d,%d) to %s (%d)",
+             you.pos().x, you.pos().y, name.c_str(), feat);
+        dungeon_terrain_changed(you.pos(), feat, false);
+#ifdef USE_TILE
+        env.tile_flv(you.pos()).special = 0;
+#endif
+    }
+    else
+        canned_msg(MSG_OK);
+}
+
+void wizard_list_branches()
+{
+    for (int i = 0; i < NUM_BRANCHES; i++)
+    {
+        if (branches[i].startdepth != - 1)
+        {
+            mprf(MSGCH_DIAGNOSTICS, "Branch %d (%s) is on level %d of %s",
+                 i, branches[i].longname, branches[i].startdepth,
+                 branches[branches[i].parent_branch].abbrevname);
+        }
+        else if (i == BRANCH_SWAMP || i == BRANCH_SHOALS)
+        {
+            mprf(MSGCH_DIAGNOSTICS, "Branch %d (%s) was not generated "
+                 "this game", i, branches[i].longname);
+        }
+    }
+}
+
+void wizard_map_level()
+{
+    if (testbits(env.level_flags, LFLAG_NOT_MAPPABLE)
+        || testbits(get_branch_flags(), BFLAG_NOT_MAPPABLE))
+    {
+        if (!yesno("Force level to be mappable?", true, 'n'))
+        {
+            canned_msg( MSG_OK );
+            return;
+        }
+
+        unset_level_flags(LFLAG_NOT_MAPPABLE | LFLAG_NO_MAGIC_MAP);
+        unset_branch_flags(BFLAG_NOT_MAPPABLE | BFLAG_NO_MAGIC_MAP);
+    }
+
+    magic_mapping(1000, 100, true, true);
+}
+
+void wizard_gain_piety()
+{
+    if (you.religion == GOD_NO_GOD)
+    {
+        mpr("You are not religious!");
+        return;
+    }
+    else if (you.religion == GOD_XOM) // increase amusement instead
+    {
+        xom_is_stimulated(50, XM_NORMAL, true);
+        return;
+    }
+
+    const int old_piety   = you.piety;
+    const int old_penance = you.penance[you.religion];
+    if (old_piety >= MAX_PIETY && !old_penance)
+    {
+        mprf("Your piety (%d) is already %s maximum.",
+             old_piety, old_piety == MAX_PIETY ? "at" : "above");
+    }
+
+    // Even at maximum, you can still gain gifts.
+    // Try at least once for maximum, or repeat until something
+    // happens. Rarely, this might result in several gifts during the
+    // same round!
+    do
+    {
+        gain_piety(50);
+    }
+    while (old_piety < MAX_PIETY && old_piety == you.piety
+           && old_penance == you.penance[you.religion]);
+
+    if (old_penance)
+    {
+        mprf("Congratulations, your penance was decreased from %d to %d!",
+             old_penance, you.penance[you.religion]);
+    }
+    else if (you.piety > old_piety)
+    {
+        mprf("Congratulations, your piety went from %d to %d!",
+             old_piety, you.piety);
+    }
+}
+
+void wizard_list_items()
+{
+    bool has_shops = false;
+
+    for (int i = 0; i < MAX_SHOPS; i++)
+        if (env.shop[i].type != SHOP_UNASSIGNED)
+        {
+            has_shops = true;
+            break;
+        }
+
+    if (has_shops)
+    {
+        mpr("Shop items:");
+
+        for (int i = 0; i < MAX_SHOPS; i++)
+            if (env.shop[i].type != SHOP_UNASSIGNED)
+                for (stack_iterator si(coord_def(0, i+5)); si; ++si)
+                    mpr(si->name(DESC_PLAIN, false, false, false).c_str());
+
+        mpr(EOL);
+    }
+
+    mpr("Item stacks (by location and top item):");
+    for (int i = 0; i < MAX_ITEMS; i++)
+    {
+        item_def &item(mitm[i]);
+        if (!is_valid_item(item) || held_by_monster(item))
+            continue;
+
+        if (item.link != NON_ITEM)
+            mprf("(%2d,%2d): %s", item.pos.x, item.pos.y,
+                 item.name(DESC_PLAIN, false, false, false).c_str() );
+    }
+
+    mpr(EOL);
+    mpr("Floor items (stacks only show top item):");
+
+    for (int i = 1; i < GXM; i++)
+        for (int j = 1; j < GYM; j++)
+        {
+            int item = igrd[i][j];
+            if (item != NON_ITEM)
+            {
+                mprf("%3d at (%2d,%2d): %s", item, i, j,
+                     mitm[item].name(DESC_PLAIN, false, false, false).c_str());
+            }
+        }
 }
 #endif
 
@@ -2162,6 +2677,19 @@ void debug_item_scan( void )
             // and for items which have bad coordinates (can't find their stack)
             for (int obj = igrd[x][y]; obj != NON_ITEM; obj = mitm[obj].link)
             {
+                if (obj < 0 || obj > MAX_ITEMS)
+                {
+                    if (igrd[x][y] == obj)
+                        mprf(MSGCH_ERROR, "Igrd has invalid item index %d "
+                                          "at (%d, %d)",
+                             obj, x, y);
+                    else
+                        mprf(MSGCH_ERROR, "Item in stack at (%d, %d) has ",
+                                          "invalid link %d",
+                             x, y, obj);
+                    break;
+                }
+
                 // Check for invalid (zero quantity) items that are linked in.
                 if (!is_valid_item( mitm[obj] ))
                 {
@@ -2218,8 +2746,12 @@ void debug_item_scan( void )
             mpr( "Unlinked item:", MSGCH_ERROR );
             _dump_item( name, i, mitm[i] );
 
-            mprf("igrd(%d,%d) = %d",
-                 mitm[i].pos.x, mitm[i].pos.y, igrd( mitm[i].pos ));
+            if (!in_bounds(mitm[i].pos))
+                mprf(MSGCH_ERROR, "Item position (%d, %d) is out of bounds",
+                     mitm[i].pos.x, mitm[i].pos.y);
+            else
+                mprf("igrd(%d,%d) = %d",
+                     mitm[i].pos.x, mitm[i].pos.y, igrd( mitm[i].pos ));
 
             // Let's check to see if it's an errant monster object:
             for (int j = 0; j < MAX_MONSTERS; j++)
@@ -2311,36 +2843,7 @@ static void _announce_level_prob(bool warned)
         mpr("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!", MSGCH_ERROR);
         mpr("mgrd problem occurred during level generation", MSGCH_ERROR);
 
-        extern std::string dgn_Build_Method;
-
-        mprf("dgn_Build_Method = %s", dgn_Build_Method.c_str());
-        mprf("dgn_Layout_Type  = %s", dgn_Layout_Type.c_str());
-
-        extern bool river_level, lake_level, many_pools_level;
-
-        if (river_level)
-            mpr("river level");
-        if (lake_level)
-            mpr("lake level");
-        if (many_pools_level)
-            mpr("many pools level");
-
-        std::vector<std::string> vault_names;
-
-        for (unsigned int i = 0; i < Level_Vaults.size(); i++)
-            vault_names.push_back(Level_Vaults[i].map.name);
-
-        if (Level_Vaults.size() > 0)
-            mpr_comma_separated_list("Level_Vaults: ", vault_names,
-                                     " and ", ", ", MSGCH_WARN);
-        vault_names.clear();
-
-        for (unsigned int i = 0; i < Temp_Vaults.size(); i++)
-            vault_names.push_back(Temp_Vaults[i].map.name);
-
-        if (Temp_Vaults.size() > 0)
-            mpr_comma_separated_list("Temp_Vaults: ", vault_names,
-                                     " and ", ", ", MSGCH_WARN);
+        _dump_levgen();
     }
 }
 
@@ -2386,6 +2889,14 @@ void debug_mons_scan()
             if (mons == NON_MONSTER)
                 continue;
 
+            if (invalid_monster_index(mons))
+            {
+                mprf(MSGCH_ERROR, "mgrd at (%d, %d) has invalid monster "
+                                  "index %d",
+                     x, y, mons);
+                continue;
+            }
+
             const monsters *m = &menv[mons];
             const coord_def pos(x, y);
             if (m->pos() != pos)
@@ -2424,15 +2935,22 @@ void debug_mons_scan()
         if (!m->alive())
             continue;
 
-        if (mgrd(m->pos()) != i)
+        coord_def pos = m->pos();
+
+        if (!in_bounds(pos))
+            mprf(MSGCH_ERROR, "Out of bounds monster: %s at (%d, %d), "
+                              "midx = %d",
+                 m->full_name(DESC_PLAIN, true).c_str(),
+                 pos.x, pos.y, i);
+        else if (mgrd(pos) != i)
         {
             floating_mons.push_back(i);
             is_floating[i] = true;
 
             _announce_level_prob(warned);
-            mprf(MSGCH_WARN, "Floating monster: %s at (%d,%d)",
+            mprf(MSGCH_WARN, "Floating monster: %s at (%d,%d), midx = %d",
                  m->full_name(DESC_PLAIN, true).c_str(),
-                 m->pos().x, m->pos().y);
+                 pos.x, pos.y, i);
             warned = true;
             for (int j = 0; j < MAX_MONSTERS; ++j)
             {
@@ -2444,17 +2962,17 @@ void debug_mons_scan()
                 if (m2->pos() != m->pos())
                     continue;
 
+                std::string full = m2->full_name(DESC_PLAIN, true);
                 if (m2->alive())
                 {
-                    mprf(MSGCH_WARN, "Also at (%d, %d): %s",
-                         m->pos().x, m->pos().y,
-                         m2->full_name(DESC_PLAIN, true).c_str());
+                    mprf(MSGCH_WARN, "Also at (%d, %d): %s, midx = %d",
+                         pos.x, pos.y, full.c_str(), j);
                 }
                 else if (m2->type != -1)
                 {
-                    mprf(MSGCH_WARN, "Dead mon also at (%d, %d): %s",
-                         m->pos().x, m->pos().y,
-                         m2->full_name(DESC_PLAIN, true).c_str());
+                    mprf(MSGCH_WARN, "Dead mon also at (%d, %d): %s,"
+                                     "midx = %d",
+                         pos.x, pos.y, full.c_str(), j);
                 }
             }
         } // if (mgrd(m->pos()) != i)
@@ -2465,6 +2983,14 @@ void debug_mons_scan()
             if (idx == NON_ITEM)
                 continue;
 
+            if (idx < 0 || idx > MAX_ITEMS)
+            {
+                mprf(MSGCH_ERROR, "Monster %s (%d, %d) has invalid item "
+                                  "index %d in slot %d.",
+                     m->full_name(DESC_PLAIN, true).c_str(),
+                     pos.x, pos.y, idx, j);
+                continue;
+            }
             item_def &item(mitm[idx]);
 
             if (!is_valid_item(item))
@@ -2472,9 +2998,9 @@ void debug_mons_scan()
                 _announce_level_prob(warned);
                 warned = true;
                 mprf(MSGCH_WARN, "Monster %s (%d, %d) holding invalid item in "
-                                 "slot %d.",
+                                 "slot %d (midx = %d)",
                      m->full_name(DESC_PLAIN, true).c_str(),
-                     m->pos().x, m->pos().y, j);
+                     pos.x, pos.y, j, i);
                 continue;
             }
 
@@ -2485,9 +3011,9 @@ void debug_mons_scan()
                 _announce_level_prob(warned);
                 warned = true;
                 mprf(MSGCH_WARN, "Monster %s (%d, %d) holding non-monster "
-                                 "item.",
+                                 "item (midx = %d)",
                      m->full_name(DESC_PLAIN, true).c_str(),
-                     m->pos().x, m->pos().y);
+                     pos.x, pos.y, i);
                 _dump_item( item.name(DESC_PLAIN, false, true).c_str(),
                             idx, item );
                 continue;
@@ -2497,13 +3023,13 @@ void debug_mons_scan()
             {
                 _announce_level_prob(warned);
                 warned = true;
-                mprf(MSGCH_WARN, "Monster %s (%d, %d) holding item %s, but "
-                                 "item thinks it's held by monster %s "
-                                 "(%d, %d)",
+                mprf(MSGCH_WARN, "Monster %s (%d, %d) [midx = %d] holding "
+                                 "item %s, but item thinks it's held by "
+                                 "monster %s (%d, %d) [midx = %d]",
                      m->full_name(DESC_PLAIN, true).c_str(),
-                     m->pos().x, m->pos().y,
+                     m->pos().x, m->pos().y, i,
                      holder->full_name(DESC_PLAIN, true).c_str(),
-                     holder->pos().x, holder->pos().y);
+                     holder->pos().x, holder->pos().y, holder->mindex());
 
                 bool found = false;
                 for (int k = 0; k < NUM_MONSTER_SLOTS; k++)
@@ -3073,9 +3599,7 @@ void debug_item_statistics( void )
 
     if (!ostat)
     {
-#ifndef DOS
         mprf(MSGCH_ERROR, "Can't write items.stat: %s", strerror(errno));
-#endif
         return;
     }
 
@@ -3200,11 +3724,8 @@ void wizard_set_all_skills(void)
 
         for (i = SK_FIGHTING; i < NUM_SKILLS; i++)
         {
-            if (i == SK_UNUSED_1
-                || (i > SK_UNARMED_COMBAT && i < SK_SPELLCASTING))
-            {
+            if (is_invalid_skill(i))
                 continue;
-            }
 
             const int points = (skill_exp_needed( amount )
                                 * species_skills( i, you.species )) / 100;
@@ -3226,126 +3747,13 @@ void wizard_set_all_skills(void)
 }
 #endif
 
-
-//---------------------------------------------------------------
-//
-// debug_add_mutation
-//
-//---------------------------------------------------------------
 #ifdef WIZARD
+extern mutation_def mutation_defs[];
 
-static const char *mutation_type_names[] =
-{
-    "tough skin",
-    "strong",
-    "clever",
-    "agile",
-    "green scales",
-    "black scales",
-    "grey scales",
-    "boney plates",
-    "repulsion field",
-    "poison resistance",
-    "carnivorous",
-    "herbivorous",
-    "heat resistance",
-    "cold resistance",
-    "shock resistance",
-    "regeneration",
-    "fast metabolism",
-    "slow metabolism",
-    "weak",
-    "dopey",
-    "clumsy",
-    "teleport control",
-    "teleport",
-    "magic resistance",
-    "fast",
-    "acute vision",
-    "deformed",
-    "teleport at will",
-    "spit poison",
-    "mapping",
-    "breathe flames",
-    "blink",
-    "horns",
-    "beak",
-    "strong stiff",
-    "flexible weak",
-    "scream",
-    "clarity",
-    "berserk",
-    "deterioration",
-    "blurry vision",
-    "mutation resistance",
-    "frail",
-    "robust",
-    "torment resistance",
-    "negative energy resistance",
-    "summon minor demons",
-    "summon demons",
-    "hurl hellfire",
-    "call torment",
-    "raise dead",
-    "control demons",
-    "pandemonium",
-    "death strength",
-    "channel hell",
-    "drain life",
-    "throw flames",
-    "throw frost",
-    "smite",
-    "claws",
-    "fangs",
-    "hooves",
-    "talons",
-    "breathe poison",
-    "stinger",
-    "big wings",
-    "blue marks",
-    "green marks",
-    "saprovorous",
-    "shaggy fur",
-    "high mp",
-    "low mp",
-    "",
-    "",
-    "",
-
-    // from here on scales
-    "red scales",
-    "nacreous scales",
-    "grey2 scales",
-    "metallic scales",
-    "black2 scales",
-    "white scales",
-    "yellow scales",
-    "brown scales",
-    "blue scales",
-    "purple scales",
-    "speckled scales",
-    "orange scales",
-    "indigo scales",
-    "red2 scales",
-    "iridescent scales",
-    "patterned scales"
-};
-
-bool wizard_add_mutation(void)
+bool wizard_add_mutation()
 {
     bool success = false;
     char specs[80];
-
-    if ((sizeof(mutation_type_names) / sizeof(char*)) != NUM_MUTATIONS)
-    {
-        mprf("Mutation name list has %d entries, but there are %d "
-             "mutations total; update mutation_type_names in debug.cc "
-             "to reflect current list.",
-             (sizeof(mutation_type_names) / sizeof(char*)),
-             (int) NUM_MUTATIONS);
-        crawl_state.cancel_cmd_repeat();
-        return (false);
-    }
 
     if (player_mutation_level(MUT_MUTATION_RESISTANCE) > 0
         && !crawl_state.is_replaying_keys())
@@ -3375,23 +3783,24 @@ bool wizard_add_mutation(void)
 
     bool god_gift = yesno("Treat mutation as god gift?", true, 'n');
 
-    // Yeah, the gaining message isn't too good for this... but
-    // there isn't an array of simple mutation names. -- bwr
     mpr("Which mutation (name, 'good', 'bad', 'any', 'xom')? ", MSGCH_PROMPT);
     get_input_line( specs, sizeof( specs ) );
 
     if (specs[0] == '\0')
         return (false);
 
+    strlwr(specs);
+
     mutation_type mutat = NUM_MUTATIONS;
 
-    if (strcasecmp(specs, "good") == 0)
+
+    if (strcmp(specs, "good") == 0)
         mutat = RANDOM_GOOD_MUTATION;
-    else if (strcasecmp(specs, "bad") == 0)
+    else if (strcmp(specs, "bad") == 0)
         mutat = RANDOM_BAD_MUTATION;
-    else if (strcasecmp(specs, "any") == 0)
+    else if (strcmp(specs, "any") == 0)
         mutat = RANDOM_MUTATION;
-    else if (strcasecmp(specs, "xom") == 0)
+    else if (strcmp(specs, "xom") == 0)
         mutat = RANDOM_XOM_MUTATION;
 
     if (mutat != NUM_MUTATIONS)
@@ -3409,26 +3818,28 @@ bool wizard_add_mutation(void)
         return (success);
     }
 
-    std::vector<int> partial_matches;
+    std::vector<mutation_type> partial_matches;
 
-    for (int i = 0; i < NUM_MUTATIONS; i++)
+    for (unsigned i = 0; true; ++i)
     {
-        if (strcasecmp(specs, mutation_type_names[i]) == 0)
+        if (strcmp(specs, mutation_defs[i].wizname) == 0)
         {
-            mutat = (mutation_type) i;
+            mutat = mutation_defs[i].mutation;
             break;
         }
 
-        if (strstr(mutation_type_names[i], strlwr(specs)))
-            partial_matches.push_back(i);
+        if (strstr(mutation_defs[i].wizname, specs))
+            partial_matches.push_back(mutation_defs[i].mutation);
+
+        // FIXME: hack, but I don't want to export the size
+        // of the array...this is even worse.
+        if (mutation_defs[i].mutation + 1 == NUM_MUTATIONS)
+            break;
     }
 
     // If only one matching mutation, use that.
-    if (mutat == NUM_MUTATIONS)
-    {
-        if (partial_matches.size() == 1)
-            mutat = (mutation_type) partial_matches[0];
-    }
+    if (mutat == NUM_MUTATIONS && partial_matches.size() == 1)
+        mutat = partial_matches[0];
 
     if (mutat == NUM_MUTATIONS)
     {
@@ -3440,11 +3851,9 @@ bool wizard_add_mutation(void)
         {
             std::vector<std::string> matches;
 
-            for (unsigned int i = 0, size = partial_matches.size();
-                 i < size; i++)
-            {
-                matches.push_back(mutation_type_names[partial_matches[i]]);
-            }
+            for (unsigned int i = 0; i < partial_matches.size(); ++i)
+                matches.push_back(get_mutation_def(partial_matches[i]).wizname);
+
             std::string prefix = "No exact match for mutation '" +
                 std::string(specs) +  "', possible matches are: ";
 
@@ -3459,7 +3868,8 @@ bool wizard_add_mutation(void)
     else
     {
         mprf("Found #%d: %s (\"%s\")", (int) mutat,
-             mutation_type_names[mutat], mutation_name(mutat, 1));
+             get_mutation_def(mutat).wizname,
+             mutation_name(mutat, 1, false).c_str());
 
         const int levels =
             _debug_prompt_for_int("How many levels to increase or decrease? ",
@@ -3467,7 +3877,7 @@ bool wizard_add_mutation(void)
 
         if (levels == 0)
         {
-            canned_msg( MSG_OK );
+            canned_msg(MSG_OK);
             success = false;
         }
         else if (levels > 0)
@@ -3491,7 +3901,6 @@ bool wizard_add_mutation(void)
     return (success);
 }
 #endif
-
 
 #ifdef WIZARD
 void wizard_get_religion(void)
@@ -3680,7 +4089,7 @@ static bool _fsim_mon_melee(FILE *out, int dodge, int armour, int mi)
     for (long i = 0; i < Options.fsim_rounds; ++i)
     {
         you.hp = you.hp_max = 5000;
-        monster_attack(mi);
+        monster_attack(&menv[mi]);
         const int damage = you.hp_max - you.hp;
         if (damage)
             hits++;
@@ -3960,12 +4369,7 @@ static bool debug_fight_sim(int mindex, int missile_slot,
     FILE *ostat = fopen("fight.stat", "a");
     if (!ostat)
     {
-        // I'm not sure what header provides errno on djgpp,
-        // and it's insufficiently important for a wizmode-only
-        // feature.
-#ifndef DOS
         mprf(MSGCH_ERROR, "Can't write fight.stat: %s", strerror(errno));
-#endif
         return (false);
     }
 
@@ -4134,20 +4538,21 @@ void debug_make_trap()
         return;
 
     strlwr(requested_trap);
-    std::vector<int>         matches;
+    std::vector<trap_type>   matches;
     std::vector<std::string> match_names;
     for (int t = TRAP_DART; t < NUM_TRAPS; ++t)
     {
-        if (strstr(requested_trap,
-                   trap_name(trap_type(t))))
+        const trap_type tr = static_cast<trap_type>(t);
+        const char* tname = trap_name(tr);
+        if (strstr(requested_trap, tname))
         {
-            trap = trap_type(t);
+            trap = tr;
             break;
         }
-        else if (strstr(trap_name(trap_type(t)), requested_trap))
+        else if (strstr(tname, requested_trap))
         {
-            matches.push_back(t);
-            match_names.push_back(trap_name(trap_type(t)));
+            matches.push_back(tr);
+            match_names.push_back(tname);
         }
     }
 
@@ -4160,7 +4565,7 @@ void debug_make_trap()
         }
         // Only one match, use that
         else if (matches.size() == 1)
-            trap = trap_type(matches[0]);
+            trap = matches[0];
         else
         {
             std::string prefix = "No exact match for trap '";
@@ -4298,7 +4703,6 @@ static const char* dur_names[NUM_DURATIONS] =
     "silence",
     "condensation shield",
     "stoneskin",
-    "repel undead",
     "gourmand",
     "bargain",
     "insulation",
@@ -4664,7 +5068,7 @@ void wizard_dismiss_all_monsters(bool force_all)
     {
         monsters *monster = &menv[mon];
 
-        if (monster->alive() && tpat.matches(monster->name(DESC_PLAIN)))
+        if (monster->alive() && tpat.matches(monster->name(DESC_PLAIN, true)))
         {
             if (!keep_item)
                 _vanish_orig_eq(monster);
@@ -4864,9 +5268,9 @@ void wizard_give_monster_item(monsters *mon)
         }
 
     item_def     &item = you.inv[player_slot];
-    mon_inv_type mon_slot;
+    mon_inv_type mon_slot = NUM_MONSTER_SLOTS;
 
-    switch(item.base_type)
+    switch (item.base_type)
     {
     case OBJ_WEAPONS:
         // Let wizard specify which slot to put weapon into via
@@ -4969,6 +5373,13 @@ void wizard_give_monster_item(monsters *mon)
     case OBJ_MISCELLANY:
         mon_slot = MSLOT_MISCELLANY;
         break;
+    case OBJ_CORPSES:
+        if (!mons_eats_corpses(mon))
+        {
+            mpr("That type of monster doesn't eat corpses.");
+            return;
+        }
+        break;
     default:
         mpr("You can't give that type of item to a monster.");
         return;
@@ -4976,6 +5387,7 @@ void wizard_give_monster_item(monsters *mon)
 
     // Shouldn't we be using MONUSE_MAGIC_ITEMS?
     if (item_use == MONUSE_STARTING_EQUIPMENT
+        && item.base_type != OBJ_CORPSES
         && !mons_is_unique( mon->type ))
     {
         switch(mon_slot)
@@ -5002,7 +5414,9 @@ void wizard_give_monster_item(monsters *mon)
     // Move monster's old item to player's inventory as last step.
     int  old_eq     = NON_ITEM;
     bool unequipped = false;
-    if (mon->inv[mon_slot] != NON_ITEM
+    if (item.base_type != OBJ_CORPSES
+        && mon_slot != NUM_MONSTER_SLOTS
+        && mon->inv[mon_slot] != NON_ITEM
         && !items_stack(item, mitm[mon->inv[mon_slot]]))
     {
         old_eq = mon->inv[mon_slot];
@@ -5018,16 +5432,22 @@ void wizard_give_monster_item(monsters *mon)
 
     mitm[index] = item;
 
+    if (item.base_type == OBJ_CORPSES)
+        // In case corpse gets skeletonized.
+        move_item_to_grid(&index, mon->pos());
+
     unwind_var<int> save_speedinc(mon->speed_increment);
     if (!mon->pickup_item(mitm[index], false, true))
     {
         mpr("Monster wouldn't take item.");
-        if (old_eq != NON_ITEM)
+        if (old_eq != NON_ITEM && mon_slot != NUM_MONSTER_SLOTS)
         {
             mon->inv[mon_slot] = old_eq;
             if (unequipped)
                 mon->equip(mitm[old_eq], mon_slot, 1);
         }
+        unlink_item(index);
+        // In case corpse gets skeletonized.
         mitm[index].clear();
         return;
     }
@@ -5036,20 +5456,24 @@ void wizard_give_monster_item(monsters *mon)
     dec_inv_item_quantity(player_slot, item.quantity);
 
     if ((mon->flags & MF_HARD_RESET) && !(item.flags & ISFLAG_SUMMONED))
+    {
        mprf(MSGCH_WARN, "WARNING: Monster has MF_HARD_RESET and all its "
             "items will disappear when it does.");
+    }
     else if ((item.flags & ISFLAG_SUMMONED) && !mon->is_summoned())
+    {
        mprf(MSGCH_WARN, "WARNING: Item is summoned and will disappear when "
             "the monster does.");
-
+    }
     // Monster's old item moves to player's inventory.
     if (old_eq != NON_ITEM)
     {
         mpr("Fetching monster's old item.");
         if (mitm[old_eq].flags & ISFLAG_SUMMONED)
+        {
            mprf(MSGCH_WARN, "WARNING: Item is summoned and shouldn't really "
                 "be anywhere but in the inventory of a summoned monster.");
-
+        }
         mitm[old_eq].pos.reset();
         mitm[old_eq].link = NON_ITEM;
         move_item_to_player(old_eq, mitm[old_eq].quantity);
@@ -5060,9 +5484,6 @@ void wizard_give_monster_item(monsters *mon)
 #ifdef WIZARD
 static void _move_player(const coord_def& where)
 {
-    // no longer held in net
-    clear_trapping_net();
-
     if (!you.can_pass_through_feat(grd(where)))
         grd(where) = DNGN_FLOOR;
     move_player_to_grid(where, false, true, true);
@@ -5078,16 +5499,9 @@ static void _move_monster(const coord_def& where, int mid1)
         return;
 
     monsters* mon1 = &menv[mid1];
-    mons_clear_trapping_net(mon1);
 
-    int mid2 = mgrd(moves.target);
-    monsters* mon2 = NULL;
-
-    if (mid2 != NON_MONSTER)
-    {
-        mon2 = &menv[mid2];
-        mons_clear_trapping_net(mon2);
-    }
+    const int mid2 = mgrd(moves.target);
+    monsters* mon2 = monster_at(moves.target);
 
     mon1->moveto(moves.target);
     mgrd(moves.target) = mid1;
@@ -5282,7 +5696,7 @@ void debug_pathfind(int mid)
     if (success)
     {
         std::vector<coord_def> path = mp.backtrack();
-        std::string path_str = "";
+        std::string path_str;
         mpr("Here's the shortest path: ");
         for (unsigned int i = 0; i < path.size(); i++)
         {
@@ -5504,6 +5918,822 @@ void debug_miscast( int target_index )
     delete miscast;
 }
 #endif
+
+static void _dump_levgen()
+{
+    CrawlHashTable &props = env.properties;
+
+    std::string method;
+    std::string type;
+
+    if (Generating_Level)
+    {
+        mpr("Currently generating level.");
+        extern std::string dgn_Build_Method;
+        method = dgn_Build_Method;
+        type   = dgn_Layout_Type;
+    }
+    else
+    {
+        if (!props.exists(BUILD_METHOD_KEY))
+            method = "ABSENT";
+        else
+            method = props[BUILD_METHOD_KEY].get_string();
+
+        if (!props.exists(LAYOUT_TYPE_KEY))
+            type = "ABSENT";
+        else
+            type = props[LAYOUT_TYPE_KEY].get_string();
+    }
+
+    mprf("dgn_Build_Method = %s", method.c_str());
+    mprf("dgn_Layout_Type  = %s", type.c_str());
+
+    std::string extra;
+
+    if (!props.exists(LEVEL_EXTRAS_KEY))
+        extra = "ABSENT";
+    else
+    {
+        const CrawlVector &vec = props[LEVEL_EXTRAS_KEY].get_vector();
+
+        for (unsigned int i = 0; i < vec.size(); i++)
+            extra += vec[i].get_string() + ", ";
+    }
+
+    mprf("Level extras: %s", extra.c_str());
+
+    mpr("Level vaults:");
+    if (!props.exists(LEVEL_VAULTS_KEY))
+        mpr("ABSENT");
+    else
+    {
+        const CrawlHashTable &vaults = props[LEVEL_VAULTS_KEY].get_table();
+        CrawlHashTable::const_iterator i = vaults.begin();
+
+        for (; i != vaults.end(); i++)
+            mprf("    %s: %s", i->first.c_str(),
+                 i->second.get_string().c_str());
+    }
+    mpr("");
+
+    mpr("Temp vaults:");
+    if (!props.exists(TEMP_VAULTS_KEY))
+        mpr("ABSENT");
+    else
+    {
+        const CrawlHashTable &vaults = props[TEMP_VAULTS_KEY].get_table();
+        CrawlHashTable::const_iterator i = vaults.begin();
+
+        for (; i != vaults.end(); i++)
+            mprf("    %s: %s", i->first.c_str(),
+                 i->second.get_string().c_str());
+    }
+    mpr("");
+}
+
+static void _dump_level_info(FILE* file)
+{
+    CrawlHashTable &props = env.properties;
+
+    fprintf(file, "Place info:" EOL);
+
+    fprintf(file, "your_level = %d, branch = %d, level_type = %d, "
+                  "type_name = %s" EOL EOL,
+            you.your_level, (int) you.where_are_you, (int) you.level_type,
+            you.level_type_name.c_str());
+
+    std::string place = level_id::current().describe();
+    std::string orig_place;
+
+    if (!props.exists(LEVEL_ID_KEY))
+        orig_place = "ABSENT";
+    else
+        orig_place = props[LEVEL_ID_KEY].get_string();
+
+    fprintf(file, "Level id: %s" EOL, place.c_str());
+    if (place != orig_place)
+        fprintf(file, "Level id when level was generated: %s" EOL,
+                orig_place.c_str());
+
+    _dump_levgen();
+}
+
+static void _dump_player(FILE *file)
+{
+    // Only dump player info during arena mode if the player is likely
+    // the cause of the crash.
+    if ((crawl_state.arena || crawl_state.arena_suspended)
+        && !in_bounds(you.pos()) && you.hp > 0 && you.hp_max > 0
+        && you.strength > 0 && you.intel > 0 && you.dex > 0)
+    {
+        // Arena mode can change behavior of the rest of the code and/or lead
+        // to asserts.
+        crawl_state.arena          = false;
+        crawl_state.arena_suspended = false;
+        return;
+    }
+
+    // Arena mode can change behavior of the rest of the code and/or lead
+    // to asserts.
+    crawl_state.arena          = false;
+    crawl_state.arena_suspended = false;
+
+    fprintf(file, "Player:" EOL);
+    fprintf(file, "{{{{{{{{{{{" EOL);
+
+    bool name_overrun = true;
+    for (int i = 0; i < kNameLen; i++)
+    {
+        if (you.your_name[i] == '\0')
+        {
+            name_overrun = false;
+            break;
+        }
+    }
+
+    if (name_overrun)
+    {
+        fprintf(file, "Player name runs past end of your_name buffer." EOL);
+        you.your_name[kNameLen - 1] = '\0';
+    }
+
+    name_overrun = true;
+    for (int i = 0; i < 30; i++)
+    {
+        if (you.class_name[i] == '\0')
+        {
+            name_overrun = false;
+            break;
+        }
+    }
+
+    if (name_overrun)
+    {
+        fprintf(file, "class_name runs past end of buffer." EOL);
+        you.class_name[29] = '\0';
+    }
+
+    fprintf(file, "Name:       [%s]" EOL, you.your_name);
+    fprintf(file, "Species:    %s" EOL, species_name(you.species, 27).c_str());
+    fprintf(file, "Class:      %s" EOL EOL, get_class_name(you.char_class));
+    fprintf(file, "class_name: %s" EOL EOL, you.class_name);
+
+    fprintf(file, "HP: %d/%d; base: %d/%d" EOL, you.hp, you.hp_max,
+            you.base_hp, you.base_hp2);
+    fprintf(file, "MP: %d/%d; base: %d/%d" EOL,
+            you.magic_points, you.max_magic_points,
+            you.base_magic_points, you.base_magic_points2);
+    fprintf(file, "Stats: %d (%d) %d (%d) %d (%d)" EOL,
+            you.strength, you.max_strength, you.intel, you.max_intel,
+            you.dex, you.max_dex);
+    fprintf(file, "Position: %s, god:%s (%d), turn_is_over: %d, "
+                  "banished: %d" EOL,
+            debug_coord_str(you.pos()).c_str(),
+            god_name(you.religion).c_str(), (int) you.religion,
+            (int) you.turn_is_over, (int) you.banished);
+
+    if (in_bounds(you.pos()))
+    {
+        const dungeon_feature_type feat = grd(you.pos());
+        fprintf(file, "Standing on/in/over feature: %s" EOL,
+                raw_feature_description(feat, NUM_TRAPS, true).c_str());
+    }
+    fprintf(file, EOL);
+
+    if (you.running.runmode != RMODE_NOT_RUNNING)
+    {
+        fprintf(file, "Runrest:" EOL);
+        fprintf(file, "    mode: %d" EOL, you.running.runmode);
+        fprintf(file, "      mp: %d" EOL, you.running.mp);
+        fprintf(file, "      hp: %d" EOL, you.running.hp);
+        fprintf(file, "     pos: %s" EOL EOL,
+                debug_coord_str(you.running.pos).c_str());
+    }
+
+    if (you.delay_queue.size() > 0)
+    {
+        fprintf(file, "Delayed (%lu):" EOL,
+                (unsigned long) you.delay_queue.size());
+        for (unsigned int i = 0; i < you.delay_queue.size(); i++)
+        {
+            const delay_queue_item &item = you.delay_queue[i];
+
+            fprintf(file, "    type:     %d", item.type);
+            if (item.type <= DELAY_NOT_DELAYED
+                || item.type >= NUM_DELAYS)
+            {
+                fprintf(file, " <invalid>");
+            }
+            fprintf(file, EOL);
+            fprintf(file, "    duration: %d" EOL, item.duration);
+            fprintf(file, "    parm1:    %d" EOL, item.parm1);
+            fprintf(file, "    parm2:    %d" EOL, item.parm2);
+            fprintf(file, "    started:  %d" EOL EOL, (int) item.started);
+        }
+        fprintf(file, EOL);
+    }
+
+    fprintf(file, "Spell bugs:" EOL);
+    for (size_t i = 0; i < you.spells.size(); i++)
+    {
+        const spell_type spell = you.spells[i];
+
+        if (spell == SPELL_NO_SPELL)
+            continue;
+
+        if (!is_valid_spell(spell))
+        {
+            fprintf(file, "    spell slot #%d: invalid spell #%d" EOL,
+                    (int)i, (int)spell);
+            continue;
+        }
+
+        const unsigned int flags = get_spell_flags(spell);
+
+        if (flags & SPFLAG_MONSTER)
+            fprintf(file, "    spell slot #%d: monster only spell %s" EOL,
+                    (int)i, spell_title(spell));
+        else if (flags & SPFLAG_TESTING)
+            fprintf(file, "    spell slot #%d: testing spell %s" EOL,
+                    (int)i, spell_title(spell));
+        else if (count_bits(get_spell_disciplines(spell)) == 0)
+            fprintf(file, "    spell slot #%d: school-less spell %s" EOL,
+                    (int)i, spell_title(spell));
+    }
+    fprintf(file, EOL);
+
+    fprintf(file, "Durations:" EOL);
+    for (int i = 0; i < NUM_DURATIONS; i++)
+    {
+        if (you.duration[i] != 0)
+            fprintf(file, "    #%d: %d" EOL, i, you.duration[i]);
+    }
+    fprintf(file, EOL);
+
+    fprintf(file, "Attributes:" EOL);
+    for (int i = 0; i < NUM_ATTRIBUTES; i++)
+    {
+        if (you.attribute[i] != 0)
+            fprintf(file, "    #%d: %lu" EOL, i, you.attribute[i]);
+    }
+    fprintf(file, EOL);
+
+    fprintf(file, "Mutations:" EOL);
+    for (int i = 0; i < NUM_MUTATIONS; i++)
+    {
+        if (you.mutation[i] > 0)
+            fprintf(file, "    #%d: %d" EOL, i, you.mutation[i]);
+    }
+    fprintf(file, EOL);
+
+    fprintf(file, "Demon mutations:" EOL);
+    for (int i = 0; i < NUM_MUTATIONS; i++)
+    {
+        if (you.demon_pow[i] > 0)
+            fprintf(file, "    #%d: %d" EOL, i, you.demon_pow[i]);
+    }
+    fprintf(file, EOL);
+
+    fprintf(file, "Inventory bugs:" EOL);
+    for (int i = 0; i < ENDOFPACK; i++)
+    {
+        item_def &item(you.inv[i]);
+
+        if (item.base_type == OBJ_UNASSIGNED && item.quantity != 0)
+        {
+            fprintf(file, "    slot #%d: unassigned item has quant %d" EOL,
+                    i, item.quantity);
+            continue;
+        }
+        else if (item.base_type != OBJ_UNASSIGNED && item.quantity < 1)
+        {
+            const int orig_quant = item.quantity;
+            item.quantity = 1;
+
+            fprintf(file, "    slot #%d: otherwise valid item '%s' has "
+                          "invalid quantity %d" EOL,
+                    i, item.name(DESC_PLAIN, false, true).c_str(),
+                    orig_quant);
+            item.quantity = orig_quant;
+            continue;
+        }
+        else if (!is_valid_item(item))
+            continue;
+
+        const std::string name = item.name(DESC_PLAIN, false, true);
+
+        if (item.link != i)
+            fprintf(file, "    slot #%d: item '%s' has invalid link %d" EOL,
+                    i, name.c_str(), item.link);
+
+        if (item.slot < 0 || item.slot > 127)
+            fprintf(file, "    slot #%d: item '%s' has invalid slot %d" EOL,
+                    i, name.c_str(), item.slot);
+
+        if (!item.pos.equals(-1, -1))
+            fprintf(file, "    slot #%d: item '%s' has invalid pos %s" EOL,
+                    i, name.c_str(), debug_coord_str(item.pos).c_str());
+    }
+    fprintf(file, EOL);
+
+    fprintf(file, "Equipment:" EOL);
+    for (int i = 0; i < NUM_EQUIP; i++)
+    {
+        char eq = you.equip[i];
+
+        if (eq == -1)
+            continue;
+
+        fprintf(file, "    eq slot #%d, inv slot #%d", i, (int) eq);
+        if (eq < 0 || eq >= ENDOFPACK)
+        {
+            fprintf(file, " <invalid>" EOL);
+            continue;
+        }
+        fprintf(file, ": %s" EOL,
+                you.inv[eq].name(DESC_PLAIN, false, true).c_str());
+    }
+    fprintf(file, EOL);
+
+    if (in_bounds(you.pos()) && mgrd(you.pos()) != NON_MONSTER)
+    {
+        fprintf(file, "Standing on same square as: ");
+        const unsigned short midx = mgrd(you.pos());
+
+        if (invalid_monster_index(midx))
+            fprintf(file, "invalid monster index %d" EOL, (int) midx);
+        else
+        {
+            const monsters *mon = &menv[midx];
+            fprintf(file, "%s:" EOL, debug_mon_str(mon).c_str());
+            debug_dump_mon(mon, true);
+        }
+        fprintf(file, EOL);
+    }
+
+    fprintf(file, "}}}}}}}}}}}" EOL EOL);
+}
+
+static void _debug_marker_scan()
+{
+    std::vector<map_marker*> markers = env.markers.get_all();
+
+    for (unsigned int i = 0; i < markers.size(); i++)
+    {
+        map_marker* marker = markers[i];
+
+        if (marker == NULL)
+        {
+            mprf(MSGCH_ERROR, "Marker #%d is NULL", i);
+            continue;
+        }
+
+        map_marker_type type = marker->get_type();
+
+        if (type < MAT_FEATURE || type >= NUM_MAP_MARKER_TYPES)
+            mprf(MSGCH_ERROR, "Makrer #%d at (%d, %d) has invalid type %d",
+                 i, marker->pos.x, marker->pos.y, (int) type);
+
+        if (!in_bounds(marker->pos))
+        {
+            mprf(MSGCH_ERROR, "Marker #%d, type %d at (%d, %d) out of bounds",
+                 i, (int) type, marker->pos.x, marker->pos.y);
+            continue;
+        }
+
+        bool found = false;
+        std::vector<map_marker*> at_pos
+            = env.markers.get_markers_at(marker->pos);
+
+        for (unsigned int j = 0; j < at_pos.size(); j++)
+        {
+            map_marker* tmp = at_pos[j];
+
+            if (tmp == NULL)
+                continue;
+
+            if (tmp == marker)
+            {
+                found = true;
+                break;
+            }
+        }
+        if (!found)
+            mprf(MSGCH_ERROR, "Marker #%d, type %d at (%d, %d) unlinked",
+                 i, (int) type, marker->pos.x, marker->pos.y);
+    }
+
+    for (int x = MAPGEN_BORDER; x < (GXM - MAPGEN_BORDER - 1); x++)
+        for (int y = MAPGEN_BORDER; y < (GYM - MAPGEN_BORDER - 1); y++)
+        {
+            coord_def pos(x, y);
+
+            std::vector<map_marker*> at_pos
+                = env.markers.get_markers_at(pos);
+
+            for (unsigned int i = 0; i < at_pos.size(); i++)
+            {
+                map_marker *marker = at_pos[i];
+
+                if (marker == NULL)
+                {
+                    mprf(MSGCH_ERROR, "Marker #%d at (%d, %d) NULL",
+                         i, x, y);
+                    continue;
+                }
+                if (marker->pos != pos)
+                {
+                    mprf(MSGCH_ERROR, "Marker #%d, type %d at (%d, %d) "
+                                      "thinks it's at (%d, %d)",
+                         i, (int) marker->get_type(), x, y,
+                         marker->pos.x, marker->pos.y);
+                    if (!in_bounds(marker->pos))
+                        mpr("Further, it thinks it's out of bounds.",
+                            MSGCH_ERROR);
+                }
+            }
+        }
+} // _debug_marker_scan()
+
+static void _debug_dump_markers()
+{
+    std::vector<map_marker*> markers = env.markers.get_all();
+
+    for (unsigned int i = 0; i < markers.size(); i++)
+    {
+        map_marker* marker = markers[i];
+
+        if (marker == NULL || marker->get_type() == MAT_LUA_MARKER)
+            continue;
+
+        mprf(MSGCH_DIAGNOSTICS, "Marker %d at (%d, %d): %s",
+             i, marker->pos.x, marker->pos.y,
+             marker->debug_describe().c_str());
+    }
+} // _debug_dump_markers()
+
+static void _debug_dump_lua_markers(FILE *file)
+{
+    std::vector<map_marker*> markers = env.markers.get_all();
+
+    for (unsigned int i = 0; i < markers.size(); i++)
+    {
+        map_marker* marker = markers[i];
+
+        if (marker == NULL || marker->get_type() != MAT_LUA_MARKER)
+            continue;
+
+        map_lua_marker* lua_marker = dynamic_cast<map_lua_marker*>(marker);
+
+        std::string result = lua_marker->debug_to_string();
+
+        if (result.size() > 0 && result[result.size() - 1] == '\n')
+            result = result.substr(0, result.size() - 1);
+
+        fprintf(file, "Lua marker %d at (%d, %d):\n",
+                i, marker->pos.x, marker->pos.y);
+        fprintf(file, "{{{{\n");
+        fprintf(file, "%s", result.c_str());
+        fprintf(file, "}}}}\n");
+    }
+}
+
+static void _debug_dump_lua_persist(FILE* file)
+{
+    lua_stack_cleaner cln(dlua);
+
+    std::string result;
+    if (!dlua.callfn("persist_to_string", 0, 1))
+        result = make_stringf("error (persist_to_string): %s",
+                              dlua.error.c_str());
+    else if (lua_isstring(dlua, -1))
+        result = lua_tostring(dlua, -1);
+    else
+        result = "persist_to_string() returned nothing";
+
+    fprintf(file, "%s", result.c_str());
+}
+
+void do_crash_dump()
+{
+    std::string dir = (!Options.morgue_dir.empty() ? Options.morgue_dir :
+                       !SysEnv.crawl_dir.empty()   ? SysEnv.crawl_dir
+                                                   : "");
+
+    if (!dir.empty() && dir[dir.length() - 1] != FILE_SEPARATOR)
+        dir += FILE_SEPARATOR;
+
+    char name[180];
+
+    sprintf(name, "%scrash-%s-%d.txt", dir.c_str(),
+            you.your_name, (int) time(NULL));
+
+    fprintf(stderr, EOL "Writing crash info to %s" EOL, name);
+    errno = 0;
+    FILE* file = freopen(name, "w+", stderr);
+
+    if (file == NULL || errno != 0)
+    {
+        fprintf(stdout, EOL "Unable to open file '%s' for writing: %s" EOL,
+                name, strerror(errno));
+        file = stdout;
+    }
+
+    // Unbuffer the file, since if we recursively crash buffered lines
+    // won't make it to the file.
+    setvbuf(file, NULL, _IONBF, 0);
+
+    set_msg_dump_file(file);
+
+#if DEBUG
+    if (!_assert_msg.empty())
+        fprintf(file, "%s" EOL EOL, _assert_msg.c_str());
+#endif
+
+    fprintf(file, "Revision: %d" EOL, svn_revision());
+    fprintf(file, "Version: %s" EOL, CRAWL " " VERSION);
+#if defined(UNIX)
+    fprintf(file, "Platform: unix" EOL);
+#endif
+#ifdef USE_TILE
+    fprintf(file, "Tiles: yes" EOL EOL);
+#else
+    fprintf(file, "Tiles: no" EOL EOL);
+#endif
+
+    // First get the immediate cause of the crash and the stack trace,
+    // since that's most important and later attempts to get more information
+    // might themselves cause crashes.
+    dump_crash_info(file);
+    write_stack_trace(file, 0);
+
+    fprintf(file, EOL);
+
+    // Next information about the level the player is on, plus level
+    // generation info if the crash happened during level generation.
+    _dump_level_info(file);
+
+    // Dumping information on marker inconsistancy is unlikely to crash,
+    // as is dumping the descriptions of non-Lua markers.
+    fprintf(file, "Markers:" EOL);
+    fprintf(file, "<<<<<<<<<<<<<<<<<<<<<<" EOL);
+    _debug_marker_scan();
+    _debug_dump_markers();
+    fprintf(file, ">>>>>>>>>>>>>>>>>>>>>>" EOL);
+
+    // Dumping current messages is unlikely to crash.
+    if (file != stderr)
+    {
+        fprintf(file, EOL "Messages:" EOL);
+        fprintf(file, "<<<<<<<<<<<<<<<<<<<<<<" EOL);
+        std::string messages = get_last_messages(NUM_STORED_MESSAGES);
+        fprintf(file, "%s", messages.c_str());
+        fprintf(file, ">>>>>>>>>>>>>>>>>>>>>>" EOL);
+    }
+
+    // Dumping the player state and crawl state is next least likely to cause
+    // another crash, so do that next.
+    crawl_state.dump();
+    _dump_player(file);
+
+    // Next item and monster scans.  Any messages will be sent straight to
+    // the file because of set_msg_dump_file()
+#if DEBUG_ITEM_SCAN
+    debug_item_scan();
+#endif
+#if DEBUG_MONS_SCAN
+    debug_mons_scan();
+#endif
+
+    // If anything has screwed up the Lua runtime stacks then trying to
+    // print those stacks will likely crash, so do this after the others.
+    fprintf(file, "clua stack:" EOL);
+    print_clua_stack();
+
+    fprintf(file, "dlua stack:" EOL);
+    print_dlua_stack();
+
+    // Lastly try to dump the Lua persistant data and the contents of the Lua
+    // markers, since actually running Lua code has the greatest chance of
+    // crashing.
+    fprintf(file, "Lua persistant data:" EOL);
+    fprintf(file, "<<<<<<<<<<<<<<<<<<<<<<" EOL);
+    _debug_dump_lua_persist(file);
+    fprintf(file, ">>>>>>>>>>>>>>>>>>>>>>" EOL EOL);
+    fprintf(file, "Lua marker contents:" EOL);
+    fprintf(file, "<<<<<<<<<<<<<<<<<<<<<<" EOL);
+    _debug_dump_lua_markers(file);
+    fprintf(file, ">>>>>>>>>>>>>>>>>>>>>>" EOL);
+
+    set_msg_dump_file(NULL);
+
+    if (file != stderr)
+        fclose(file);
+}
+
+std::string debug_coord_str(const coord_def &pos)
+{
+    return make_stringf("(%d, %d)%s", pos.x, pos.y,
+                        !in_bounds(pos) ? " <OoB>" : "");
+}
+
+std::string debug_mon_str(const monsters* mon)
+{
+    const int midx = monster_index(mon);
+    if (invalid_monster_index(midx))
+        return make_stringf("Invalid monster index %d", midx);
+
+    std::string out = "Monster '" + mon->full_name(DESC_PLAIN, true) + "' ";
+    out += make_stringf("%s [midx = %d]", debug_coord_str(mon->pos()).c_str(),
+                        midx);
+
+    return (out);
+}
+
+void debug_dump_mon(const monsters* mon, bool recurse)
+{
+    const int midx = monster_index(mon);
+    if (invalid_monster_index(midx) || invalid_monster_class(mon->type))
+        return;
+
+    fprintf(stderr, "<<<<<<<<<" EOL);
+
+    fprintf(stderr, "Name: %s" EOL, mon->name(DESC_PLAIN, true).c_str());
+    fprintf(stderr, "Base name: %s" EOL,
+            mon->base_name(DESC_PLAIN, true).c_str());
+    fprintf(stderr, "Full name: %s" EOL EOL,
+            mon->full_name(DESC_PLAIN, true).c_str());
+
+    if (in_bounds(mon->pos()))
+    {
+        std::string feat =
+            raw_feature_description(grd(mon->pos()), NUM_TRAPS, true);
+        fprintf(stderr, "On/in/over feature: %s" EOL EOL, feat.c_str());
+    }
+
+    fprintf(stderr, "Foe: ");
+    if (mon->foe == MHITNOT)
+        fprintf(stderr, "none");
+    else if (mon->foe == MHITYOU)
+        fprintf(stderr, "player");
+    else if (invalid_monster_index(mon->foe))
+        fprintf(stderr, "invalid monster index %d", mon->foe);
+    else if (mon->foe == midx)
+        fprintf(stderr, "self");
+    else
+        fprintf(stderr, "%s", debug_mon_str(&menv[mon->foe]).c_str());
+
+    fprintf(stderr, EOL);
+
+    fprintf(stderr, "Target: ");
+    if (mon->target.origin())
+        fprintf(stderr, "none" EOL);
+    else
+        fprintf(stderr, "%s" EOL, debug_coord_str(mon->target).c_str());
+
+    int target = MHITNOT;
+    fprintf(stderr, "At target: ");
+    if (mon->target.origin())
+        fprintf(stderr, "N/A");
+    else if (mon->target == you.pos())
+    {
+        fprintf(stderr, "player");
+        target = MHITYOU;
+    }
+    else if (mon->target == mon->pos())
+    {
+        fprintf(stderr, "self");
+        target = midx;
+    }
+    else if (in_bounds(mon->target))
+    {
+       target = mgrd(mon->target);
+
+       if (target == NON_MONSTER)
+           fprintf(stderr, "nothing");
+       else if (target == midx)
+           fprintf(stderr, "improperly linked self");
+       else if (target == mon->foe)
+           fprintf(stderr, "same as foe");
+       else if (invalid_monster_index(target))
+           fprintf(stderr, "invalid monster index %d", target);
+       else
+           fprintf(stderr, "%s", debug_mon_str(&menv[target]).c_str());
+    }
+    else
+        fprintf(stderr, "<OoB>");
+
+    fprintf(stderr, EOL);
+
+    if (mon->is_patrolling())
+        fprintf(stderr, "Patrolling: %s" EOL EOL,
+                debug_coord_str(mon->patrol_point).c_str());
+
+    if (mon->travel_target != MTRAV_NONE)
+    {
+        fprintf(stderr, EOL "Travelling:" EOL);
+        fprintf(stderr, "    travel_target      = %d" EOL, mon->travel_target);
+        fprintf(stderr, "    travel_path.size() = %lu" EOL,
+                (long unsigned int) mon->travel_path.size());
+        if (mon->travel_path.size() > 0)
+        {
+            fprintf(stderr, "    next travel step: %s" EOL,
+                    debug_coord_str(mon->travel_path.back()).c_str());
+            fprintf(stderr, "    last travel step: %s" EOL,
+                    debug_coord_str(mon->travel_path.front()).c_str());
+        }
+    }
+    fprintf(stderr, EOL);
+
+    fprintf(stderr, "Inventory:" EOL);
+    for (int i = 0; i < NUM_MONSTER_SLOTS; i++)
+    {
+        const int idx = mon->inv[i];
+
+        if (idx == NON_ITEM)
+            continue;
+
+        fprintf(stderr, "    slot #%d: ", i);
+
+        if (idx < 0 || idx > MAX_ITEMS)
+        {
+            fprintf(stderr, "invalid item index %d" EOL, idx);
+            continue;
+        }
+        const item_def &item(mitm[idx]);
+
+        if (!is_valid_item(item))
+        {
+            fprintf(stderr, "invalid item" EOL);
+            continue;
+        }
+
+        fprintf(stderr, "%s", item.name(DESC_PLAIN, false, true).c_str());
+
+        if (!held_by_monster(item))
+            fprintf(stderr, " [not held by monster, pos = %s]",
+                    debug_coord_str(item.pos).c_str());
+        else if (holding_monster(item) != mon)
+            fprintf(stderr, " [held by other monster: %s]",
+                    debug_mon_str(holding_monster(item)).c_str());
+
+        fprintf(stderr, EOL);
+    }
+    fprintf(stderr, EOL);
+
+    if (mons_class_flag(mon->type, M_SPELLCASTER))
+    {
+        fprintf(stderr, "Spells:" EOL);
+
+        for (int i = 0; i < NUM_MONSTER_SPELL_SLOTS; i++)
+        {
+            spell_type spell = mon->spells[i];
+
+            if (spell == SPELL_NO_SPELL)
+                continue;
+
+            fprintf(stderr, "    slot #%d: ", i);
+            if (!is_valid_spell(spell))
+                fprintf(stderr, "Invalid spell #%d" EOL, (int) spell);
+            else
+                fprintf(stderr, "%s" EOL, spell_title(spell));
+        }
+        fprintf(stderr, EOL);
+    }
+
+    fprintf(stderr, "attitude: %d, behaviour: %d, number: %d, flags: 0x%lx" EOL,
+            mon->attitude, mon->behaviour, mon->number, mon->flags);
+
+    fprintf(stderr, "colour: %d, foe_memory: %d, shield_blocks:%d, "
+                  "experience: %lu" EOL,
+            mon->colour, mon->foe_memory, mon->shield_blocks,
+            mon->experience);
+
+    fprintf(stderr, "god: %s, seen_context: %s" EOL,
+            god_name(mon->god).c_str(), mon->seen_context.c_str());
+
+    fprintf(stderr, ">>>>>>>>>" EOL EOL);
+
+    if (!recurse)
+        return;
+
+    if (!invalid_monster_index(mon->foe) && mon->foe != midx
+        && !invalid_monster_class(menv[mon->foe].type))
+    {
+        fprintf(stderr, "Foe:" EOL);
+        debug_dump_mon(&menv[mon->foe], false);
+    }
+
+    if (!invalid_monster_index(target) && target != midx
+        && target != mon->foe
+        && !invalid_monster_class(menv[target].type))
+    {
+        fprintf(stderr, "Target:" EOL);
+        debug_dump_mon(&menv[target], false);
+    }
+}
+
 
 #ifdef DEBUG_DIAGNOSTICS
 

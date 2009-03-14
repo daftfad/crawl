@@ -99,7 +99,7 @@ static const char *features[] = {
 static std::string _get_version_information(void)
 {
     std::string result  = "This is <w>" CRAWL " " VERSION "</w> (";
-#ifdef BUILD_REVISION
+#ifdef DISPLAY_BUILD_REVISION
                 result += "r" + number_to_string(svn_revision()) + ", ";
 #endif
                 result += VERSION_DETAIL ").";
@@ -215,8 +215,13 @@ static void _print_version(void)
     // FIXME: Allow for hiding Page down when at the end of the listing, ditto
     // for page up at start of listing.
     cmd_version.set_more( formatted_string::parse_string(
+#ifdef USE_TILE
+                              "<cyan>[ +/L-click : Page down.   - : Page up."
+                              "           Esc/R-click exits.]"));
+#else
                               "<cyan>[ + : Page down.   - : Page up."
-                              "                           Esc exits.]") );
+                              "                           Esc exits.]"));
+#endif
 
     cmd_version.add_text(_get_version_information());
     cmd_version.add_text(_get_version_features());
@@ -560,7 +565,7 @@ void list_armour()
                                  : "unknown")
              << " : ";
 
-        if (!you_can_wear(i,true))
+        if (!you_can_wear(i, true))
             estr << "    (unavailable)";
         else if (armour_id != -1 && !you_tran_can_wear(you.inv[armour_id])
                  || !you_tran_can_wear(i))
@@ -1013,10 +1018,9 @@ static std::vector<std::string> _get_god_keys()
 {
     std::vector<std::string> names;
 
-    for (int i = ((int) GOD_NO_GOD) + 1; i < NUM_GODS; i++)
+    for (int i = GOD_NO_GOD + 1; i < NUM_GODS; i++)
     {
         god_type which_god = static_cast<god_type>(i);
-
         names.push_back(god_name(which_god));
     }
 
@@ -1214,7 +1218,7 @@ static bool _append_books(std::string &desc, item_def &item, std::string key)
 
     item.base_type = OBJ_STAVES;
     int book;
-    for (int i = STAFF_SMITING; i < NUM_STAVES; i++)
+    for (int i = STAFF_FIRST_ROD; i < NUM_STAVES; i++)
     {
         item.sub_type = i;
         book = item.book_number();
@@ -1256,10 +1260,10 @@ static bool _append_books(std::string &desc, item_def &item, std::string key)
 static bool _do_description(std::string key, std::string type,
                             std::string footer = "")
 {
-    std::string desc  = getLongDescription(key);
-    std::string quote = getQuoteString(key);
+    describe_info inf;
+    inf.quote = getQuoteString(key);
 
-    std::string prefix, suffix;
+    std::string desc = getLongDescription(key);
 
     int width = std::min(80, get_number_of_cols());
 
@@ -1268,8 +1272,8 @@ static bool _do_description(std::string key, std::string type,
     {
         if (is_good_god(which_god))
         {
-            suffix = "$$" + god_name(which_god) + " won't accept worship from "
-                     "undead or evil beings.";
+            inf.suffix = "$$" + god_name(which_god) +
+                         " won't accept worship from undead or evil beings.";
         }
         std::string help = get_god_powers(which_god);
         if (!help.empty())
@@ -1317,8 +1321,7 @@ static bool _do_description(std::string key, std::string type,
             else
                 mon.base_monster = MONS_PROGRAM_BUG;
 
-            const monsters m = mon;
-            describe_monsters(m);
+            describe_monsters(mon, true);
             return (false);
         }
         else
@@ -1344,7 +1347,8 @@ static bool _do_description(std::string key, std::string type,
                     append_missile_info(desc);
                     desc += "$";
                 }
-                else if (get_item_by_name(&mitm[thing_created], name, OBJ_BOOKS)
+                else if (type == "spell"
+                         || get_item_by_name(&mitm[thing_created], name, OBJ_BOOKS)
                          || get_item_by_name(&mitm[thing_created], name, OBJ_STAVES))
                 {
                     if (!_append_books(desc, mitm[thing_created], key))
@@ -1359,9 +1363,15 @@ static bool _do_description(std::string key, std::string type,
         }
     }
 
+    inf.body << desc;
+
     key = uppercase_first(key);
     linebreak_string2(footer, width - 1);
-    print_description(desc, key, suffix, prefix, footer, quote);
+
+    inf.footer = footer;
+    inf.title = key;
+
+    print_description(inf);
     return (true);
 }
 
@@ -1465,7 +1475,7 @@ static bool _find_description(bool &again, std::string& error_inout)
     bool doing_gods     = false;
     bool doing_branches = false;
 
-    switch(ch)
+    switch (ch)
     {
     case 'M':
         type       = "monster";
@@ -1507,7 +1517,6 @@ static bool _find_description(bool &again, std::string& error_inout)
         want_regex     = false;
         want_sort      = false;
         doing_branches = true;
-
         break;
 
     default:
@@ -1824,8 +1833,13 @@ static int _show_keyhelp_menu(const std::vector<formatted_string> &lines,
     // FIXME: Allow for hiding Page down when at the end of the listing, ditto
     // for page up at start of listing.
     cmd_help.set_more( formatted_string::parse_string(
-                           "<cyan>[ + : Page down.   - : Page up."
-                           "                           Esc exits.]"));
+#ifdef USE_TILE
+                            "<cyan>[ +/L-click : Page down.   - : Page up."
+                            "           Esc/R-click exits.]"));
+#else
+                            "<cyan>[ + : Page down.   - : Page up."
+                            "                           Esc exits.]"));
+#endif
 
     if (with_manual)
     {
@@ -2029,7 +2043,7 @@ static void _add_formatted_keyhelp(column_composer &cols)
             0,
             "<h>Extended Movement:\n"
             "<w>o</w> : auto-explore\n"
-            "<w>Ctrl-G</w> : interlevel travel (also <w>G</w>)\n"
+            "<w>G</w> : interlevel travel (also <w>Ctrl-G</w>)\n"
             "<w>Ctrl-F</w> : Find items\n"
             "<w>Ctrl-W</w> : set Waypoint\n"
             "<w>Ctrl-E</w> : Exclude square from searches\n"
@@ -2042,9 +2056,10 @@ static void _add_formatted_keyhelp(column_composer &cols)
     // Initialize colour to quiet some Valgrind warnings
     unsigned short colour = BLACK;
     std::string item_types =
+        "\n"
         "<h>Item types (and common commands)\n"
         "<cyan>)</cyan> : hand weapons (<w>w</w>ield)\n"
-        "<brown>(</brown> : missiles (<w>Q</w>uiver, <w>f</w>ire, <w>(</w> cycle)\n"
+        "<brown>(</brown> : missiles (<w>Q</w>uiver, <w>f</w>ire, <w>()</w> cycle)\n"
         "<cyan>[</cyan> : armour (<w>W</w>ear and <w>T</w>ake off)\n"
         "<brown>%</brown> : corpses and food (<w>c</w>hop up and <w>e</w>at)\n"
         "<w>?</w> : scrolls (<w>r</w>ead)\n"
@@ -2060,9 +2075,10 @@ static void _add_formatted_keyhelp(column_composer &cols)
         "</lightcyan> : books (<w>r</w>ead, <w>M</w>emorise and <w>z</w>ap)\n"
         "<brown>\\</brown> : staves and rods (<w>w</w>ield and e<w>v</w>oke)\n"
         "<lightgreen>}</lightgreen> : miscellaneous items (e<w>v</w>oke)\n"
-        "<lightmagenta>0</lightmagenta> : the Orb of Zot (Carry the Orb \n"
-        "    to the surface and win!)\n"
-        "<yellow>$</yellow> : gold (<w>$</w> counts gold)\n",
+        "<yellow>$</yellow> : gold (<w>$</w> counts gold)\n"
+        "<lightmagenta>0</lightmagenta> : the Orb of Zot\n"
+        "    Carry it to the surface and win!\n",
+
 
 
     cols.add_formatted(
@@ -2072,8 +2088,8 @@ static void _add_formatted_keyhelp(column_composer &cols)
     cols.add_formatted(
             0,
             "<h>Other Gameplay Actions:\n"
-            "<w>a</w> : use special Ability\n"
-            "<w>p</w> : Pray\n"
+            "<w>a</w> : use special Ability (<w>a!</w> for help)\n"
+            "<w>p</w> : Pray (<w>^</w> and <w>^!</w> for help)\n"
             "<w>z</w> : cast a spell\n"
             "<w>I</w> : list all spells\n"
             "<w>t</w> : tell allies (<w>tt</w> to shout)\n"
@@ -2114,7 +2130,7 @@ static void _add_formatted_keyhelp(column_composer &cols)
             "<w>A</w> : show Abilities/mutations\n"
             "<w>\\</w> : show item knowledge\n"
             "<w>[</w> : display worn armour\n"
-            "<w>)</w> : display current weapons\n"
+            "<w>}</w> : display current weapons\n"
             "<w>\"</w> : display worn jewellery\n"
             "<w>$</w> : display gold in possession\n"
             "<w>E</w> : display experience info\n",
@@ -2127,7 +2143,7 @@ static void _add_formatted_keyhelp(column_composer &cols)
             "<w><<</w>/<w>></w> : use staircase (<w><<</w> enter shop)\n"
             "<w>;</w>   : examine occupied tile\n"
             "<w>x</w>   : eXamine surroundings/targets\n"
-            "<w>X</w>   : eXamine level map\n"
+            "<w>X</w>   : eXamine level map (<w>X?</w> for help)\n"
             "<w>V</w>   : list monsters and items in sight\n"
             "<w>Ctrl-O</w> : show dungeon Overview\n"
             "<w>Ctrl-A</w> : toggle auto-pickup\n"
@@ -2141,7 +2157,8 @@ static void _add_formatted_keyhelp(column_composer &cols)
             "<w>{</w> : inscribe item\n"
             "<w>f</w> : Fire next appropriate item\n"
             "<w>F</w> : select an item and Fire it\n"
-            "<w>(</w> : cycle current ammunition\n"
+            "<w>Q</w> : select item slot to be quivered\n"
+            "<w>(</w>, <w>)</w> : cycle current ammunition\n"
             "<w>e</w> : ";
 
     interact += (you.species == SP_VAMPIRE ? "Drain corpses" : "Eat food");
@@ -2152,7 +2169,8 @@ static void _add_formatted_keyhelp(column_composer &cols)
             "<w>r</w> : Read a scroll or book\n"
             "<w>M</w> : Memorise a spell from a book\n"
             "<w>w</w> : Wield an item ( <w>-</w> for none)\n"
-            "<w>'</w> : wield item a, or switch to b\n"
+            "<w>'</w> : wield item a, or switch to b \n"
+            "    (use <w>=</w> to assign slots)\n"
             "<w>v</w> : eVoke power of wielded item\n"
             "<w>W</w>/<w>T</w> : Wear or Take off armour\n"
             "<w>P</w>/<w>R</w> : Put on or Remove jewellery\n",
@@ -2161,15 +2179,23 @@ static void _add_formatted_keyhelp(column_composer &cols)
             1, interact,
             true, true, _cmdhelp_textfilter);
 
-    cols.add_formatted(
-            1,
+    interact =
             "<h>Item Interaction (floor):\n"
             "<w>,</w> : pick up items (also <w>g</w>) \n"
-            "    (press twice for pick up menu) \n"
+            "    (press twice for pick up menu)\n"
             "<w>d</w> : Drop an item\n"
-            "<w>d#</w>: Drop exact number of items \n"
-            "<w>c</w> : Chop up a corpse \n"
-            "<w>e</w> : Eat food from floor \n",
+            "<w>d#</w>: Drop exact number of items\n"
+            "<w>c</w> : Chop up a corpse";
+
+    if (you.species == SP_VAMPIRE && you.experience >= 6)
+        interact += " or bottle its blood";
+
+    interact +=
+            "\n"
+            "<w>e</w> : Eat food from floor\n";
+
+    cols.add_formatted(
+            1, interact,
             true, true, _cmdhelp_textfilter);
 
     cols.add_formatted(
@@ -2178,7 +2204,10 @@ static void _add_formatted_keyhelp(column_composer &cols)
             "Many commands have context sensitive \n"
             "help, among them <w>X</w>, <w>x</w>, <w>f</w> (or any \n"
             "form of targeting), <w>Ctrl-G</w> or <w>G</w>, and \n"
-            "<w>Ctrl-F</w>.\n",
+            "<w>Ctrl-F</w>.\n"
+            "You can read descriptions of your \n"
+            "current spells (<w>I</w>), skills (<w>m?</w>) and \n"
+            "abilities (<w>a!</w>).",
             true, true, _cmdhelp_textfilter);
 }
 
@@ -2191,7 +2220,7 @@ static void _add_formatted_tutorial_help(column_composer &cols)
     text <<
         "<h>Item types (and common commands)\n"
         "<cyan>)</cyan> : hand weapons (<w>w</w>ield)\n"
-        "<brown>(</brown> : missiles (<w>Q</w>uiver, <w>f</w>ire, <w>(</w> to cycle ammo)\n"
+        "<brown>(</brown> : missiles (<w>Q</w>uiver, <w>f</w>ire, <w>()</w> to cycle ammo)\n"
         "<cyan>[</cyan> : armour (<w>W</w>ear and <w>T</w>ake off)\n"
         "<brown>%</brown> : corpses and food (<w>c</w>hop up and <w>e</w>at)\n"
         "<w>?</w> : scrolls (<w>r</w>ead)\n"
@@ -2228,6 +2257,7 @@ static void _add_formatted_tutorial_help(column_composer &cols)
             1,
             "<h>Additional important commands\n"
             "<w>S</w> : Save the game and exit\n"
+            "\n"
             "<w>s</w> : search for one turn (also <w>.</w> and <w>Del</w>)\n"
             "<w>5</w> : rest full/search longer (<w>Shift-Num 5</w>)\n"
             "<w>x</w> : examine surroundings\n"

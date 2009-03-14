@@ -14,6 +14,8 @@ REVISION("$Rev$");
 #include <stdlib.h>
 #include <string.h>
 
+#include <sstream>
+
 #ifdef DOS
 #include <conio.h>
 #endif
@@ -24,6 +26,7 @@ REVISION("$Rev$");
 
 #include "externs.h"
 
+#include "cio.h"
 #include "defines.h"
 #include "effects.h"
 #include "format.h"
@@ -41,8 +44,7 @@ REVISION("$Rev$");
 #include "view.h"
 #include "xom.h"
 
-
-static int body_covered();
+static int _body_covered();
 
 const char *troll_claw_descrip[4] = {
     "You have claws for hands.",
@@ -82,927 +84,1166 @@ const char *naga_deformed_descrip[3] = {
     "Armour fits poorly on your badly deformed serpentine body."
 };
 
-const char *mutation_descrip[][3] = {
-    {"You have tough skin (AC +1).", "You have very tough skin (AC +2).",
-     "You have extremely tough skin (AC +3)."},
-
-    {"Your muscles are strong (Str +", "", ""},
-    {"Your mind is acute (Int +", "", ""},
-    {"You are agile (Dex +", "", ""},
-
-    {"You are partially covered in green scales (AC + 1).",
-     "You are mostly covered in green scales (AC + 3).",
-     "You are covered in green scales (AC + 5)."},
-
-    {"You are partially covered in thick black scales (AC + 3, dex - 1).",
-     "You are mostly covered in thick black scales (AC + 6, dex - 2).",
-     "You are completely covered in thick black scales (AC + 9, dex - 3)."},
-
-    {"You are partially covered in supple grey scales (AC + 1).",
-     "You are mostly covered in supple grey scales (AC + 2).",
-     "You are completely covered in supple grey scales (AC + 3)."},
-
-    {"You are protected by plates of bone (AC + 2, dex - 1).",
-     "You are protected by plates of bone (AC + 3, dex - 2).",
-     "You are protected by plates of bone (AC + 4, dex - 3)."},
-
-    {"You are surrounded by a mild repulsion field (ev + 1).",
-     "You are surrounded by a moderate repulsion field (ev + 3).",
-     "You are surrounded by a strong repulsion field (ev + 5; repel missiles)."},
-
-    {"Your system is immune to poisons.", "", ""},
-
-// 10
-    {"Your digestive system is specialised to digest meat.",
-     "Your digestive system is highly specialised to digest meat.",
-     "You are carnivorous and can eat meat at any time."},
-
-    {"You digest meat inefficiently.", "You digest meat very inefficiently.",
-     "You are a herbivore."},
-
-    {"Your flesh is heat resistant.", "Your flesh is very heat resistant.",
-     "Your flesh is almost immune to the effects of heat."},
-
-    {"Your flesh is cold resistant.", "Your flesh is very cold resistant.",
-     "Your flesh is almost immune to the effects of cold."},
-
-    {"You are immune to electric shocks.", "", ""},
-
-    {"Your natural rate of healing is unusually fast.",
-     "You heal very quickly.",
-     "You regenerate."},
-
-    {"You have a fast metabolism.", "You have a very fast metabolism.",
-     "Your metabolism is lightning-fast."},
-
-    {"You have a slow metabolism.", "You have a slow metabolism.",
-     "You need consume almost no food."},
-
-    {"You are weak (Str -", "", ""},
-    {"You are dopey (Int -", "", ""},
-
-// 20
-    {"You are clumsy (Dex -", "", ""},
-
-    {"You can control translocations.", "You can control translocations.",
-     "You can control translocations."},
-
-    {"Space occasionally distorts in your vicinity.",
-     "Space sometimes distorts in your vicinity.",
-     "Space frequently distorts in your vicinity."},
-
-    {"You are resistant to magic.", "You are highly resistant to magic.",
-     "You are extremely resistant to the effects of magic."},
-
-    {"You cover ground quickly.", "You cover ground very quickly.",
-     "You cover ground extremely quickly."},
-
-    {"You have supernaturally acute eyesight.",
-     "You have supernaturally acute eyesight.",
-     "You have supernaturally acute eyesight."},
-
-    {"Armour fits poorly on your deformed body.",
-     "Armour fits poorly on your badly deformed body.",
-     "Armour fits poorly on your hideously deformed body."},
-
-    {"You can teleport at will.", "You are good at teleporting at will.",
-     "You can teleport instantly at will."},
-
-    {"You can spit poison.", "You can spit poison.", "You can spit poison."},
-
-    {"You can sense your immediate surroundings.",
-     "You can sense your surroundings.",
-     "You can sense a large area of your surroundings."},
-
-// 30
-    {"You can breathe flames.", "You can breathe fire.",
-     "You can breathe blasts of fire."},
-
-    {"You can translocate small distances instantaneously.",
-     "You can translocate small distances instantaneously.",
-     "You can translocate small distances instantaneously."},
-
-    {"You have a pair of small horns on your head.",
-     "You have a pair of horns on your head.",
-     "You have a pair of large horns on your head."},
-
-    {"You have a beak for a mouth.", "", ""},
-
-    {"Your muscles are strong (Str +1), but stiff (Dex -1).",
-     "Your muscles are very strong (Str +2), but stiff (Dex -2).",
-     "Your muscles are extremely strong (Str +3), but stiff (Dex -3)."},
-
-    {"Your muscles are flexible (Dex +1), but weak (Str -1).",
-     "Your muscles are very flexible (Dex +2), but weak (Str -2).",
-     "Your muscles are extremely flexible (Dex +3), but weak (Str -3)."},
-
-    {"You occasionally shout uncontrollably.",
-     "You sometimes yell uncontrollably.",
-     "You frequently scream uncontrollably."},
-
-    {"You possess an exceptional clarity of mind.",
-     "You possess an unnatural clarity of mind.",
-     "You possess a supernatural clarity of mind."},
-
-    {"You tend to lose your temper in combat.",
-     "You often lose your temper in combat.",
-     "You have an uncontrollable temper."},
-
-    {"Your body is slowly deteriorating.", "Your body is deteriorating.",
-     "Your body is rapidly deteriorating."},
-
-// 40
-    {"Your vision is a little blurry.", "Your vision is quite blurry.",
-     "Your vision is extremely blurry."},
-
-    {"You are somewhat resistant to further mutation.",
-     "You are somewhat resistant to both further mutation and mutation removal.",
-     "Your current mutations are irrevocably fixed, and you can mutate no more."},
-
-    {"You are frail (-10 percent hp).",
-     "You are very frail (-20 percent hp).",
-     "You are extremely frail (-30 percent hp)."},
-
-    {"You are robust (+10 percent hp).",
-     "You are very robust (+20 percent hp).",
-     "You are extremely robust (+30 percent hp)."},
-
-    {"You are immune to unholy pain and torment.", "", ""},
-
-    {"You resist negative energy.",
-     "You are quite resistant to negative energy.",
-     "You are immune to negative energy."},
-
-    // Use player_has_spell() to avoid duplication
-    {"You can summon minor demons to your aid.", "", ""},
-    {"You can summon demons to your aid.", "", ""},
-    {"You can hurl blasts of hellfire.", "", ""},
-    {"You can call on the torments of Hell.", "", ""},
-
-    // Not summoners/necromancers/worshippers of Yredelemnul
-// 50
-    {"You can raise the dead to walk for you.", "", ""},
-    {"You can control demons.", "", ""},
-    {"You can travel to (but not from) Pandemonium at will.", "", ""},
-    {"You can draw strength from death and destruction.", "", ""},
-
-    // Not worshippers of Vehumet
-    {"You can channel magical energy from Hell.", "", ""},
-
-    {"You can drain life in unarmed combat.", "", ""},
-
-    // Not conjurers/worshippers of Makhleb
-    {"You can throw forth the flames of Gehenna.", "", ""},
-
-    {"You can throw forth the frost of Cocytus.", "", ""},
-
-    {"You can invoke the powers of Tartarus to smite your living foes.", "", ""},
-
-    {"You have sharp fingernails.", "You have very sharp fingernails.",
-     "You have claws for hands."},
-
-// 60
-    {"You have very sharp teeth.", "You have extremely sharp teeth.",
-     "You have razor-sharp teeth."},
-
-    // Leave some space for more demonic powers
-    {"You have hooves in place of feet.", "", ""},
-
-    {"You have talons in place of feet.", "", ""},
-
-    {"You can exhale a cloud of poison.", "", ""},
-
-    {"Your tail ends in a poisonous barb.",
-     "Your tail ends in a sharp poisonous barb.",
-     "Your tail ends in a wicked poisonous barb."}, //jmf: nagas & dracos
-
-    {"Your wings are large and strong.", "", ""},       //jmf: dracos only
-
-    //jmf: these next two are for evil gods to mark their followers; good gods
-    //     will never accept a 'marked' worshipper
-
-    {"There is a blue sigil on each of your hands.",
-     "There are several blue sigils on your hands and arms.",
-     "Your hands, arms and shoulders are covered in intricate, arcane blue writing."},
-
-    {"There is a green sigil on your chest.",
-     "There are several green sigils on your chest and abdomen.",
-     "Your chest, abdomen and neck are covered in intricate, arcane green writing."},
-
-    {"You can tolerate rotten meat.", "You can eat rotten meat.",
-     "You thrive on rotten meat."},
-
-    {"You are covered in fur.",
-     "You are covered in thick fur.",
-     "Your thick and shaggy fur keeps you warm."},
-
-// 70
-    {"You have an increased reservoir of magic (+10 percent mp).",
-     "You have a strongly increased reservoir of magic (+20 percent mp).",
-     "You have an extremely increased reservoir of magic (+30 percent mp)."},
-
-    {"Your magical capacity is low (-10 percent mp).",
-     "Your magical capacity is very low (-20 percent mp).",
-     "Your magical capacity is extremely low (-30 percent mp)."},
-
-    {"", "", ""},
-    {"", "", ""},
-    {"", "", ""},
-
-// 75
-    {"You are partially covered in red scales (AC + 1).",
-     "You are mostly covered in red scales (AC + 2).",
-     "You are covered in red scales (AC + 4)."},
-
-    {"You are partially covered in smooth nacreous scales (AC + 1).",
-     "You are mostly covered in smooth nacreous scales (AC + 3).",
-     "You are completely covered in smooth nacreous scales (AC + 5)."},
-
-    {"You are partially covered in ridged grey scales (AC + 2, Dex -1).",
-     "You are mostly covered in ridged grey scales (AC + 4, Dex -1).",
-     "You are completely covered in ridged grey scales (AC + 6, Dex -2)."},
-
-    {"You are partially covered in metallic scales (AC + 3, Dex -2).",
-     "You are mostly covered in metallic scales (AC + 7, Dex -3).",
-     "You are completely covered in metallic scales (AC + 10, Dex -4)."},
-
-    {"You are partially covered in black scales (AC + 1).",
-     "You are mostly covered in black scales (AC + 3).",
-     "You are completely covered in black scales (AC + 5)."},
-
-    {"You are partially covered in white scales (AC + 1).",
-     "You are mostly covered in white scales (AC + 3).",
-     "You are completely covered in white scales (AC + 5)."},
-
-    {"You are partially covered in yellow scales (AC + 2).",
-     "You are mostly covered in yellow scales (AC + 4, Dex -1).",
-     "You are completely covered in yellow scales (AC + 6, Dex -2)."},
-
-    {"You are partially covered in brown scales (AC + 2).",
-     "You are mostly covered in brown scales (AC + 4).",
-     "You are completely covered in brown scales (AC + 5)."},
-
-    {"You are partially covered in blue scales (AC + 1).",
-     "You are mostly covered in blue scales (AC + 2).",
-     "You are completely covered in blue scales (AC + 3)."},
-
-    {"You are partially covered in purple scales (AC + 2).",
-     "You are mostly covered in purple scales (AC + 4).",
-     "You are completely covered in purple scales (AC + 6)."},
-
-// 85
-    {"You are partially covered in speckled scales (AC + 1).",
-     "You are mostly covered in speckled scales (AC + 2).",
-     "You are covered in speckled scales (AC + 3)."},
-
-    {"You are partially covered in orange scales (AC + 1).",
-     "You are mostly covered in orange scales (AC + 3).",
-     "You are completely covered in orange scales (AC + 4)."},
-
-    {"You are partially covered in indigo scales (AC + 2).",
-     "You are mostly covered in indigo scales (AC + 3).",
-     "You are completely covered in indigo scales (AC + 5)."},
-
-    {"You are partially covered in knobbly red scales (AC + 2).",
-     "You are mostly covered in knobbly red scales (AC + 5, Dex -1).",
-     "You are completely covered in knobbly red scales (AC + 7, Dex -2)."},
-
-    {"You are partially covered in iridescent scales (AC + 1).",
-     "You are mostly covered in iridescent scales (AC + 2).",
-     "You are completely covered in iridescent scales (AC + 3)."},
-
-    {"You are partially covered in patterned scales (AC + 1).",
-     "You are mostly covered in patterned scales (AC + 2).",
-     "You are completely covered in patterned scales (AC + 3)."}
-};
-
-// If giving a mutation which must succeed (eg demonspawn), must add
-// exception to the "resist mutation" mutation thing.
-
-const char *gain_mutation[][3] = {
-    {"Your skin toughens.", "Your skin toughens.", "Your skin toughens."},
-
-    {"", "", ""},  // replaced with player::modify_stat() handling {dlb}
-    {"", "", ""},  // replaced with player::modify_stat() handling {dlb}
-    {"", "", ""},  // replaced with player::modify_stat() handling {dlb}
-
-    {"Green scales grow over part of your body.",
-     "Green scales spread over more of your body.",
-     "Green scales cover you completely."},
-
-    {"Thick black scales grow over part of your body.",
-     "Thick black scales spread over more of your body.",
-     "Thick black scales cover you completely."},
-
-    {"Supple grey scales grow over part of your body.",
-     "Supple grey scales spread over more of your body.",
-     "Supple grey scales cover you completely."},
-
-    {"You grow protective plates of bone.",
-     "You grow more protective plates of bone.",
-     "You grow more protective plates of bone."},
-
-    {"You begin to radiate repulsive energy.",
-     "Your repulsive radiation grows stronger.",
-     "Your repulsive radiation grows stronger."},
-
-    {"You feel healthy.", "",  ""},
-
-// 10
-    {"You hunger for flesh.", "You hunger for flesh.",
-     "You hunger for flesh."},
-
-    {"You hunger for vegetation.", "You hunger for vegetation.",
-     "You hunger for vegetation."},
-
-    {"You feel a sudden chill.", "You feel a sudden chill.",
-     "You feel a sudden chill."},
-
-    {"You feel hot for a moment.", "You feel hot for a moment.",
-     "You feel hot for a moment."},
-
-    {"You feel insulated.", "", ""},
-
-    {"You begin to heal more quickly.",
-     "You begin to heal more quickly.",
-     "You begin to regenerate."},
-
-    {"You feel a little hungry.", "You feel a little hungry.",
-     "You feel a little hungry."},
-
-    {"Your metabolism slows.", "Your metabolism slows.",
-     "Your metabolism slows."},
-
-    {"You feel weaker.", "You feel weaker.", "You feel weaker."},
-
-    {"You feel less intelligent.", "You feel less intelligent.",
-     "You feel less intelligent."},
-
-// 20
-    {"You feel clumsy.", "You feel clumsy.",
-     "You feel clumsy."},
-
-    {"You feel controlled.", "You feel controlled.",
-     "You feel controlled."},
-
-    {"You feel weirdly uncertain.",
-     "You feel even more weirdly uncertain.",
-     "You feel even more weirdly uncertain."},
-
-    {"You feel resistant to magic.",
-     "You feel more resistant to magic.",
-     "You feel almost impervious to the effects of magic."},
-
-    {"You feel quick.", "You feel quick.", "You feel quick."},
-
-    {"Your vision sharpens.", "Your vision sharpens.", "Your vision sharpens."},
-
-    {"Your body twists and deforms.", "Your body twists and deforms.",
-     "Your body twists and deforms."},
-
-    {"You feel jumpy.", "You feel more jumpy.", "You feel even more jumpy."},
-
-    {"There is a nasty taste in your mouth for a moment.",
-     "There is a nasty taste in your mouth for a moment.",
-     "There is a nasty taste in your mouth for a moment."},
-
-    {"You feel aware of your surroundings.",
-     "You feel more aware of your surroundings.",
-     "You feel even more aware of your surroundings."},
-
-// 30
-    {"Your throat feels hot.", "Your throat feels hot.",
-     "Your throat feels hot."},
-
-    {"You feel a little jumpy.", "You feel more jumpy.",
-     "You feel even more jumpy."},
-
-    {"A pair of horns grows on your head!",
-     "The horns on your head grow some more.",
-     "The horns on your head grow some more."},
-
-    {"Your mouth lengthens and hardens into a beak!", "", ""},
-
-    {"Your muscles feel sore.", "Your muscles feel sore.",
-     "Your muscles feel sore."},
-
-    {"Your muscles feel loose.", "Your muscles feel loose.",
-     "Your muscles feel loose."},
-
-    {"You feel the urge to shout.", "You feel a strong urge to yell.",
-     "You feel a strong urge to scream."},
-
-    {"Your thoughts seem clearer.", "Your thoughts seem clearer.",
-     "Your thoughts seem clearer."},
-
-    {"You feel a little pissed off.", "You feel angry.",
-     "You feel extremely angry at everything!"},
-
-    {"You feel yourself wasting away.", "You feel yourself wasting away.",
-     "You feel your body start to fall apart."},
-
-// 40
-    {"Your vision blurs.", "Your vision blurs.", "Your vision blurs."},
-
-    {"You feel genetically stable.", "You feel genetically stable.",
-     "You feel genetically immutable."},
-
-    {"You feel frail.", "You feel frail.",  "You feel frail."},
-
-    {"You feel robust.", "You feel robust.", "You feel robust."},
-
-    {"You feel a strange anaesthesia.", "", ""},
-    {"You feel negative.", "You feel negative.", "You feel negative."},
-    {"A thousand chattering voices call out to you.", "", ""},
-    {"Help is not far away!", "", ""},
-    {"You smell fire and brimstone.", "", ""},
-    {"You feel a terrifying power at your call.", "", ""},
-// 50
-    {"You feel an affinity for the dead.", "", ""},
-    {"You feel an affinity for all demonkind.", "", ""},
-    {"You feel something pulling you to a strange and terrible place.", "", ""},
-    {"You feel hungry for death.", "", ""},
-    {"You feel a flux of magical energy.", "", ""},
-    {"Your skin tingles in a strangely unpleasant way.", "", ""},
-    {"You smell the fires of Gehenna.", "", ""},
-    {"You feel the icy cold of Cocytus chill your soul.", "", ""},
-    {"A shadow passes over the world around you.", "", ""},
-
-    {"Your fingernails lengthen.", "Your fingernails sharpen.",
-     "Your hands twist into claws."},
-
-// 60
-    {"Your teeth lengthen and sharpen.",
-     "Your teeth lengthen and sharpen some more.",
-     "Your teeth are very long and razor-sharp."},
-
-    {"Your feet shrivel into cloven hooves.", "", ""},
-    {"Your feet stretch and sharpen into talons.", "", ""},
-
-    {"You taste something nasty.", "You taste something very nasty.",
-     "You taste something extremely nasty."},
-
-    {"A poisonous barb forms on the end of your tail.",
-     "The barb on your tail looks sharper.",
-     "The barb on your tail looks very sharp."},
-
-    {"Your wings grow larger and stronger.", "", ""},
-
-    {"Your hands itch.", "Your hands and forearms itch.",
-     "Your arms, hands and shoulders itch."},
-
-    {"Your chest itches.", "Your chest and abdomen itch.",
-     "Your chest, abdomen and neck itch."},
-
-    // saprovorous: can never be gained or lost, only started with
-    {"", "", ""},
-
-    {"Fur sprouts all over your body.",
-     "Your fur grows into a thick mane.",
-     "Your thick fur grows shaggy and warm."},
-
-// 70
-    {"You feel more energetic.", "You feel more energetic.",
-     "You feel more energetic."},
-
-    {"You feel less energetic.", "You feel less energetic.",
-     "You feel less energetic."},
-
-    {"", "", ""},
-    {"", "", ""},
-    {"", "", ""},
-
-// 75
-    {"Red scales grow over part of your body.",
-     "Red scales spread over more of your body.",
-     "Red scales cover you completely."},
-    {"Smooth nacreous scales grow over part of your body.",
-     "Smooth nacreous scales spread over more of your body.",
-     "Smooth nacreous scales cover you completely."},
-    {"Ridged grey scales grow over part of your body.",
-     "Ridged grey scales spread over more of your body.",
-     "Ridged grey scales cover you completely."},
-    {"Metallic scales grow over part of your body.",
-     "Metallic scales spread over more of your body.",
-     "Metallic scales cover you completely."},
-    {"Black scales grow over part of your body.",
-     "Black scales spread over more of your body.",
-     "Black scales cover you completely."},
-    {"White scales grow over part of your body.",
-     "White scales spread over more of your body.",
-     "White scales cover you completely."},
-    {"Yellow scales grow over part of your body.",
-     "Yellow scales spread over more of your body.",
-     "Yellow scales cover you completely."},
-    {"Brown scales grow over part of your body.",
-     "Brown scales spread over more of your body.",
-     "Brown scales cover you completely."},
-    {"Blue scales grow over part of your body.",
-     "Blue scales spread over more of your body.",
-     "Blue scales cover you completely."},
-    {"Purple scales grow over part of your body.",
-     "Purple scales spread over more of your body.",
-     "Purple scales cover you completely."},
-
-// 85
-    {"Speckled scales grow over part of your body.",
-     "Speckled scales spread over more of your body.",
-     "Speckled scales cover you completely."},
-    {"Orange scales grow over part of your body.",
-     "Orange scales spread over more of your body.",
-     "Orange scales cover you completely."},
-    {"Indigo scales grow over part of your body.",
-     "Indigo scales spread over more of your body.",
-     "Indigo scales cover you completely."},
-    {"Knobbly red scales grow over part of your body.",
-     "Knobbly red scales spread over more of your body.",
-     "Knobbly red scales cover you completely."},
-    {"Iridescent scales grow over part of your body.",
-     "Iridescent scales spread over more of your body.",
-     "Iridescent scales cover you completely."},
-    {"Patterned scales grow over part of your body.",
-     "Patterned scales spread over more of your body.",
-     "Patterned scales cover you completely."}
-};
-
-const char *lose_mutation[][3] = {
-
-    {"Your skin feels delicate.", "Your skin feels delicate.",
-     "Your skin feels delicate."},
-
-    {"You feel weaker.", "You feel weaker.", "You feel weaker."},
-
-    {"You feel less intelligent.", "You feel less intelligent.",
-     "You feel less intelligent."},
-
-    {"You feel clumsy.", "You feel clumsy.", "You feel clumsy."},
-
-    {"Your green scales disappear.",
-     "Your green scales recede somewhat.",
-     "Your green scales recede somewhat."},
-
-    {"Your black scales disappear.", "Your black scales recede somewhat.",
-     "Your black scales recede somewhat."},
-
-    {"Your grey scales disappear.", "Your grey scales recede somewhat.",
-     "Your grey scales recede somewhat."},
-
-    {"Your bony plates shrink away.", "Your bony plates shrink.",
-     "Your bony plates shrink."},
-
-    {"You feel attractive.", "You feel attractive.", "You feel attractive."},
-
-    {"You feel a little less healthy.", "", ""},
-
-// 10
-    {"You feel able to eat a more balanced diet.",
-     "You feel able to eat a more balanced diet.",
-     "You feel able to eat a more balanced diet."},
-
-    {"You feel able to eat a more balanced diet.",
-     "You feel able to eat a more balanced diet.",
-     "You feel able to eat a more balanced diet."},
-
-    {"You feel hot for a moment.", "You feel hot for a moment.",
-     "You feel hot for a moment."},
-
-    {"You feel a sudden chill.", "You feel a sudden chill.",
-     "You feel a sudden chill."},
-
-    {"You feel conductive.", "", ""},
-
-    {"Your rate of healing slows.", "Your rate of healing slows.",
-     "Your rate of healing slows."},
-
-    {"Your metabolism slows.", "Your metabolism slows.",
-     "Your metabolism slows."},
-
-    {"You feel a little hungry.", "You feel a little hungry.",
-     "You feel a little hungry."},
-
-    {"", "", ""},  // replaced with player::modify_stat() handling {dlb}
-    {"", "", ""},  // replaced with player::modify_stat() handling {dlb}
-// 20
-    {"", "", ""},  // replaced with player::modify_stat() handling {dlb}
-
-    {"You feel random.", "You feel uncontrolled.", "You feel uncontrolled."},
-    {"You feel stable.", "You feel stable.", "You feel stable."},
-
-    {"You feel less resistant to magic.", "You feel less resistant to magic.",
-     "You feel vulnerable to magic again."},
-
-    {"You feel sluggish.", "You feel sluggish.", "You feel sluggish."},
-
-    {"Your vision seems duller.", "Your vision seems duller.",
-     "Your vision seems duller."},
-
-    {"Your body's shape seems more normal.",
-     "Your body's shape seems slightly more normal.",
-     "Your body's shape seems slightly more normal."},
-
-    {"You feel static.", "You feel less jumpy.", "You feel less jumpy."},
-
-    {"You feel an ache in your throat.", "You feel an ache in your throat.",
-     "You feel an ache in your throat."},
-
-    {"You feel slightly disoriented.", "You feel slightly disoriented.",
-     "You feel slightly disoriented."},
-
-// 30
-    {"A chill runs up and down your throat.",
-     "A chill runs up and down your throat.",
-     "A chill runs up and down your throat."},
-
-    {"You feel a little less jumpy.", "You feel less jumpy.",
-     "You feel less jumpy."},
-
-    {"The horns on your head shrink away.",
-     "The horns on your head shrink a bit.",
-     "The horns on your head shrink a bit."},
-
-    {"Your beak shortens and softens into a mouth.", "", ""},
-
-    {"Your muscles feel loose.", "Your muscles feel loose.",
-     "Your muscles feel loose."},
-
-    {"Your muscles feel sore.", "Your muscles feel sore.",
-     "Your muscles feel sore."},
-
-    {"Your urge to shout disappears.", "Your urge to yell lessens.",
-     "Your urge to scream lessens."},
-
-    {"Your thinking seems confused.", "Your thinking seems confused.",
-     "Your thinking seems confused."},
-
-    {"You feel a little more calm.", "You feel a little less angry.",
-     "You feel a little less angry."},
-
-    {"You feel healthier.", "You feel a little healthier.",
-     "You feel a little healthier."},
-
-// 40
-    {"Your vision sharpens.", "Your vision sharpens a little.",
-     "Your vision sharpens a little."},
-
-    {"You feel genetically unstable.", "You feel genetically unstable.",
-     "You feel genetically unstable."},
-
-    {"You feel robust.", "You feel robust.", "You feel robust."},
-    {"You feel frail.", "You feel frail.", "You feel frail."},
-
-// Some demonic powers (which can't be lost) start here...
-    {"", "", ""},
-    {"", "", ""},
-    {"", "", ""},
-    {"", "", ""},
-    {"", "", ""},
-    {"", "", ""},
-// 50
-    {"", "", ""},
-    {"", "", ""},
-    {"", "", ""},
-    {"", "", ""},
-    {"", "", ""},
-    {"", "", ""},
-    {"", "", ""},
-    {"", "", ""},
-    {"", "", ""},
-
-    {"Your fingernails shrink to normal size.",
-     "Your fingernails look duller.", "Your hands feel fleshier."},
-
-// 60
-    {"Your teeth shrink to normal size.",
-     "Your teeth shrink and become duller.",
-     "Your teeth shrink and become duller."},
-
-    {"Your hooves expand and flesh out into feet!", "", ""},
-    {"Your talons dull and shrink into feet!", "", ""},
-
-    {"", "", ""},
-    {"", "", ""},
-    {"", "", ""},
-    {"", "", ""},
-    {"", "", ""},
-
-    // saprovorous: can never be gained or lost, only started with
-    {"", "", ""},
-
-    {"You shed all your fur.",
-     "Your thick fur recedes somewhat.",
-     "Your shaggy fur recedes somewhat."},
-
-// 70
-    {"You feel less energetic.", "You feel less energetic.",
-     "You feel less energetic."},
-
-    {"You feel more energetic.", "You feel more energetic.",
-     "You feel more energetic."},
-
-    {"", "", ""},
-    {"", "", ""},
-    {"", "", ""},
-
-// 75
-    {"Your red scales disappear.", "Your red scales recede somewhat.",
-     "Your red scales recede somewhat."},
-
-    {"Your smooth nacreous scales disappear.",
-     "Your smooth nacreous scales recede somewhat.",
-     "Your smooth nacreous scales recede somewhat."},
-
-    {"Your ridged grey scales disappear.",
-     "Your ridged grey scales recede somewhat.",
-     "Your ridged grey scales recede somewhat."},
-
-    {"Your metallic scales disappear.",
-     "Your metallic scales recede somewhat.",
-     "Your metallic scales recede somewhat."},
-
-    {"Your black scales disappear.", "Your black scales recede somewhat.",
-     "Your black scales recede somewhat."},
-
-    {"Your white scales disappear.", "Your white scales recede somewhat.",
-     "Your white scales recede somewhat."},
-
-    {"Your yellow scales disappear.", "Your yellow scales recede somewhat.",
-     "Your yellow scales recede somewhat."},
-
-    {"Your brown scales disappear.", "Your brown scales recede somewhat.",
-     "Your brown scales recede somewhat."},
-
-    {"Your blue scales disappear.", "Your blue scales recede somewhat.",
-     "Your blue scales recede somewhat."},
-
-    {"Your purple scales disappear.", "Your purple scales recede somewhat.",
-     "Your purple scales recede somewhat."},
-
-// 85
-    {"Your speckled scales disappear.",
-     "Your speckled scales recede somewhat.",
-     "Your speckled scales recede somewhat."},
-
-    {"Your orange scales disappear.", "Your orange scales recede somewhat.",
-     "Your orange scales recede somewhat."},
-
-    {"Your indigo scales disappear.", "Your indigo scales recede somewhat.",
-     "Your indigo scales recede somewhat."},
-
-    {"Your knobbly red scales disappear.",
-     "Your knobbly red scales recede somewhat.",
-     "Your knobbly red scales recede somewhat."},
-
-    {"Your iridescent scales disappear.",
-     "Your iridescent scales recede somewhat.",
-     "Your iridescent scales recede somewhat."},
-
-    {"Your patterned scales disappear.",
-     "Your patterned scales recede somewhat.",
-     "Your patterned scales recede somewhat."}
-};
-
 // mutation definitions:
-// first  number  = probability  (0 means it doesn't appear naturally?)
+// first  number  = probability (0 means it doesn't appear naturally
+//                  unless you have some level of it already)
 // second number  = maximum levels
 // first  boolean = is mutation mostly bad?
 // second boolean = is mutation physical, i.e. external only?
+// first  strings = what to show in 'A'
+// second strings = message given when gaining the mutation
+// third  strings = message given when losing the mutation
+// fourth string  = wizard-mode name of mutation
+mutation_def mutation_defs[] = {
+    { MUT_TOUGH_SKIN,                10,  3, false,  true,
+      {"You have tough skin (AC +1).",
+       "You have very tough skin (AC +2).",
+       "You have extremely tough skin (AC +3)."},
 
-static mutation_def mutation_defs[] = {
-    { MUT_TOUGH_SKIN,                10,  3, false,  true },
-    { MUT_STRONG,                     8, 14, false,  true },
-    { MUT_CLEVER,                     8, 14, false,  true },
-    { MUT_AGILE,                      8, 14, false,  true },
-    { MUT_GREEN_SCALES,               2,  3, false,  true },
-    { MUT_BLACK_SCALES,               1,  3, false,  true },
-    { MUT_GREY_SCALES,                2,  3, false,  true },
-    { MUT_BONEY_PLATES,               1,  3, false,  true },
-    { MUT_REPULSION_FIELD,            1,  3, false, false },
-    { MUT_POISON_RESISTANCE,          4,  1, false, false },
-// 10
-    { MUT_CARNIVOROUS,                5,  3, false, false },
-    { MUT_HERBIVOROUS,                5,  3,  true, false },
-    { MUT_HEAT_RESISTANCE,            4,  3, false, false },
-    { MUT_COLD_RESISTANCE,            4,  3, false, false },
-    { MUT_SHOCK_RESISTANCE,           2,  1, false, false },
-    { MUT_REGENERATION,               3,  3, false, false },
-    { MUT_FAST_METABOLISM,           10,  3,  true, false },
-    { MUT_SLOW_METABOLISM,            7,  3, false, false },
-    { MUT_WEAK,                      10, 14,  true,  true },
-    { MUT_DOPEY,                     10, 14,  true,  true },
-// 20
-    { MUT_CLUMSY,                    10, 14,  true,  true },
-    { MUT_TELEPORT_CONTROL,           2,  1, false, false },
-    { MUT_TELEPORT,                   3,  3,  true, false },
-    { MUT_MAGIC_RESISTANCE,           5,  3, false, false },
-    { MUT_FAST,                       1,  3, false, false },
-    { MUT_ACUTE_VISION,               2,  1, false, false },
-    { MUT_DEFORMED,                   8,  3,  true,  true },
-    { MUT_TELEPORT_AT_WILL,           2,  3, false, false },
-    { MUT_SPIT_POISON,                8,  3, false, false },
-    { MUT_MAPPING,                    3,  3, false, false },
-// 30
-    { MUT_BREATHE_FLAMES,             4,  3, false, false },
-    { MUT_BLINK,                      3,  3, false, false },
-    { MUT_HORNS,                      7,  3, false,  true },
-    { MUT_BEAK,                       1,  1, false,  true },
-    { MUT_STRONG_STIFF,              10,  3, false,  true },
-    { MUT_FLEXIBLE_WEAK,             10,  3, false,  true },
-    { MUT_SCREAM,                     6,  3,  true, false },
-    { MUT_CLARITY,                    6,  1, false, false },
-    { MUT_BERSERK,                    7,  3,  true, false },
-    { MUT_DETERIORATION,             10,  3,  true, false },
-// 40
-    { MUT_BLURRY_VISION,             10,  3,  true, false },
-    { MUT_MUTATION_RESISTANCE,        4,  3, false, false },
-    { MUT_FRAIL,                     10,  3,  true,  true },
-    { MUT_ROBUST,                     5,  3, false,  true },
+      {"Your skin toughens.",
+       "Your skin toughens.",
+       "Your skin toughens."},
+
+      {"Your skin feels delicate.",
+       "Your skin feels delicate.",
+       "Your skin feels delicate."},
+
+      "tough skin"
+    },
+
+    { MUT_STRONG,                     8, 14, false,  true,
+      {"Your muscles are strong (Str +", "", ""},
+      {"", "", ""},
+      {"", "", ""},
+      "strong"
+    },
+    { MUT_CLEVER,                     8, 14, false,  true,
+      {"Your mind is acute (Int +", "", ""},
+      {"", "", ""},
+      {"", "", ""},
+      "clever"
+    },
+    { MUT_AGILE,                      8, 14, false,  true,
+      {"You are agile (Dex +", "", ""},
+      {"", "", ""},
+      {"", "", ""},
+      "agile"
+    },
+    { MUT_GREEN_SCALES,               2,  3, false,  true,
+      {"You are partially covered in green scales (AC +1).",
+       "You are mostly covered in green scales (AC +3).",
+       "You are covered in green scales (AC +5)."},
+
+      {"Green scales grow over part of your body.",
+       "Green scales spread over more of your body.",
+       "Green scales cover you completely."},
+
+      {"Your green scales disappear.",
+       "Your green scales recede somewhat.",
+       "Your green scales recede somewhat."},
+
+      "green scales"
+    },
+    { MUT_BLACK_SCALES,               1,  3, false,  true,
+      {"You are partially covered in thick black scales (AC +3, Dex -1).",
+       "You are mostly covered in thick black scales (AC +6, Dex -2).",
+       "You are completely covered in thick black scales (AC +9, Dex -3)."},
+
+      {"Thick black scales grow over part of your body.",
+       "Thick black scales spread over more of your body.",
+       "Thick black scales cover you completely."},
+
+      {"Your black scales disappear.",
+       "Your black scales recede somewhat.",
+       "Your black scales recede somewhat."},
+
+      "black scales"
+    },
+    { MUT_GREY_SCALES,                2,  3, false,  true,
+      {"You are partially covered in supple grey scales (AC +1).",
+       "You are mostly covered in supple grey scales (AC +2).",
+       "You are completely covered in supple grey scales (AC +3)."},
+
+      {"Supple grey scales grow over part of your body.",
+       "Supple grey scales spread over more of your body.",
+       "Supple grey scales cover you completely."},
+
+      {"Your grey scales disappear.",
+       "Your grey scales recede somewhat.",
+       "Your grey scales recede somewhat."},
+
+      "grey scales"
+    },
+    { MUT_BONEY_PLATES,               1,  3, false,  true,
+      {"You are protected by plates of bone (AC +2, Dex -1).",
+       "You are protected by plates of bone (AC +3, Dex -2).",
+       "You are protected by plates of bone (AC +4, Dex -3)."},
+
+      {"You grow protective plates of bone.",
+       "You grow more protective plates of bone.",
+       "You grow more protective plates of bone."},
+
+      {"Your bony plates shrink away.",
+       "Your bony plates shrink.",
+       "Your bony plates shrink."},
+
+      "boney plates"
+    },
+    { MUT_REPULSION_FIELD,            1,  3, false, false,
+      {"You are surrounded by a mild repulsion field (EV +1).",
+       "You are surrounded by a moderate repulsion field (EV +3).",
+       "You are surrounded by a strong repulsion field "
+       "(EV +5; repel missiles)."},
+
+      {"You begin to radiate repulsive energy.",
+       "Your repulsive radiation grows stronger.",
+       "Your repulsive radiation grows stronger."},
+
+      {"You feel attractive.",
+       "You feel attractive.",
+       "You feel attractive."},
+
+      "repulsion field"
+    },
+
+    { MUT_POISON_RESISTANCE,          4,  1, false, false,
+      {"Your system is immune to poisons.", "", ""},
+      {"You feel healthy.", "",  ""},
+      {"You feel a little less healthy.", "", ""},
+
+      "poison resistance"
+    },
+    { MUT_CARNIVOROUS,                5,  3, false, false,
+      {"Your digestive system is specialised to digest meat.",
+       "Your digestive system is highly specialised to digest meat.",
+       "You are carnivorous and can eat meat at any time."},
+
+      {"You hunger for flesh.",
+       "You hunger for flesh.",
+       "You hunger for flesh."},
+
+      {"You feel able to eat a more balanced diet.",
+       "You feel able to eat a more balanced diet.",
+       "You feel able to eat a more balanced diet."},
+
+      "carnivorous"
+    },
+    { MUT_HERBIVOROUS,                5,  3,  true, false,
+      {"You digest meat inefficiently.",
+       "You digest meat very inefficiently.",
+       "You are a herbivore."},
+
+      {"You hunger for vegetation.",
+       "You hunger for vegetation.",
+       "You hunger for vegetation."},
+
+      {"You feel able to eat a more balanced diet.",
+       "You feel able to eat a more balanced diet.",
+       "You feel able to eat a more balanced diet."},
+
+      "herbivorous"
+    },
+    { MUT_HEAT_RESISTANCE,            4,  3, false, false,
+      {"Your flesh is heat resistant.",
+       "Your flesh is very heat resistant.",
+       "Your flesh is almost immune to the effects of heat."},
+
+      {"You feel a sudden chill.",
+       "You feel a sudden chill.",
+       "You feel a sudden chill."},
+
+      {"You feel hot for a moment.",
+       "You feel hot for a moment.",
+       "You feel hot for a moment."},
+
+      "heat resistance"
+    },
+    { MUT_COLD_RESISTANCE,            4,  3, false, false,
+      {"Your flesh is cold resistant.",
+       "Your flesh is very cold resistant.",
+       "Your flesh is almost immune to the effects of cold."},
+
+      {"You feel hot for a moment.",
+       "You feel hot for a moment.",
+       "You feel hot for a moment."},
+
+      {"You feel a sudden chill.",
+       "You feel a sudden chill.",
+       "You feel a sudden chill."},
+
+      "cold resistance"
+    },
+    { MUT_SHOCK_RESISTANCE,           2,  1, false, false,
+      {"You are immune to electric shocks.", "", ""},
+      {"You feel insulated.", "", ""},
+      {"You feel conductive.", "", ""},
+
+      "shock resistance"
+    },
+    { MUT_REGENERATION,               3,  3, false, false,
+      {"Your natural rate of healing is unusually fast.",
+       "You heal very quickly.",
+       "You regenerate."},
+
+      {"You begin to heal more quickly.",
+       "You begin to heal more quickly.",
+       "You begin to regenerate."},
+
+      {"Your rate of healing slows.",
+       "Your rate of healing slows.",
+       "Your rate of healing slows."},
+
+      "regeneration"
+    },
+    { MUT_SLOW_HEALING,               3,  3,  true, false,
+      {"You heal slowly.",
+       "You heal very slowly.",
+       "You do not heal naturally."},
+
+      {"You begin to heal more slowly.",
+       "You begin to heal more slowly.",
+       "You stop healing."},
+
+      {"Your rate of healing increases.",
+       "Your rate of healing increases.",
+       "Your rate of healing increases."},
+
+      "slow healing"
+    },
+    { MUT_FAST_METABOLISM,           10,  3,  true, false,
+      {"You have a fast metabolism.",
+       "You have a very fast metabolism.",
+       "Your metabolism is lightning-fast."},
+
+      {"You feel a little hungry.",
+       "You feel a little hungry.",
+       "You feel a little hungry."},
+
+      {"Your metabolism slows.",
+       "Your metabolism slows.",
+       "Your metabolism slows."},
+
+      "fast metabolism"
+    },
+    { MUT_SLOW_METABOLISM,            7,  3, false, false,
+      {"You have a slow metabolism.",
+       "You have a slow metabolism.",
+       "You need consume almost no food."},
+
+      {"Your metabolism slows.",
+       "Your metabolism slows.",
+       "Your metabolism slows."},
+
+      {"You feel a little hungry.",
+       "You feel a little hungry.",
+       "You feel a little hungry."},
+
+      "slow metabolism"
+    },
+
+    { MUT_WEAK,                      10, 14,  true,  true,
+      {"You are weak (Str -", "", ""},
+      {"", "", ""},
+      {"", "", ""},
+      "weak"
+    },
+    { MUT_DOPEY,                     10, 14,  true,  true,
+      {"You are dopey (Int -", "", ""},
+      {"", "", ""},
+      {"", "", ""},
+      "dopey",
+    },
+    { MUT_CLUMSY,                    10, 14,  true,  true,
+      {"You are clumsy (Dex -", "", ""},
+      {"", "", ""},
+      {"", "", ""},
+      "clumsy"
+    },
+    { MUT_TELEPORT_CONTROL,           2,  1, false, false,
+      {"You can control translocations.", "", ""},
+      {"You feel controlled.", "", ""},
+      {"You feel random.", "", ""},
+
+      "teleport control"
+    },
+
+    { MUT_TELEPORT,                   3,  3,  true, false,
+      {"Space occasionally distorts in your vicinity.",
+       "Space sometimes distorts in your vicinity.",
+       "Space frequently distorts in your vicinity."},
+
+      {"You feel weirdly uncertain.",
+       "You feel even more weirdly uncertain.",
+       "You feel even more weirdly uncertain."},
+
+      {"You feel stable.",
+       "You feel stable.",
+       "You feel stable."},
+
+      "teleport"
+    },
+    { MUT_MAGIC_RESISTANCE,           5,  3, false, false,
+      {"You are resistant to magic.",
+       "You are highly resistant to magic.",
+       "You are extremely resistant to the effects of magic."},
+
+      {"You feel resistant to magic.",
+       "You feel more resistant to magic.",
+       "You feel almost impervious to the effects of magic."},
+
+      {"You feel less resistant to magic.",
+       "You feel less resistant to magic.",
+       "You feel vulnerable to magic again."},
+
+      "magic resistance"
+    },
+
+    { MUT_FAST,                       1,  3, false, false,
+      {"You cover ground quickly.",
+       "You cover ground very quickly.",
+       "You cover ground extremely quickly."},
+
+      {"You feel quick.",
+       "You feel quick.",
+       "You feel quick."},
+
+      {"You feel sluggish.",
+       "You feel sluggish.",
+       "You feel sluggish."},
+
+      "fast"
+    },
+    { MUT_ACUTE_VISION,               2,  1, false, false,
+      {"You have supernaturally acute eyesight.",
+       "You have supernaturally acute eyesight.",
+       "You have supernaturally acute eyesight."},
+
+      {"Your vision sharpens.",
+       "Your vision sharpens.",
+       "Your vision sharpens."},
+
+      {"Your vision seems duller.",
+       "Your vision seems duller.",
+       "Your vision seems duller."},
+
+      "acute vision"
+    },
+    { MUT_DEFORMED,                   8,  3,  true,  true,
+      {"Armour fits poorly on your deformed body.",
+       "Armour fits poorly on your badly deformed body.",
+       "Armour fits poorly on your hideously deformed body."},
+
+      {"Your body twists and deforms.",
+       "Your body twists and deforms.",
+       "Your body twists and deforms."},
+
+      {"Your body's shape seems more normal.",
+       "Your body's shape seems slightly more normal.",
+       "Your body's shape seems slightly more normal."},
+
+      "deformed"
+    },
+    { MUT_TELEPORT_AT_WILL,           2,  3, false, false,
+      {"You can teleport at will.",
+       "You are good at teleporting at will.",
+       "You can teleport instantly at will."},
+
+      {"You feel jumpy.",
+       "You feel more jumpy.",
+       "You feel even more jumpy."},
+
+      {"You feel static.",
+       "You feel less jumpy.",
+       "You feel less jumpy."},
+
+      "teleport at will"
+    },
+    { MUT_SPIT_POISON,                8,  3, false, false,
+      {"You can spit poison.",
+       "You can spit poison.",
+       "You can spit poison."},
+
+      {"There is a nasty taste in your mouth for a moment.",
+       "There is a nasty taste in your mouth for a moment.",
+       "There is a nasty taste in your mouth for a moment."},
+
+      {"You feel an ache in your throat.",
+       "You feel an ache in your throat.",
+       "You feel an ache in your throat."},
+
+      "spit poison"
+    },
+    { MUT_MAPPING,                    3,  3, false, false,
+      {"You can sense your immediate surroundings.",
+       "You can sense your surroundings.",
+       "You can sense a large area of your surroundings."},
+
+      {"You feel aware of your surroundings.",
+       "You feel more aware of your surroundings.",
+       "You feel even more aware of your surroundings."},
+
+      {"You feel slightly disoriented.",
+       "You feel slightly disoriented.",
+       "You feel slightly disoriented."},
+
+      "mapping"
+    },
+    { MUT_BREATHE_FLAMES,             4,  3, false, false,
+      {"You can breathe flames.",
+       "You can breathe fire.",
+       "You can breathe blasts of fire."},
+
+      {"Your throat feels hot.",
+       "Your throat feels hot.",
+       "Your throat feels hot."},
+
+      {"A chill runs up and down your throat.",
+       "A chill runs up and down your throat.",
+       "A chill runs up and down your throat."},
+
+      "breathe flames"
+    },
+    { MUT_BLINK,                      3,  3, false, false,
+      {"You can translocate small distances instantaneously.",
+       "You can translocate small distances instantaneously.",
+       "You can translocate small distances instantaneously."},
+
+      {"You feel a little jumpy.",
+       "You feel more jumpy.",
+       "You feel even more jumpy."},
+
+      {"You feel a little less jumpy.",
+       "You feel less jumpy.",
+       "You feel less jumpy."},
+
+      "blink"
+    },
+    { MUT_HORNS,                      7,  3, false,  true,
+      {"You have a pair of small horns on your head.",
+       "You have a pair of horns on your head.",
+       "You have a pair of large horns on your head."},
+
+      {"A pair of horns grows on your head!",
+       "The horns on your head grow some more.",
+       "The horns on your head grow some more."},
+
+      {"The horns on your head shrink away.",
+       "The horns on your head shrink a bit.",
+       "The horns on your head shrink a bit."},
+
+      "horns"
+    },
+    { MUT_BEAK,                       1,  1, false,  true,
+      {"You have a beak for a mouth.", "", ""},
+      {"Your mouth lengthens and hardens into a beak!", "", ""},
+      {"Your beak shortens and softens into a mouth.", "", ""},
+
+      "beak"
+    },
+    { MUT_STRONG_STIFF,              10,  3, false,  true,
+      {"Your muscles are strong (Str +1), but stiff (Dex -1).",
+       "Your muscles are very strong (Str +2), but stiff (Dex -2).",
+       "Your muscles are extremely strong (Str +3), but stiff (Dex -3)."},
+
+      {"Your muscles feel sore.",
+       "Your muscles feel sore.",
+       "Your muscles feel sore."},
+
+      {"Your muscles feel loose.",
+       "Your muscles feel loose.",
+       "Your muscles feel loose."},
+
+      "strong stiff"
+    },
+    { MUT_FLEXIBLE_WEAK,             10,  3, false,  true,
+      {"Your muscles are flexible (Dex +1), but weak (Str -1).",
+       "Your muscles are very flexible (Dex +2), but weak (Str -2).",
+       "Your muscles are extremely flexible (Dex +3), but weak (Str -3)."},
+
+      {"Your muscles feel loose.",
+       "Your muscles feel loose.",
+       "Your muscles feel loose."},
+
+      {"Your muscles feel sore.",
+       "Your muscles feel sore.",
+       "Your muscles feel sore."},
+
+      "flexible weak"
+    },
+    { MUT_SCREAM,                     6,  3,  true, false,
+      {"You occasionally shout uncontrollably.",
+       "You sometimes yell uncontrollably.",
+       "You frequently scream uncontrollably."},
+
+      {"You feel the urge to shout.",
+       "You feel a strong urge to yell.",
+       "You feel a strong urge to scream."},
+
+      {"Your urge to shout disappears.",
+       "Your urge to yell lessens.",
+       "Your urge to scream lessens."},
+
+      "scream"
+    },
+    { MUT_CLARITY,                    6,  1, false, false,
+      {"You possess an exceptional clarity of mind.", "", ""},
+      {"Your thoughts seem clearer.", "", ""},
+      {"Your thinking seems confused.", "", ""},
+
+      "clarity"
+    },
+    { MUT_BERSERK,                    7,  3,  true, false,
+      {"You tend to lose your temper in combat.",
+       "You often lose your temper in combat.",
+       "You have an uncontrollable temper."},
+
+      {"You feel a little pissed off.",
+       "You feel angry.",
+       "You feel extremely angry at everything!"},
+
+      {"You feel a little more calm.",
+       "You feel a little less angry.",
+       "You feel a little less angry."},
+
+      "berserk"
+    },
+    { MUT_DETERIORATION,             10,  3,  true, false,
+      {"Your body is slowly deteriorating.",
+       "Your body is deteriorating.",
+       "Your body is rapidly deteriorating."},
+
+      {"You feel yourself wasting away.",
+       "You feel yourself wasting away.",
+       "You feel your body start to fall apart."},
+
+      {"You feel healthier.",
+       "You feel a little healthier.",
+       "You feel a little healthier."},
+
+      "deterioration"
+    },
+    { MUT_BLURRY_VISION,             10,  3,  true, false,
+      {"Your vision is a little blurry.",
+       "Your vision is quite blurry.",
+       "Your vision is extremely blurry."},
+
+      {"Your vision blurs.",
+       "Your vision blurs.",
+       "Your vision blurs."},
+
+      {"Your vision sharpens.",
+       "Your vision sharpens a little.",
+       "Your vision sharpens a little."},
+
+      "blurry vision"
+    },
+    { MUT_MUTATION_RESISTANCE,        4,  3, false, false,
+      {"You are somewhat resistant to further mutation.",
+       "You are somewhat resistant to both further mutation "
+       "and mutation removal.",
+       "Your current mutations are irrevocably fixed, "
+       "and you can mutate no more."},
+
+      {"You feel genetically stable.",
+       "You feel genetically stable.",
+       "You feel genetically immutable."},
+
+      {"You feel genetically unstable.",
+       "You feel genetically unstable.",
+       "You feel genetically unstable."},
+
+      "mutation resistance"
+    },
+    { MUT_FRAIL,                     10,  3,  true,  true,
+      {"You are frail (-10% HP).",
+       "You are very frail (-20% HP).",
+       "You are extremely frail (-30% HP)."},
+
+      {"You feel frail.",
+       "You feel frail.",
+       "You feel frail."},
+
+      {"You feel robust.",
+       "You feel robust.",
+       "You feel robust."},
+
+      "frail"
+    },
+    { MUT_ROBUST,                     5,  3, false,  true,
+      {"You are robust (+10% HP).",
+       "You are very robust (+20% HP).",
+       "You are extremely robust (+30% HP)."},
+
+      {"You feel robust.",
+       "You feel robust.",
+       "You feel robust."},
+
+      {"You feel frail.",
+       "You feel frail.",
+       "You feel frail."},
+
+      "robust"
+    },
 
 // Some demonic powers start here:
-    { MUT_TORMENT_RESISTANCE,         0,  1, false, false },
-    { MUT_NEGATIVE_ENERGY_RESISTANCE, 0,  3, false, false },
-    { MUT_SUMMON_MINOR_DEMONS,        0,  1, false, false },
-    { MUT_SUMMON_DEMONS,              0,  1, false, false },
-    { MUT_HURL_HELLFIRE,              0,  1, false, false },
-    { MUT_CALL_TORMENT,               0,  1, false, false },
-// 50
-    { MUT_RAISE_DEAD,                 0,  1, false, false },
-    { MUT_CONTROL_DEMONS,             0,  1, false, false },
-    { MUT_PANDEMONIUM,                0,  1, false, false },
-    { MUT_DEATH_STRENGTH,             0,  1, false, false },
-    { MUT_CHANNEL_HELL,               0,  1, false, false },
-    { MUT_DRAIN_LIFE,                 0,  1, false, false },
-    { MUT_THROW_FLAMES,               0,  1, false, false },
-    { MUT_THROW_FROST,                0,  1, false, false },
-    { MUT_SMITE,                      0,  1, false, false },
+    { MUT_TORMENT_RESISTANCE,         0,  1, false, false,
+      {"You are immune to unholy pain and torment.", "", ""},
+      {"You feel a strange anaesthesia.", "", ""},
+      {"", "", ""},
+
+      "torment resistance"
+    },
+    { MUT_NEGATIVE_ENERGY_RESISTANCE, 0,  3, false, false,
+      {"You resist negative energy.",
+       "You are quite resistant to negative energy.",
+       "You are immune to negative energy."},
+
+      {"You feel negative.",
+       "You feel negative.",
+       "You feel negative."},
+
+      {"", "", ""},
+
+      "negative energy resistance"
+    },
+    { MUT_SUMMON_MINOR_DEMONS,        0,  1, false, false,
+      {"You can summon minor demons to your aid.", "", ""},
+      {"A thousand chattering voices call out to you.", "", ""},
+      {"", "", ""},
+
+      "summon minor demons"
+    },
+    { MUT_SUMMON_DEMONS,              0,  1, false, false,
+      {"You can summon demons to your aid.", "", ""},
+      {"Help is not far away!", "", ""},
+      {"", "", ""},
+
+      "summon demons"
+    },
+    { MUT_HURL_HELLFIRE,              0,  1, false, false,
+      {"You can hurl blasts of hellfire.", "", ""},
+      {"You smell fire and brimstone.", "", ""},
+      {"", "", ""},
+
+      "hurl hellfire"
+    },
+    { MUT_CALL_TORMENT,               0,  1, false, false,
+      {"You can call on the torments of Hell.", "", ""},
+      {"You feel a terrifying power at your call.", "", ""},
+      {"", "", ""},
+
+      "call torment"
+    },
+    { MUT_RAISE_DEAD,                 0,  1, false, false,
+      {"You can raise the dead to walk for you.", "", ""},
+      {"You feel an affinity for the dead.", "", ""},
+      {"", "", ""},
+
+      "raise dead"
+    },
+    { MUT_CONTROL_DEMONS,             0,  1, false, false,
+      {"You can control demons.", "", ""},
+      {"You feel an affinity for all demonkind.", "", ""},
+      {"", "", ""},
+
+      "control demons"
+    },
+    { MUT_DEATH_STRENGTH,             0,  1, false, false,
+      {"You can draw strength from death and destruction.", "", ""},
+      {"You feel hungry for death.", "", ""},
+      {"", "", ""},
+
+      "death strength"
+    },
+    { MUT_CHANNEL_HELL,               0,  1, false, false,
+      {"You can channel magical energy from Hell.", "", ""},
+      {"You feel a flux of magical energy.", "", ""},
+      {"", "", ""},
+
+      "channel hell"
+    },
+    { MUT_DRAIN_LIFE,                 0,  1, false, false,
+      {"You can drain life in unarmed combat.", "", ""},
+      {"Your skin tingles in a strangely unpleasant way.", "", ""},
+      {"", "", ""},
+
+      "drain life"
+    },
+    { MUT_THROW_FLAMES,               0,  1, false, false,
+      {"You can throw forth the flames of Gehenna.", "", ""},
+      {"You smell the fires of Gehenna.", "", ""},
+      {"", "", ""},
+
+      "throw flames"
+    },
+    { MUT_THROW_FROST,                0,  1, false, false,
+      {"You can throw forth the frost of Cocytus.", "", ""},
+      {"You feel the icy cold of Cocytus chill your soul.", "", ""},
+      {"", "", ""},
+
+      "throw frost"
+    },
+    { MUT_SMITE,                      0,  1, false, false,
+      {"You can invoke the powers of Tartarus to smite your living foes.",
+       "", ""},
+      {"A shadow passes over the world around you.", "", ""},
+      {"", "", ""},
+
+      "smite"
+    },
 // end of demonic powers
 
-    { MUT_CLAWS,                      2,  3, false,  true },
-// 60
-    { MUT_FANGS,                      1,  3, false,  true },
-    { MUT_HOOVES,                     1,  1, false,  true },
-    { MUT_TALONS,                     1,  1, false,  true },
+    { MUT_CLAWS,                      2,  3, false,  true,
+      {"You have sharp fingernails.",
+       "You have very sharp fingernails.",
+       "You have claws for hands."},
+
+      {"Your fingernails lengthen.",
+       "Your fingernails sharpen.",
+       "Your hands twist into claws."},
+
+      {"Your fingernails shrink to normal size.",
+       "Your fingernails look duller.",
+       "Your hands feel fleshier."},
+
+      "claws"
+    },
+    { MUT_FANGS,                      1,  3, false,  true,
+      {"You have very sharp teeth.",
+       "You have extremely sharp teeth.",
+       "You have razor-sharp teeth."},
+
+      {"Your teeth lengthen and sharpen.",
+       "Your teeth lengthen and sharpen some more.",
+       "Your teeth are very long and razor-sharp."},
+
+      {"Your teeth shrink to normal size.",
+       "Your teeth shrink and become duller.",
+       "Your teeth shrink and become duller."},
+
+      "fangs"
+    },
+    { MUT_HOOVES,                     1,  1, false,  true,
+      {"You have hooves in place of feet.", "", ""},
+      {"Your feet shrivel into cloven hooves.", "", ""},
+      {"Your hooves expand and flesh out into feet!", "", ""},
+
+      "hooves"
+    },
+    { MUT_TALONS,                     1,  1, false,  true,
+      {"You have talons in place of feet.", "", ""},
+      {"Your feet stretch and sharpen into talons.", "", ""},
+      {"Your talons dull and shrink into feet!", "", ""},
+
+      "talons"
+    },
 
     // Naga only
-    { MUT_BREATHE_POISON,             0,  1, false, false },
+    { MUT_BREATHE_POISON,             0,  1, false, false,
+      {"You can exhale a cloud of poison.", "", ""},
+      {"You taste something nasty.", "", ""},
+      {"Your breath is less nasty.", "", ""},
+
+      "breathe poison"
+    },
     // Naga and Draconian only
-    { MUT_STINGER,                    0,  3, false,  true },
+    { MUT_STINGER,                    0,  3, false,  true,
+      {"Your tail ends in a poisonous barb.",
+       "Your tail ends in a sharp poisonous barb.",
+       "Your tail ends in a wickedly sharp and poisonous barb."},
+
+      {"A poisonous barb forms on the end of your tail.",
+       "The barb on your tail looks sharper.",
+       "The barb on your tail looks very sharp."},
+
+      {"The barb on your tail disappears.",
+       "The barb on your tail seems less sharp.",
+       "The barb on your tail seems less sharp."},
+
+      "stinger"
+    },
     // Draconian only
-    { MUT_BIG_WINGS,                  0,  1, false,  true },
-// 65
-     // used by evil gods to mark followers (currently UNUSED)
-    { MUT_BLUE_MARKS,                 0,  3, false,  true },
-    { MUT_GREEN_MARKS,                0,  3, false,  true },
+    { MUT_BIG_WINGS,                  0,  1, false,  true,
+      {"Your wings are large and strong.", "", ""},
+      {"Your wings grow larger and stronger.", "", ""},
+      {"Your wings shrivel and weaken.", "", ""},
 
-    // species-dependent innate mutation
-    { MUT_SAPROVOROUS,                0,  3, false, false },
+      "big wings"
+    },
 
-    { MUT_SHAGGY_FUR,                 2,  3, false,  true },
+    // species-dependent innate mutations
+    { MUT_SAPROVOROUS,                0,  3, false, false,
+      {"You can tolerate rotten meat.",
+       "You can eat rotten meat.",
+       "You thrive on rotten meat."},
+      {"", "", ""},
+      {"", "", ""},
 
-// 70
-    { MUT_HIGH_MAGIC,                 1,  3, false, false },
-    { MUT_LOW_MAGIC,                  9,  3,  true, false },
-    { RANDOM_MUTATION,                0,  3, false, false },
-    { RANDOM_MUTATION,                0,  3, false, false },
-    { RANDOM_MUTATION,                0,  3, false, false },
+      "saprovorous"
+    },
+    { MUT_GOURMAND,                   0,  1, false, false,
+      {"You like to eat raw meat.", "", ""},
+      {"", "", ""},
+      {"", "", ""},
 
-// 75 -- scales of various colours and effects
-    { MUT_RED_SCALES,                 2,  3, false,  true },
-    { MUT_NACREOUS_SCALES,            1,  3, false,  true },
-    { MUT_GREY2_SCALES,               2,  3, false,  true },
-    { MUT_METALLIC_SCALES,            1,  3, false,  true },
-    { MUT_BLACK2_SCALES,              2,  3, false,  true },
-    { MUT_WHITE_SCALES,               2,  3, false,  true },
-    { MUT_YELLOW_SCALES,              2,  3, false,  true },
-    { MUT_BROWN_SCALES,               2,  3, false,  true },
-    { MUT_BLUE_SCALES,                2,  3, false,  true },
-    { MUT_PURPLE_SCALES,              2,  3, false,  true },
-// 85
-    { MUT_SPECKLED_SCALES,            2,  3, false,  true },
-    { MUT_ORANGE_SCALES,              2,  3, false,  true },
-    { MUT_INDIGO_SCALES,              2,  3, false,  true },
-    { MUT_RED2_SCALES,                1,  3, false,  true },
-    { MUT_IRIDESCENT_SCALES,          1,  3, false,  true },
-    { MUT_PATTERNED_SCALES,           1,  3, false,  true }
+      "gourmand"
+    },
+
+    { MUT_SHAGGY_FUR,                 2,  3, false,  true,
+      {"You are covered in fur (AC +1).",
+       "You are covered in thick fur (AC +2).",
+       "Your thick and shaggy fur keeps you warm (AC +3, cold resistant)."},
+
+      {"Fur sprouts all over your body.",
+       "Your fur grows into a thick mane.",
+       "Your thick fur grows shaggy and warm."},
+
+      {"You shed all your fur.",
+       "Your thick fur recedes somewhat.",
+       "Your shaggy fur recedes somewhat."},
+
+      "shaggy fur"
+    },
+    { MUT_HIGH_MAGIC,                 1,  3, false, false,
+      {"You have an increased reservoir of magic (+10% MP).",
+       "You have a considerably increased reservoir of magic (+20% MP).",
+       "You have an greatly increased reservoir of magic (+30% MP)."},
+
+      {"You feel more energetic.",
+       "You feel more energetic.",
+       "You feel more energetic."},
+
+      {"You feel less energetic.",
+       "You feel less energetic.",
+       "You feel less energetic."},
+
+      "high mp"
+    },
+    { MUT_LOW_MAGIC,                  9,  3,  true, false,
+      {"Your magical capacity is low (-10% MP).",
+       "Your magical capacity is very low (-20% MP).",
+       "Your magical capacity is extremely low (-30% MP)."},
+
+      {"You feel less energetic.",
+       "You feel less energetic.",
+       "You feel less energetic."},
+
+      {"You feel more energetic.",
+       "You feel more energetic.",
+       "You feel more energetic."},
+
+      "low mp"
+    },
+
+    { RANDOM_MUTATION,                0,  3, false, false,
+      {"", "", ""},
+      {"", "", ""},
+      {"", "", ""},
+
+      ""
+    },
+
+// Scales of various colours and effects
+    { MUT_RED_SCALES,                 2,  3, false,  true,
+      {"You are partially covered in red scales (AC +1).",
+       "You are mostly covered in red scales (AC +2).",
+       "You are covered in red scales (AC +4)."},
+
+      {"Red scales grow over part of your body.",
+       "Red scales spread over more of your body.",
+       "Red scales cover you completely."},
+
+      {"Your red scales disappear.",
+       "Your red scales recede somewhat.",
+       "Your red scales recede somewhat."},
+
+      "red scales"
+    },
+    { MUT_NACREOUS_SCALES,            1,  3, false,  true,
+      {"You are partially covered in smooth nacreous scales (AC +1).",
+       "You are mostly covered in smooth nacreous scales (AC +3).",
+       "You are completely covered in smooth nacreous scales (AC +5)."},
+
+      {"Smooth nacreous scales grow over part of your body.",
+       "Smooth nacreous scales spread over more of your body.",
+       "Smooth nacreous scales cover you completely."},
+
+      {"Your smooth nacreous scales disappear.",
+       "Your smooth nacreous scales recede somewhat.",
+       "Your smooth nacreous scales recede somewhat."},
+
+      "nacreous scales"
+    },
+    { MUT_GREY2_SCALES,               2,  3, false,  true,
+      {"You are partially covered in ridged grey scales (AC +2, Dex -1).",
+       "You are mostly covered in ridged grey scales (AC +4, Dex -1).",
+       "You are completely covered in ridged grey scales (AC +6, Dex -2)."},
+
+      {"Ridged grey scales grow over part of your body.",
+       "Ridged grey scales spread over more of your body.",
+       "Ridged grey scales cover you completely."},
+
+      {"Your ridged grey scales disappear.",
+       "Your ridged grey scales recede somewhat.",
+       "Your ridged grey scales recede somewhat."},
+
+      "grey2 scales"
+    },
+    { MUT_METALLIC_SCALES,            1,  3, false,  true,
+      {"You are partially covered in metallic scales (AC +3, Dex -2).",
+       "You are mostly covered in metallic scales (AC +7, Dex -3).",
+       "You are completely covered in metallic scales (AC +10, Dex -4)."},
+
+      {"Metallic scales grow over part of your body.",
+       "Metallic scales spread over more of your body.",
+       "Metallic scales cover you completely."},
+
+      {"Your metallic scales disappear.",
+       "Your metallic scales recede somewhat.",
+       "Your metallic scales recede somewhat."},
+
+      "metallic scales"
+    },
+    { MUT_BLACK2_SCALES,              2,  3, false,  true,
+      {"You are partially covered in black scales (AC +1).",
+       "You are mostly covered in black scales (AC +3).",
+       "You are completely covered in black scales (AC +5)."},
+
+      {"Black scales grow over part of your body.",
+       "Black scales spread over more of your body.",
+       "Black scales cover you completely."},
+
+      {"Your black scales disappear.",
+       "Your black scales recede somewhat.",
+       "Your black scales recede somewhat."},
+
+      "black2 scales"
+    },
+    { MUT_WHITE_SCALES,               2,  3, false,  true,
+      {"You are partially covered in white scales (AC +1).",
+       "You are mostly covered in white scales (AC +3).",
+       "You are completely covered in white scales (AC +5)."},
+
+      {"White scales grow over part of your body.",
+       "White scales spread over more of your body.",
+       "White scales cover you completely."},
+
+      {"Your white scales disappear.",
+       "Your white scales recede somewhat.",
+       "Your white scales recede somewhat."},
+
+      "white scales"
+    },
+    { MUT_YELLOW_SCALES,              2,  3, false,  true,
+      {"You are partially covered in yellow scales (AC +2).",
+       "You are mostly covered in yellow scales (AC +4, Dex -1).",
+       "You are completely covered in yellow scales (AC +6, Dex -2)."},
+
+      {"Yellow scales grow over part of your body.",
+       "Yellow scales spread over more of your body.",
+       "Yellow scales cover you completely."},
+
+      {"Your yellow scales disappear.",
+       "Your yellow scales recede somewhat.",
+       "Your yellow scales recede somewhat."},
+
+      "yellow scales"
+    },
+    { MUT_BROWN_SCALES,               2,  3, false,  true,
+      {"You are partially covered in brown scales (AC +2).",
+       "You are mostly covered in brown scales (AC +4).",
+       "You are completely covered in brown scales (AC +5)."},
+
+      {"Brown scales grow over part of your body.",
+       "Brown scales spread over more of your body.",
+       "Brown scales cover you completely."},
+
+      {"Your brown scales disappear.",
+       "Your brown scales recede somewhat.",
+       "Your brown scales recede somewhat."},
+
+      "brown scales"
+    },
+    { MUT_BLUE_SCALES,                2,  3, false,  true,
+      {"You are partially covered in blue scales (AC +1).",
+       "You are mostly covered in blue scales (AC +2).",
+       "You are completely covered in blue scales (AC +3)."},
+
+      {"Blue scales grow over part of your body.",
+       "Blue scales spread over more of your body.",
+       "Blue scales cover you completely."},
+
+      {"Your blue scales disappear.",
+       "Your blue scales recede somewhat.",
+       "Your blue scales recede somewhat."},
+
+      "blue scales"
+    },
+    { MUT_PURPLE_SCALES,              2,  3, false,  true,
+      {"You are partially covered in purple scales (AC +2).",
+       "You are mostly covered in purple scales (AC +4).",
+       "You are completely covered in purple scales (AC +6)."},
+
+      {"Purple scales grow over part of your body.",
+       "Purple scales spread over more of your body.",
+       "Purple scales cover you completely."},
+
+      {"Your purple scales disappear.",
+       "Your purple scales recede somewhat.",
+       "Your purple scales recede somewhat."},
+
+      "purple scales"
+    },
+    { MUT_SPECKLED_SCALES,            2,  3, false,  true,
+      {"You are partially covered in speckled scales (AC +1).",
+       "You are mostly covered in speckled scales (AC +2).",
+       "You are covered in speckled scales (AC +3)."},
+
+      {"Speckled scales grow over part of your body.",
+       "Speckled scales spread over more of your body.",
+       "Speckled scales cover you completely."},
+
+      {"Your speckled scales disappear.",
+       "Your speckled scales recede somewhat.",
+       "Your speckled scales recede somewhat."},
+
+      "speckled scales"
+    },
+    { MUT_ORANGE_SCALES,              2,  3, false,  true,
+      {"You are partially covered in orange scales (AC +1).",
+       "You are mostly covered in orange scales (AC +3).",
+       "You are completely covered in orange scales (AC +4)."},
+
+      {"Orange scales grow over part of your body.",
+       "Orange scales spread over more of your body.",
+       "Orange scales cover you completely."},
+
+      {"Your orange scales disappear.",
+       "Your orange scales recede somewhat.",
+       "Your orange scales recede somewhat."},
+
+      "orange scales"
+    },
+    { MUT_INDIGO_SCALES,              2,  3, false,  true,
+      {"You are partially covered in indigo scales (AC +2).",
+       "You are mostly covered in indigo scales (AC +3).",
+       "You are completely covered in indigo scales (AC +5)."},
+
+      {"Indigo scales grow over part of your body.",
+       "Indigo scales spread over more of your body.",
+       "Indigo scales cover you completely."},
+
+      {"Your indigo scales disappear.",
+       "Your indigo scales recede somewhat.",
+       "Your indigo scales recede somewhat."},
+
+      "indigo scales"
+    },
+    { MUT_RED2_SCALES,                1,  3, false,  true,
+      {"You are partially covered in knobbly red scales (AC +2).",
+       "You are mostly covered in knobbly red scales (AC +5, Dex -1).",
+       "You are completely covered in knobbly red scales (AC +7, Dex -2)."},
+
+      {"Knobbly red scales grow over part of your body.",
+       "Knobbly red scales spread over more of your body.",
+       "Knobbly red scales cover you completely."},
+
+      {"Your knobbly red scales disappear.",
+       "Your knobbly red scales recede somewhat.",
+       "Your knobbly red scales recede somewhat."},
+
+      "red2 scales"
+    },
+    { MUT_IRIDESCENT_SCALES,          1,  3, false,  true,
+      {"You are partially covered in iridescent scales (AC +1).",
+       "You are mostly covered in iridescent scales (AC +2).",
+       "You are completely covered in iridescent scales (AC +3)."},
+
+      {"Iridescent scales grow over part of your body.",
+       "Iridescent scales spread over more of your body.",
+       "Iridescent scales cover you completely."},
+
+      {"Your iridescent scales disappear.",
+       "Your iridescent scales recede somewhat.",
+       "Your iridescent scales recede somewhat."},
+
+      "iridescent scales"
+    },
+    { MUT_PATTERNED_SCALES,           1,  3, false,  true,
+      {"You are partially covered in patterned scales (AC +1).",
+       "You are mostly covered in patterned scales (AC +2).",
+       "You are completely covered in patterned scales (AC +3)."},
+
+      {"Patterned scales grow over part of your body.",
+       "Patterned scales spread over more of your body.",
+       "Patterned scales cover you completely."},
+
+      {"Your patterned scales disappear.",
+       "Your patterned scales recede somewhat.",
+       "Your patterned scales recede somewhat."},
+
+      "patterned scales"
+    }
 };
 
-COMPILE_CHECK(ARRAYSZ(mutation_defs) == NUM_MUTATIONS, c1);
-
-#ifdef DEBUG_DIAGNOSTICS
-void sanity_check_mutation_defs()
+const mutation_def& get_mutation_def(mutation_type mut)
 {
     for (unsigned i = 0; i < ARRAYSZ(mutation_defs); ++i)
-    {
-        const mutation_def &mdef(mutation_defs[i]);
-        ASSERT(mdef.mutation == static_cast<mutation_type>(i)
-               || mdef.mutation == RANDOM_MUTATION);
-    }
+        if (mut == mutation_defs[i].mutation)
+            return mutation_defs[i];
+
+    ASSERT(0);
+    return mutation_defs[0];
 }
-#endif
 
 void fixup_mutations()
 {
     if (player_genus(GENPC_DRACONIAN))
-        mutation_defs[MUT_BIG_WINGS].rarity = 1;
+    {
+        for (unsigned i = 0; i < ARRAYSZ(mutation_defs); ++i)
+        {
+            if (mutation_defs[i].mutation == MUT_STINGER
+                || mutation_defs[i].mutation == MUT_BIG_WINGS)
+            {
+                mutation_defs[i].rarity = 1;
+            }
+        }
+    }
+
+    if (you.species == SP_TROLL)
+    {
+        for (unsigned i = 0; i < ARRAYSZ(mutation_defs); ++i)
+        {
+            if (mutation_defs[i].mutation == MUT_CLAWS)
+            {
+                for (int j = 0; j < 3; ++j)
+                {
+                    mutation_defs[i].gain[j] = troll_claw_gain[j];
+                    mutation_defs[i].lose[j] = troll_claw_lose[j];
+                }
+            }
+        }
+    }
+
+    if (you.species == SP_NAGA)
+    {
+        for (unsigned i = 0; i < ARRAYSZ(mutation_defs); ++i)
+        {
+            if (mutation_defs[i].mutation == MUT_DEFORMED)
+            {
+                for (int j = 0; j < 3; ++j)
+                    mutation_defs[i].have[j] = naga_deformed_descrip[j];
+            }
+            else if (mutation_defs[i].mutation == MUT_STINGER)
+                mutation_defs[i].rarity = 1;
+        }
+    }
+
+    if (you.species == SP_CENTAUR)
+        for (unsigned i = 0; i < ARRAYSZ(mutation_defs); ++i)
+            if (mutation_defs[i].mutation == MUT_DEFORMED)
+                for (int j = 0; j < 3; ++j)
+                    mutation_defs[i].have[j] = centaur_deformed_descrip[j];
 }
 
 bool mutation_is_fully_active(mutation_type mut)
@@ -1015,12 +1256,12 @@ bool mutation_is_fully_active(mutation_type mut)
     if (you.demon_pow[mut])
         return (true);
 
-    // ... as are physical mutations
-    if (mutation_defs[mut].physical)
+    // ... as are all mutations for semi-undead who are fully alive
+    if (you.hunger_state == HS_ENGORGED)
         return (true);
 
-    // ... as are all mutations for semi-undead who are fully alive.
-    if (you.hunger_state == HS_ENGORGED)
+    // ... as are physical mutations.
+    if (get_mutation_def(mut).physical)
         return (true);
 
     return (false);
@@ -1028,8 +1269,9 @@ bool mutation_is_fully_active(mutation_type mut)
 
 static bool _mutation_is_fully_inactive(mutation_type mut)
 {
+    const mutation_def& mdef = get_mutation_def(mut);
     return (you.is_undead == US_SEMI_UNDEAD && you.hunger_state < HS_SATIATED
-            && !you.demon_pow[mut] && !mutation_defs[mut].physical);
+            && !you.demon_pow[mut] && !mdef.physical);
 }
 
 formatted_string describe_mutations()
@@ -1048,9 +1290,9 @@ formatted_string describe_mutations()
     result += mut_title;
     result += "</white>" EOL EOL;
 
-    result += "<lightblue>"; // inborn abilities and weirdness
-
-    switch (you.species)   //mv: following code shows innate abilities - if any
+    // Innate abilities which don't fit as mutations.
+    result += "<lightblue>";
+    switch (you.species)
     {
     case SP_MERFOLK:
         result += "You revert to your normal form in water." EOL;
@@ -1058,59 +1300,29 @@ formatted_string describe_mutations()
         break;
 
     case SP_NAGA:
-        if (you.mutation[MUT_DEFORMED] > 1)
-            result += "</lightblue><cyan>";
-        result += naga_deformed_descrip[you.mutation[MUT_DEFORMED] - 1];
-        if (you.mutation[MUT_DEFORMED] > 1)
-            result += "</cyan><lightblue>";
-        result += EOL;
         result += "You cannot wear boots." EOL;
-
+        if (!you.mutation[MUT_FAST])
+        {
+            result += mutation_name(MUT_FAST, -1, true);
+            result += EOL;
+        }
         // Breathe poison replaces spit poison.
         if (!you.mutation[MUT_BREATHE_POISON])
             result += "You can spit poison." EOL;
-        else
-        {
-            result += "</lightblue><cyan>You can exhale a cloud of poison."
-                      "</cyan><lightblue>" EOL ;
-        }
+        have_any = true;
+        break;
 
-        // Slowness can be overridden.
-        if (you.mutation[MUT_FAST])
-            result += "</lightblue><cyan>";
-        result += naga_speed_descrip[you.mutation[MUT_FAST]];
-        if (you.mutation[MUT_FAST])
-            result += "</cyan>";
-        result += EOL;
+    case SP_GHOUL:
+        result += "Your body is rotting away." EOL;
         have_any = true;
         break;
 
     case SP_TROLL:
-        if (you.mutation[MUT_CLAWS])
-            result += "</lightblue><cyan>";
-        result += troll_claw_descrip[you.mutation[MUT_CLAWS]];
-        if ( you.mutation[MUT_CLAWS] )
-            result += "</cyan><lightblue>";
-        result += EOL;
-        have_any = true;
-        break;
-
-    case SP_CENTAUR:
-        if (you.mutation[MUT_DEFORMED] > 1)
-            result += "</lightblue><cyan>";
-        result += centaur_deformed_descrip[you.mutation[MUT_DEFORMED] - 1];
-        if (you.mutation[MUT_DEFORMED] > 1)
-            result += "</cyan><lightblue>";
-        result += EOL;
-        have_any = true;
-        break;
-
-
-    case SP_GHOUL:
-        result += "Your body is rotting away." EOL;
-        result += troll_claw_descrip[you.mutation[MUT_CLAWS]];
-        result += EOL;
-        result += "You heal slowly." EOL;
+        if (!you.mutation[MUT_CLAWS])
+        {
+            result += mutation_name(MUT_CLAWS, -1, true);
+            result += EOL;
+        }
         have_any = true;
         break;
 
@@ -1134,7 +1346,8 @@ formatted_string describe_mutations()
                 result += " strongly";
 
             result += " in touch with the powers of death." EOL;
-            result += "You can restore your body by infusing magical energy." EOL;
+            result +=
+                "You can restore your body by infusing magical energy." EOL;
         }
         have_any = true;
         break;
@@ -1166,7 +1379,7 @@ formatted_string describe_mutations()
     case SP_WHITE_DRACONIAN:
         if (you.experience_level > 6)
         {
-            result += "You can breathe frost." EOL;
+            result += "You can breathe cold." EOL;
             have_any = true;
         }
         break;
@@ -1220,10 +1433,10 @@ formatted_string describe_mutations()
     case SP_VAMPIRE:
         have_any = true;
         if (you.hunger_state == HS_STARVING)
-            result += "<green>You do not heal.</green>" EOL;
+            result += "<green>You do not heal naturally.</green>" EOL;
         else if (you.hunger_state == HS_ENGORGED)
             result += "<green>Your natural rate of healing is extremely fast.</green>" EOL;
-        else if (you.hunger_state <= HS_HUNGRY)
+        else if (you.hunger_state < HS_SATIATED)
             result += "<green>You heal slowly.</green>" EOL;
         else if (you.hunger_state >= HS_FULL)
             result += "<green>Your natural rate of healing is unusually fast.</green>" EOL;
@@ -1237,9 +1450,15 @@ formatted_string describe_mutations()
         }
         break;
 
+    case SP_DEEP_DWARF:
+        result += "You are resistant to damage." EOL;
+        result += "You can recharge devices by infusing magical energy." EOL;
+        have_any = true;
+        break;
+
     default:
         break;
-    }                           //end switch - innate abilities
+    }
 
     // a bit more stuff
     if (you.species == SP_OGRE || you.species == SP_TROLL
@@ -1268,151 +1487,24 @@ formatted_string describe_mutations()
     // First add (non-removable) inborn abilities and demon powers.
     for (int i = 0; i < NUM_MUTATIONS; i++)
     {
-        // Mutation is actually a demonic power.
         if (you.mutation[i] != 0 && you.demon_pow[i])
         {
             mutation_type mut_type = static_cast<mutation_type>(i);
-
-            have_any = true;
-
-            // These are already handled above:
-            if (you.species == SP_NAGA
-                && (i == MUT_BREATHE_POISON || i == MUT_FAST
-                    || i == MUT_DEFORMED))
-            {
-                continue;
-            }
-
-            if (you.species == SP_TROLL && i == MUT_CLAWS)
-                continue;
-
-            if (you.species == SP_CENTAUR && i == MUT_DEFORMED)
-                continue;
-
-            const bool fully_active
-                        = mutation_is_fully_active(mut_type);
-            bool fully_inactive = false;
-            if (!fully_active)
-                fully_inactive = _mutation_is_fully_inactive(mut_type);
-
-            const char* colourname = "";
-            if (you.species == SP_DEMONSPAWN)
-            {
-                if (fully_inactive)
-                    colourname = "darkgrey";
-                else if (!fully_active)
-                    colourname = "yellow";
-                else if (you.demon_pow[i] < you.mutation[i])
-                    colourname = "lightred";
-                else
-                    colourname = "red";
-            }
-            else            // innate ability
-            {
-                if (fully_inactive)
-                    colourname = "darkgrey";
-                else if (!fully_active)
-                    colourname = "blue";
-                else if (you.demon_pow[i] < you.mutation[i])
-                    colourname = "cyan";
-                else
-                    colourname = "lightblue";
-            }
-
-            result += '<';
-            result += colourname;
-            result += '>';
-            if (fully_inactive)
-                result += "(";
-
-            std::string name = mutation_name(mut_type);
-
-            if (name.empty())
-            {
-                int level;
-                if (!fully_active)
-                    level = player_mutation_level(mut_type);
-                else // give description of fully active mutation
-                    level = you.mutation[mut_type];
-
-                char buf[80];
-                sprintf(buf, "ERROR: no name for mutation #%d, level %d", i,
-                        level);
-                name = buf;
-            }
-
-            result += name;
-
-            if (fully_inactive)
-                result += ")";
-            result += "</";
-            result += colourname;
-            result += '>';
+            result += mutation_name(mut_type, -1, true);
             result += EOL;
-
-            // Gourmand is *not* identical to being saprovorous, therefore...
-            if (i == MUT_SAPROVOROUS && you.omnivorous())
-                result += "<lightblue>You like to eat raw meat.</lightblue>" EOL;
+            have_any = true;
         }
     }
 
-    // now add removable mutations
+    // Now add removable mutations.
     for (int i = 0; i < NUM_MUTATIONS; i++)
     {
         if (you.mutation[i] != 0 && !you.demon_pow[i])
         {
             mutation_type mut_type = static_cast<mutation_type>(i);
-
-            // this is already handled above:
-            if (you.species == SP_NAGA
-                && (i == MUT_BREATHE_POISON || i == MUT_FAST))
-            {
-                continue;
-            }
-
-            if (you.species == SP_TROLL && i == MUT_CLAWS)
-                continue;
-
-            have_any = true;
-
-            // not currently active?
-            const bool need_grey = !mutation_is_fully_active(mut_type);
-            bool inactive = false;
-            if (need_grey)
-            {
-                result += "<darkgrey>";
-                if (_mutation_is_fully_inactive(mut_type))
-                {
-                    inactive = true;
-                    result += "(";
-                }
-            }
-
-            std::string name = mutation_name(mut_type);
-
-            if (name.empty())
-            {
-                int level;
-                if (!mutation_is_fully_active(mut_type))
-                    level = player_mutation_level(mut_type);
-                else // give description of fully active mutation
-                    level = you.mutation[mut_type];
-
-                char buf[80];
-                sprintf(buf, "ERROR: no name for mutation #%d, level %d", i,
-                        level);
-                name = buf;
-            }
-
-            result += name;
-
-            if (need_grey)
-            {
-                if (inactive)
-                    result += ")";
-                result += "</darkgrey>";
-            }
+            result += mutation_name(mut_type, -1, true);
             result += EOL;
+            have_any = true;
         }
     }
 
@@ -1423,8 +1515,14 @@ formatted_string describe_mutations()
     {
         result += EOL EOL;
         result += EOL EOL;
-        result += "Press '<w>!</w>' to toggle between mutations and properties depending on your" EOL
-                  "hunger status." EOL;
+        result +=
+#ifndef USE_TILE
+            "Press '<w>!</w>'"
+#else
+            "<w>Right-click</w>"
+#endif
+            " to toggle between mutations and properties depending on your" EOL
+            "hunger status." EOL;
     }
 
     return formatted_string::parse_string(result);
@@ -1513,16 +1611,23 @@ static void _display_vampire_attributes()
     }
 
     result += EOL;
-    result += "Press '<w>!</w>' to toggle between mutations and properties depending on your " EOL
-              "hunger status." EOL;
+    result +=
+#ifndef USE_TILE
+        "Press '<w>!</w>'"
+#else
+        "<w>Right-click</w>"
+#endif
+        " to toggle between mutations and properties depending on your" EOL
+        "hunger status." EOL;
 
     const formatted_string vp_props = formatted_string::parse_string(result);
     vp_props.display();
 
     if (you.species == SP_VAMPIRE)
     {
+        mouse_control mc(MOUSE_MODE_MORE);
         const int keyin = getch();
-        if (keyin == '!')
+        if (keyin == '!' || keyin == CK_MOUSE_CMD)
             display_mutations();
     }
 }
@@ -1537,8 +1642,9 @@ void display_mutations()
     if (you.species == SP_VAMPIRE)
     {
         mutation_fs.display();
+        mouse_control mc(MOUSE_MODE_MORE);
         const int keyin = getch();
-        if (keyin == '!')
+        if (keyin == '!' || keyin == CK_MOUSE_CMD)
             _display_vampire_attributes();
     }
     else
@@ -1548,9 +1654,9 @@ void display_mutations()
     }
 }
 
-static int calc_mutation_amusement_value(mutation_type which_mutation)
+static int _calc_mutation_amusement_value(mutation_type which_mutation)
 {
-    int amusement = 16 * (11 - mutation_defs[which_mutation].rarity);
+    int amusement = 16 * (11 - get_mutation_def(which_mutation).rarity);
 
     switch (which_mutation)
     {
@@ -1559,6 +1665,7 @@ static int calc_mutation_amusement_value(mutation_type which_mutation)
     case MUT_AGILE:
     case MUT_POISON_RESISTANCE:
     case MUT_SHOCK_RESISTANCE:
+    case MUT_REGENERATION:
     case MUT_SLOW_METABOLISM:
     case MUT_TELEPORT_CONTROL:
     case MUT_MAGIC_RESISTANCE:
@@ -1573,6 +1680,7 @@ static int calc_mutation_amusement_value(mutation_type which_mutation)
 
     case MUT_CARNIVOROUS:
     case MUT_HERBIVOROUS:
+    case MUT_SLOW_HEALING:
     case MUT_FAST_METABOLISM:
     case MUT_WEAK:
     case MUT_DOPEY:
@@ -1597,8 +1705,6 @@ static int calc_mutation_amusement_value(mutation_type which_mutation)
     case MUT_BREATHE_POISON:
     case MUT_STINGER:
     case MUT_BIG_WINGS:
-    case MUT_BLUE_MARKS:
-    case MUT_GREEN_MARKS:
     case MUT_LOW_MAGIC:
         amusement *= 2; // funny!
         break;
@@ -1622,10 +1728,10 @@ static bool _is_deadly(mutation_type mutat, bool delete_mut)
             return (true);
         }
 
-        // Swap things around to the same effect, but as if we were gaining
-        // a mutation, or return early if deleting the mutation is never
-        // a problem.
-        switch(mutat)
+        // Swap things around to the same effect, but as if we were
+        // gaining a mutation, or return early if deleting the mutation
+        // is never a problem.
+        switch (mutat)
         {
         case MUT_GREY2_SCALES:
         case MUT_METALLIC_SCALES:
@@ -1716,21 +1822,18 @@ static bool _is_deadly(mutation_type mutat, bool delete_mut)
     return (amnt >= (*stat_ptr + mod));
 }
 
-static bool accept_mutation(mutation_type mutat, bool ignore_rarity = false,
-                            bool non_fatal = false, bool delete_mut = false)
+static bool _accept_mutation(mutation_type mutat, bool ignore_rarity = false,
+                             bool non_fatal = false, bool delete_mut = false)
 {
-    if (mutat == RANDOM_MUTATION
-        || mutation_defs[mutat].mutation == RANDOM_MUTATION)
-    {
+    if (mutat == RANDOM_MUTATION)
         return (false);
-    }
+
+    const mutation_def& mdef = get_mutation_def(mutat);
 
     if (delete_mut)
-    {
         return (!non_fatal || !_is_deadly(mutat, delete_mut));
-    }
 
-    if (you.mutation[mutat] >= mutation_defs[mutat].levels)
+    if (you.mutation[mutat] >= mdef.levels)
         return (false);
 
     if (non_fatal && _is_deadly(mutat, delete_mut))
@@ -1739,54 +1842,49 @@ static bool accept_mutation(mutation_type mutat, bool ignore_rarity = false,
     if (ignore_rarity)
         return (true);
 
-    const int rarity = mutation_defs[mutat].rarity + you.demon_pow[mutat];
+    const int rarity = mdef.rarity + you.demon_pow[mutat];
 
     // Low rarity means unlikely to choose it.
     return (x_chance_in_y(rarity, 10));
 }
 
-static mutation_type get_random_xom_mutation(bool non_fatal = false)
+static mutation_type _get_random_xom_mutation(bool non_fatal = false)
 {
+    const mutation_type bad_muts[] = {
+        MUT_SLOW_HEALING,  MUT_WEAK,          MUT_DOPEY,
+        MUT_CLUMSY,        MUT_DEFORMED,      MUT_SCREAM,
+        MUT_DETERIORATION, MUT_BLURRY_VISION, MUT_FRAIL
+    };
+
     mutation_type mutat = NUM_MUTATIONS;
+
     do
     {
         mutat = static_cast<mutation_type>(random2(NUM_MUTATIONS));
 
         if (one_chance_in(1000))
             return (NUM_MUTATIONS);
-        if (one_chance_in(5))
-        {
-            switch (random2(8))
-            {
-            case 0: mutat = MUT_WEAK; break;
-            case 1: mutat = MUT_DOPEY; break;
-            case 2: mutat = MUT_CLUMSY; break;
-            case 3: mutat = MUT_DEFORMED; break;
-            case 4: mutat = MUT_SCREAM; break;
-            case 5: mutat = MUT_DETERIORATION; break;
-            case 6: mutat = MUT_BLURRY_VISION; break;
-            case 7: mutat = MUT_FRAIL; break;
-            }
-        }
+        else if (one_chance_in(5))
+            mutat = RANDOM_ELEMENT(bad_muts);
     }
-    while (!accept_mutation(mutat, false, non_fatal));
+    while (!_accept_mutation(mutat, false, non_fatal));
 
     return (mutat);
 }
 
-static mutation_type get_random_mutation(bool prefer_good,
-                                         int preferred_multiplier,
-                                         bool non_fatal = false)
+static mutation_type _get_random_mutation(bool prefer_good,
+                                          int preferred_multiplier,
+                                          bool non_fatal = false)
 {
     int cweight = 0;
     mutation_type chosen = NUM_MUTATIONS;
-    for (int i = 0; i < NUM_MUTATIONS; ++i)
+    for (unsigned i = 0; i < ARRAYSZ(mutation_defs); ++i)
     {
         if (!mutation_defs[i].rarity)
             continue;
 
-        const mutation_type curr = static_cast<mutation_type>(i);
-        if (!accept_mutation(curr, true, non_fatal))
+        const mutation_type curr = mutation_defs[i].mutation;
+        if (!_accept_mutation(curr, true, non_fatal))
             continue;
 
         const bool weighted = mutation_defs[i].bad != prefer_good;
@@ -1799,6 +1897,7 @@ static mutation_type get_random_mutation(bool prefer_good,
         if (x_chance_in_y(weight, cweight))
             chosen = curr;
     }
+
     return (chosen);
 }
 
@@ -1808,6 +1907,134 @@ static bool _is_random(mutation_type which_mutation)
             || which_mutation == RANDOM_XOM_MUTATION
             || which_mutation == RANDOM_GOOD_MUTATION
             || which_mutation == RANDOM_BAD_MUTATION);
+}
+
+// Tries to give you the mutation by deleting a conflicting
+// one, or clears out conflicting mutations if we should give
+// you the mutation anyway.
+// Return:
+//  1 if we should stop processing (success);
+//  0 if we should continue processing;
+// -1 if we should stop processing (failure).
+static int _handle_conflicting_mutations(mutation_type mutation,
+                                         bool override)
+{
+    if (override)
+    {
+        // These are mutations which should be cleared away if forced.
+        const mutation_type override_conflict[][2] = {
+            { MUT_REGENERATION, MUT_SLOW_METABOLISM },
+            { MUT_REGENERATION, MUT_SLOW_HEALING    },
+            { MUT_ACUTE_VISION, MUT_BLURRY_VISION   }
+        };
+
+        // If we have one of the pair, delete all levels of the other,
+        // and continue processing.
+        for (unsigned i = 0; i < ARRAYSZ(override_conflict); ++i)
+        {
+            for (int j = 0; j < 2; ++j)
+            {
+                const mutation_type a = override_conflict[i][j];
+                const mutation_type b = override_conflict[i][1-j];
+
+                if (mutation == a)
+                    while (delete_mutation(b, true, true))
+                        ;
+            }
+        }
+    }
+
+    // These are mutations which can't be traded off against each other,
+    // so we just fail.
+    const mutation_type fail_conflict[][2] = {
+        { MUT_REGENERATION, MUT_SLOW_METABOLISM },
+        { MUT_FANGS,        MUT_BEAK            },
+        { MUT_HOOVES,       MUT_TALONS          }
+    };
+
+    for (unsigned i = 0; i < ARRAYSZ(fail_conflict); ++i)
+    {
+        for (int j = 0; j < 2; ++j)
+        {
+            const mutation_type a = fail_conflict[i][j];
+            const mutation_type b = fail_conflict[i][1-j];
+            if (mutation == a && you.mutation[b] > 0)
+                return (-1);    // Fail.
+        }
+    }
+
+    // These are mutations which trade off against each other.
+    const mutation_type simple_conflict[][2] = {
+        { MUT_STRONG,          MUT_WEAK            },
+        { MUT_CLEVER,          MUT_DOPEY           },
+        { MUT_AGILE,           MUT_CLUMSY          },
+        { MUT_STRONG_STIFF,    MUT_FLEXIBLE_WEAK   },
+        { MUT_ROBUST,          MUT_FRAIL           },
+        { MUT_HIGH_MAGIC,      MUT_LOW_MAGIC       },
+        { MUT_CARNIVOROUS,     MUT_HERBIVOROUS     },
+        { MUT_SLOW_METABOLISM, MUT_FAST_METABOLISM },
+        { MUT_REGENERATION,    MUT_SLOW_HEALING    },
+        { MUT_ACUTE_VISION,    MUT_BLURRY_VISION   }
+    };
+
+    for (unsigned i = 0; i < ARRAYSZ(simple_conflict); ++i)
+    {
+        for (int j = 0; j < 2; ++j)
+        {
+            // If we have one of the pair, delete a level of the other,
+            // and that's it.
+            const mutation_type a = simple_conflict[i][j];
+            const mutation_type b = simple_conflict[i][1-j];
+            if (mutation == a && you.mutation[b] > 0)
+            {
+                delete_mutation(b);
+                return (1);     // Nothing more to do.
+            }
+        }
+    }
+
+    return (0);
+}
+
+static bool _physiology_mutation_conflict(mutation_type mutat)
+{
+    // Only Nagas and Draconians can get this one.
+    if (mutat == MUT_STINGER
+        && you.species != SP_NAGA && !player_genus(GENPC_DRACONIAN))
+    {
+        return (true);
+    }
+
+    if ((mutat == MUT_HOOVES || mutat == MUT_TALONS) && !player_has_feet())
+        return (true);
+
+    // Already innate.
+    if (mutat == MUT_BREATHE_POISON && you.species != SP_NAGA)
+        return (true);
+
+    // Red Draconians can already breathe flames.
+    if (mutat == MUT_BREATHE_FLAMES && you.species == SP_RED_DRACONIAN)
+        return (true);
+
+    // Green Draconians can already breathe poison, so they don't need
+    // to spit it.
+    if (mutat == MUT_SPIT_POISON && you.species == SP_GREEN_DRACONIAN)
+        return (true);
+
+    // Only Draconians can get wings.
+    if (mutat == MUT_BIG_WINGS && !player_genus(GENPC_DRACONIAN))
+        return (true);
+
+    // Vampires' healing and thirst rates depend on their blood level.
+    if (you.species == SP_VAMPIRE
+        && (mutat == MUT_CARNIVOROUS || mutat == MUT_HERBIVOROUS
+            || mutat == MUT_REGENERATION || mutat == MUT_SLOW_HEALING
+            || mutat == MUT_FAST_METABOLISM || mutat == MUT_SLOW_METABOLISM))
+    {
+        return (true);
+    }
+
+    return (false);
 }
 
 bool mutate(mutation_type which_mutation, bool failMsg,
@@ -1866,18 +2093,10 @@ bool mutate(mutation_type which_mutation, bool failMsg,
             // Else, chances depend on hunger state.
             switch (you.hunger_state)
             {
-            case HS_SATIATED:
-                rotting = !one_chance_in(3);
-                break;
-            case HS_FULL:
-                rotting = coinflip();
-                break;
-            case HS_VERY_FULL:
-                rotting = one_chance_in(3);
-                break;
-            case HS_ENGORGED:
-                rotting = false;
-                break;
+            case HS_SATIATED:  rotting = !one_chance_in(3); break;
+            case HS_FULL:      rotting = coinflip();        break;
+            case HS_VERY_FULL: rotting = one_chance_in(3);  break;
+            case HS_ENGORGED:  rotting = false;             break;
             }
         }
     }
@@ -1924,28 +2143,28 @@ bool mutate(mutation_type which_mutation, bool failMsg,
             if (one_chance_in(1000))
                 return (false);
         }
-        while (!accept_mutation(mutat, false, non_fatal));
+        while (!_accept_mutation(mutat, false, non_fatal));
     }
     else if (which_mutation == RANDOM_XOM_MUTATION)
     {
-        if ((mutat = get_random_xom_mutation(non_fatal)) == NUM_MUTATIONS)
+        if ((mutat = _get_random_xom_mutation(non_fatal)) == NUM_MUTATIONS)
             return (false);
     }
     else if (which_mutation == RANDOM_GOOD_MUTATION)
     {
-        mutat = get_random_mutation(true, 500, non_fatal);
+        mutat = _get_random_mutation(true, 500, non_fatal);
         if (mutat == NUM_MUTATIONS)
             return (false);
     }
     else if (which_mutation == RANDOM_BAD_MUTATION)
     {
-        mutat = get_random_mutation(false, 500, non_fatal);
+        mutat = _get_random_mutation(false, 500, non_fatal);
         if (mutat == NUM_MUTATIONS)
             return (false);
     }
 
-    // Saprovorous can't be randomly acquired.
-    if (mutat == MUT_SAPROVOROUS && !force_mutation)
+    // Saprovorous/gourmand can't be randomly acquired.
+    if ((mutat == MUT_SAPROVOROUS || mutat == MUT_GOURMAND) && !force_mutation)
         return (false);
 
     // Mutation resistance can't be acquired from god gifts.
@@ -1953,10 +2172,10 @@ bool mutate(mutation_type which_mutation, bool failMsg,
         return (false);
 
     // These can be forced by demonspawn or god gifts.
-    if ((mutat == MUT_TOUGH_SKIN || mutat == MUT_SHAGGY_FUR
+    if ((mutat == MUT_SHAGGY_FUR
             || mutat >= MUT_GREEN_SCALES && mutat <= MUT_BONEY_PLATES
             || mutat >= MUT_RED_SCALES && mutat <= MUT_PATTERNED_SCALES)
-        && body_covered() >= 3 && !god_gift && !force_mutation)
+        && _body_covered() >= 3 && !god_gift && !force_mutation)
     {
         return (false);
     }
@@ -1971,7 +2190,7 @@ bool mutate(mutation_type which_mutation, bool failMsg,
 
             mutat = MUT_BREATHE_POISON;
 
-            // breathe poison replaces spit poison (so it takes the slot)
+            // Breathe poison replaces spit poison (so it takes the slot).
             for (int i = 0; i < 52; ++i)
             {
                 if (you.ability_letter_table[i] == ABIL_SPIT_POISON)
@@ -1980,202 +2199,46 @@ bool mutate(mutation_type which_mutation, bool failMsg,
         }
     }
 
-    // This one can be forced by demonspawn or god gifts.
-    if (mutat == MUT_REGENERATION
-        && you.mutation[MUT_SLOW_METABOLISM] > 0 && !god_gift
-        && !force_mutation)
-    {
-        // If you have a slow metabolism, no regeneration.
-        return (false);
-    }
-
-    // If you have regen, no slow metabolism.
-    if (mutat == MUT_SLOW_METABOLISM && you.mutation[MUT_REGENERATION] > 0)
+    if (_physiology_mutation_conflict(mutat))
         return (false);
 
-    // This one can be forced by demonspawn or god gifts.
-    if (mutat == MUT_ACUTE_VISION
-        && you.mutation[MUT_BLURRY_VISION] > 0 && !god_gift
-        && !force_mutation)
-    {
-        return (false);
-    }
+    const mutation_def& mdef = get_mutation_def(mutat);
 
-    // No blurred vision with see invisible.
-    if (mutat == MUT_BLURRY_VISION && you.mutation[MUT_ACUTE_VISION] > 0)
+    if (you.mutation[mutat] >= mdef.levels)
         return (false);
 
-    // Only Nagas and Draconians can get this one.
-    if (mutat == MUT_STINGER
-        && !(you.species == SP_NAGA || player_genus(GENPC_DRACONIAN)))
-    {
+    // God gifts and forced mutations clear away conflicting mutations.
+    int rc =_handle_conflicting_mutations(mutat, god_gift || force_mutation);
+    if (rc == 1)
+        return (true);
+    if (rc == -1)
         return (false);
-    }
+    ASSERT(rc == 0);
 
-    // No fangs with beaks, or vice versa.
-    if ((mutat == MUT_FANGS && you.mutation[MUT_BEAK] > 0)
-        || (mutat == MUT_BEAK && you.mutation[MUT_FANGS] > 0))
-    {
-        return (false);
-    }
+    bool gain_msg = true;
+    bool stat_msg = false;
 
-    // Putting boots on after they are forced off. -- bwr
-    if ((mutat == MUT_HOOVES || mutat == MUT_TALONS)
-         && !player_has_feet())
-    {
-        return (false);
-    }
+    // Save original stats.
+    const stat_type stats[] = {STAT_STRENGTH, STAT_DEXTERITY,
+                               STAT_INTELLIGENCE};
+    int modifiers[3];
 
-    // Already innate.
-    if (mutat == MUT_BREATHE_POISON && you.species != SP_NAGA)
-        return (false);
-
-    // Red Draconians can already breathe flames.
-    if (mutat == MUT_BREATHE_FLAMES && you.species == SP_RED_DRACONIAN)
-        return (false);
-
-    // Green Draconians can already breathe poison, so they don't need
-    // to spit it.
-    if (mutat == MUT_SPIT_POISON && you.species == SP_GREEN_DRACONIAN)
-        return (false);
-
-    // Only Draconians can get wings.
-    if (mutat == MUT_BIG_WINGS && !player_genus(GENPC_DRACONIAN))
-        return (false);
-
-    // Vampires' thirst rate depends on their blood level.
-    if (you.species == SP_VAMPIRE
-        && (mutat == MUT_SLOW_METABOLISM || mutat == MUT_FAST_METABOLISM
-            || mutat == MUT_CARNIVOROUS || mutat == MUT_HERBIVOROUS))
-    {
-        return (false);
-    }
-
-    if (you.mutation[mutat] >= mutation_defs[mutat].levels)
-        return (false);
+    for (int i = 0; i < 3; ++i)
+        modifiers[i] = stat_modifier(stats[i]);
 
     switch (mutat)
     {
-    case MUT_STRONG:
-        if (you.mutation[MUT_WEAK] > 0)
-        {
-            delete_mutation(MUT_WEAK);
-            return (true);
-        }
-        modify_stat(STAT_STRENGTH, 1, false, "gaining a mutation");
+    case MUT_STRONG: case MUT_AGILE:  case MUT_CLEVER:
+    case MUT_WEAK:   case MUT_CLUMSY: case MUT_DOPEY:
+        stat_msg = true;
+        gain_msg = false;
         break;
 
-    case MUT_CLEVER:
-        if (you.mutation[MUT_DOPEY] > 0)
-        {
-            delete_mutation(MUT_DOPEY);
-            return (true);
-        }
-        modify_stat(STAT_INTELLIGENCE, 1, false, "gaining a mutation");
-        break;
-
-    case MUT_AGILE:
-        if (you.mutation[MUT_CLUMSY] > 0)
-        {
-            delete_mutation(MUT_CLUMSY);
-            return (true);
-        }
-        modify_stat(STAT_DEXTERITY, 1, false, "gaining a mutation");
-        you.redraw_evasion = true;
-        break;
-
-    case MUT_WEAK:
-        if (you.mutation[MUT_STRONG] > 0)
-        {
-            delete_mutation(MUT_STRONG);
-            return (true);
-        }
-        modify_stat(STAT_STRENGTH, -1, true, "gaining a mutation");
-        mpr(gain_mutation[mutat][0], MSGCH_MUTATION);
-        break;
-
-    case MUT_DOPEY:
-        if (you.mutation[MUT_CLEVER] > 0)
-        {
-            delete_mutation(MUT_CLEVER);
-            return (true);
-        }
-        modify_stat(STAT_INTELLIGENCE, -1, true, "gaining a mutation");
-        mpr(gain_mutation[mutat][0], MSGCH_MUTATION);
-        break;
-
-    case MUT_CLUMSY:
-        if (you.mutation[MUT_AGILE] > 0)
-        {
-            delete_mutation(MUT_AGILE);
-            return (true);
-        }
-        modify_stat(STAT_DEXTERITY, -1, true, "gaining a mutation");
-        you.redraw_evasion = true;
-        mpr(gain_mutation[mutat][0], MSGCH_MUTATION);
-        break;
-
-    case MUT_REGENERATION:
-        if (you.mutation[MUT_SLOW_METABOLISM] > 0)
-        {
-            // Should only get here from demonspawn or a god gift, where
-            // our innate ability will clear away the counter-mutation.
-            while (delete_mutation(MUT_SLOW_METABOLISM))
-                ;
-        }
-        mpr(gain_mutation[mutat][you.mutation[mutat]], MSGCH_MUTATION);
-        break;
-
-    case MUT_ACUTE_VISION:
-        if (you.mutation[MUT_BLURRY_VISION] > 0)
-        {
-            // Should only get here from demonspawn or a god gift, where
-            // our innate ability will clear away the counter-mutation.
-            while (delete_mutation(MUT_BLURRY_VISION))
-                ;
-        }
-        mpr(gain_mutation[mutat][you.mutation[mutat]], MSGCH_MUTATION);
-        break;
-
-    case MUT_CARNIVOROUS:
-        if (you.mutation[MUT_HERBIVOROUS] > 0)
-        {
-            delete_mutation(MUT_HERBIVOROUS);
-            return (true);
-        }
-        mpr(gain_mutation[mutat][you.mutation[mutat]], MSGCH_MUTATION);
-        break;
-
-    case MUT_HERBIVOROUS:
-        if (you.mutation[MUT_CARNIVOROUS] > 0)
-        {
-            delete_mutation(MUT_CARNIVOROUS);
-            return (true);
-        }
-        mpr(gain_mutation[mutat][you.mutation[mutat]], MSGCH_MUTATION);
-        break;
-
-    case MUT_FAST_METABOLISM:
-        if (you.mutation[MUT_SLOW_METABOLISM] > 0)
-        {
-            delete_mutation(MUT_SLOW_METABOLISM);
-            return (true);
-        }
-        mpr(gain_mutation[mutat][you.mutation[mutat]], MSGCH_MUTATION);
-        break;
-
-    case MUT_SLOW_METABOLISM:
-        if (you.mutation[MUT_FAST_METABOLISM] > 0)
-        {
-            delete_mutation(MUT_FAST_METABOLISM);
-            return (true);
-        }
-        mpr(gain_mutation[mutat][you.mutation[mutat]], MSGCH_MUTATION);
-        break;
-
+        // FIXME: these cases should be handled better.
     case MUT_HOOVES:
     case MUT_TALONS:
-        mpr(gain_mutation[mutat][you.mutation[mutat]], MSGCH_MUTATION);
+        mpr(mdef.gain[you.mutation[mutat]], MSGCH_MUTATION);
+        gain_msg = false;
 
         // Hooves and talons force boots off.
         if (you_tran_can_wear(EQ_BOOTS))
@@ -2183,9 +2246,8 @@ bool mutate(mutation_type which_mutation, bool failMsg,
         break;
 
     case MUT_CLAWS:
-        mpr((you.species == SP_TROLL ? troll_claw_gain
-                                     : gain_mutation[mutat])[you.mutation[mutat]],
-             MSGCH_MUTATION);
+        mpr(mdef.gain[you.mutation[mutat]], MSGCH_MUTATION);
+        gain_msg = false;
 
         // Gloves aren't prevented until level 3.  We don't have the
         // mutation yet, so we have to check for level 2 or higher claws
@@ -2196,7 +2258,8 @@ bool mutate(mutation_type which_mutation, bool failMsg,
 
     case MUT_HORNS:
     case MUT_BEAK:
-        mpr(gain_mutation[mutat][you.mutation[mutat]], MSGCH_MUTATION);
+        mpr(mdef.gain[you.mutation[mutat]], MSGCH_MUTATION);
+        gain_msg = false;
 
         // Horns and beaks force hard helmets off.
         if (you.equip[EQ_HELMET] != -1
@@ -2207,138 +2270,36 @@ bool mutate(mutation_type which_mutation, bool failMsg,
         }
         break;
 
-    case MUT_STRONG_STIFF:
-        if (you.mutation[MUT_FLEXIBLE_WEAK] > 0)
-        {
-            delete_mutation(MUT_FLEXIBLE_WEAK);
-            return (true);
-        }
-        modify_stat(STAT_STRENGTH,   1, true, "gaining a mutation");
-        modify_stat(STAT_DEXTERITY, -1, true, "gaining a mutation");
-        mpr(gain_mutation[mutat][0], MSGCH_MUTATION);
-        you.redraw_armour_class = true;
-        you.redraw_evasion      = true;
-        break;
-
-    case MUT_FLEXIBLE_WEAK:
-        if (you.mutation[MUT_STRONG_STIFF] > 0)
-        {
-            delete_mutation(MUT_STRONG_STIFF);
-            return (true);
-        }
-        modify_stat(STAT_STRENGTH, -1, true, "gaining a mutation");
-        modify_stat(STAT_DEXTERITY, 1, true, "gaining a mutation");
-        mpr(gain_mutation[mutat][0], MSGCH_MUTATION);
-        you.redraw_armour_class = true;
-        you.redraw_evasion      = true;
-        break;
-
-    case MUT_FRAIL:
-        if (you.mutation[MUT_ROBUST] > 0)
-        {
-            delete_mutation(MUT_ROBUST);
-            return (true);
-        }
-        mpr(gain_mutation[mutat][you.mutation[mutat]], MSGCH_MUTATION);
-        // special-case check
-        you.mutation[mutat]++;
-        calc_hp();
-        you.mutation[mutat]--;
-        you.redraw_hit_points = true;
-        break;
-
-    case MUT_ROBUST:
-        if (you.mutation[MUT_FRAIL] > 0)
-        {
-            delete_mutation(MUT_FRAIL);
-            return (true);
-        }
-        mpr(gain_mutation[mutat][you.mutation[mutat]], MSGCH_MUTATION);
-        // special-case check
-        you.mutation[mutat]++;
-        calc_hp();
-        you.mutation[mutat]--;
-        you.redraw_hit_points = true;
-        break;
-
-    case MUT_LOW_MAGIC:
-        if (you.mutation[MUT_HIGH_MAGIC] > 0)
-        {
-            delete_mutation(MUT_HIGH_MAGIC);
-            return (true);
-        }
-        mpr(gain_mutation[mutat][you.mutation[mutat]], MSGCH_MUTATION);
-        // special-case check
-        you.mutation[mutat]++;
-        calc_mp();
-        you.mutation[mutat]--;
-        you.redraw_magic_points = true;
-        break;
-
-    case MUT_HIGH_MAGIC:
-        if (you.mutation[MUT_LOW_MAGIC] > 0)
-        {
-            delete_mutation(MUT_LOW_MAGIC);
-            return (true);
-        }
-        mpr(gain_mutation[mutat][you.mutation[mutat]], MSGCH_MUTATION);
-        // special-case check
-        you.mutation[mutat]++;
-        calc_mp();
-        you.mutation[mutat]--;
-        you.redraw_magic_points = true;
-        break;
-
-    case MUT_BLACK_SCALES:
-    case MUT_BONEY_PLATES:
-        modify_stat(STAT_DEXTERITY, -1, true, "gaining a mutation");
-        mpr(gain_mutation[mutat][you.mutation[mutat]], MSGCH_MUTATION);
-        you.redraw_armour_class = true;
-        you.redraw_evasion      = true;
-        break;
-
-    case MUT_GREY2_SCALES:
-        if (you.mutation[mutat] != 1)
-            modify_stat(STAT_DEXTERITY, -1, true, "gaining a mutation");
-
-        mpr(gain_mutation[mutat][you.mutation[mutat]], MSGCH_MUTATION);
-        you.redraw_armour_class = true;
-        you.redraw_evasion      = true;
-        break;
-
-    case MUT_METALLIC_SCALES:
-        if (you.mutation[mutat] == 0)
-            modify_stat(STAT_DEXTERITY, -2, true, "gaining a mutation");
-        else
-            modify_stat(STAT_DEXTERITY, -1, true, "gaining a mutation");
-
-        mpr(gain_mutation[mutat][you.mutation[mutat]], MSGCH_MUTATION);
-        you.redraw_armour_class = true;
-        you.redraw_evasion      = true;
-        break;
-
-    case MUT_RED2_SCALES:
-    case MUT_YELLOW_SCALES:
-        if (you.mutation[mutat] != 0)
-            modify_stat(STAT_DEXTERITY, -1, true, "gaining a mutation");
-
-        mpr(gain_mutation[mutat][you.mutation[mutat]], MSGCH_MUTATION);
-        you.redraw_armour_class = true;
-        you.redraw_evasion      = true;
-        break;
-
     default:
-        mpr(gain_mutation[mutat][you.mutation[mutat]], MSGCH_MUTATION);
-        // For all those scale mutations.
-        you.redraw_armour_class = true;
         break;
     }
 
+    // For all those scale mutations.
+    you.redraw_armour_class = true;
+
     you.mutation[mutat]++;
 
+    for (int i = 0; i < 3; ++i)
+    {
+        const int new_modifier = stat_modifier(stats[i]);
+        if (new_modifier != modifiers[i])
+        {
+            modify_stat(stats[i], new_modifier - modifiers[i],
+                        !stat_msg, "losing a mutation");
+        }
+    }
+
+    if (gain_msg)
+        mpr(mdef.gain[you.mutation[mutat]-1], MSGCH_MUTATION);
+
+    // Do post-mutation effects.
+    if (mutat == MUT_FRAIL || mutat == MUT_ROBUST)
+        calc_hp();
+    if (mutat == MUT_LOW_MAGIC || mutat == MUT_HIGH_MAGIC)
+        calc_mp();
+
     // Amusement value will be 16 * (11-rarity) * Xom's-sense-of-humor.
-    int amusement_value = calc_mutation_amusement_value(mutat);
-    xom_is_stimulated(amusement_value);
+    xom_is_stimulated(_calc_mutation_amusement_value(mutat));
 
     take_note(Note(NOTE_GET_MUTATION, mutat, you.mutation[mutat]));
     return (true);
@@ -2368,24 +2329,43 @@ bool delete_mutation(mutation_type which_mutation, bool failMsg,
         || which_mutation == RANDOM_GOOD_MUTATION
         || which_mutation == RANDOM_BAD_MUTATION)
     {
-        do
+        while (true)
         {
-            mutat = static_cast<mutation_type>(random2(NUM_MUTATIONS));
             if (one_chance_in(1000))
                 return (false);
+
+            mutat = static_cast<mutation_type>(random2(NUM_MUTATIONS));
+
+            if (you.mutation[mutat] == 0
+                && mutat != MUT_STRONG
+                && mutat != MUT_CLEVER
+                && mutat != MUT_AGILE
+                && mutat != MUT_WEAK
+                && mutat != MUT_DOPEY
+                && mutat != MUT_CLUMSY)
+            {
+                continue;
+            }
+
+            if (!_accept_mutation(mutat, true, non_fatal, true))
+                continue;
+
+            if (you.demon_pow[mutat] >= you.mutation[mutat])
+                continue;
+
+            const mutation_def& mdef = get_mutation_def(mutat);
+
+            if (random2(10) >= mdef.rarity)
+                continue;
+
+            bool mismatch = (which_mutation == RANDOM_GOOD_MUTATION && mdef.bad)
+                || (which_mutation == RANDOM_BAD_MUTATION && !mdef.bad);
+
+            if (mismatch && !one_chance_in(10))
+                continue;
+
+            break;
         }
-        while ((you.mutation[mutat] == 0
-                && (mutat != MUT_STRONG && mutat != MUT_CLEVER
-                    && mutat != MUT_AGILE)
-                && (mutat != MUT_WEAK && mutat != MUT_DOPEY
-                    && mutat != MUT_CLUMSY))
-               || !accept_mutation(mutat, true, non_fatal, true)
-               || random2(10) >= mutation_defs[mutat].rarity
-               || you.demon_pow[mutat] >= you.mutation[mutat]
-               || (which_mutation == RANDOM_GOOD_MUTATION
-                   && (mutation_defs[mutat].bad || one_chance_in(10)))
-               || (which_mutation == RANDOM_BAD_MUTATION
-                   && (!mutation_defs[mutat].bad || one_chance_in(10))));
     }
 
     if (you.mutation[mutat] == 0)
@@ -2394,110 +2374,25 @@ bool delete_mutation(mutation_type which_mutation, bool failMsg,
     if (you.demon_pow[mutat] >= you.mutation[mutat])
         return (false);
 
+    const mutation_def& mdef = get_mutation_def(mutat);
+
+    bool lose_msg = true;
+    bool stat_msg = false;
+
+    // Save original stats.
+    const stat_type stats[] = {STAT_STRENGTH, STAT_DEXTERITY,
+                               STAT_INTELLIGENCE};
+    int modifiers[3];
+
+    for (int i = 0; i < 3; ++i)
+        modifiers[i] = stat_modifier(stats[i]);
+
     switch (mutat)
     {
-    case MUT_STRONG:
-        modify_stat(STAT_STRENGTH, -1, true, "losing a mutation");
-        mpr(lose_mutation[mutat][0], MSGCH_MUTATION);
-        break;
-
-    case MUT_CLEVER:
-        modify_stat(STAT_INTELLIGENCE, -1, true, "losing a mutation");
-        mpr(lose_mutation[mutat][0], MSGCH_MUTATION);
-        break;
-
-    case MUT_AGILE:
-        modify_stat(STAT_DEXTERITY, -1, true, "losing a mutation");
-        mpr(lose_mutation[mutat][0], MSGCH_MUTATION);
-        you.redraw_evasion = true;
-        break;
-
-    case MUT_WEAK:
-        modify_stat(STAT_STRENGTH, 1, false, "losing a mutation");
-        break;
-
-    case MUT_DOPEY:
-        modify_stat(STAT_INTELLIGENCE, 1, false, "losing a mutation");
-        break;
-
-    case MUT_CLUMSY:
-        modify_stat(STAT_DEXTERITY, 1, false, "losing a mutation");
-        you.redraw_evasion = true;
-        break;
-
-    case MUT_STRONG_STIFF:
-        modify_stat(STAT_STRENGTH, -1, true, "losing a mutation");
-        modify_stat(STAT_DEXTERITY, 1, true, "losing a mutation");
-        mpr(lose_mutation[mutat][0], MSGCH_MUTATION);
-        you.redraw_evasion = true;
-        break;
-
-    case MUT_FLEXIBLE_WEAK:
-        modify_stat(STAT_STRENGTH, 1, true, "losing a mutation");
-        modify_stat(STAT_DEXTERITY, -1, true, "losing a mutation");
-        mpr(lose_mutation[mutat][0], MSGCH_MUTATION);
-        you.redraw_evasion = true;
-        break;
-
-    case MUT_FRAIL:
-    case MUT_ROBUST:
-        mpr(lose_mutation[mutat][0], MSGCH_MUTATION);
-        // special-case check
-        you.mutation[mutat]--;
-        calc_hp();
-        you.mutation[mutat]++;
-        you.redraw_hit_points = true;
-        break;
-
-    case MUT_LOW_MAGIC:
-    case MUT_HIGH_MAGIC:
-        mpr(lose_mutation[mutat][0], MSGCH_MUTATION);
-        // special-case check
-        you.mutation[mutat]--;
-        calc_mp();
-        you.mutation[mutat]++;
-        you.redraw_magic_points = true;
-        break;
-
-    case MUT_BLACK_SCALES:
-    case MUT_BONEY_PLATES:
-        modify_stat(STAT_DEXTERITY, 1, true, "losing a mutation");
-        mpr(lose_mutation[mutat][you.mutation[mutat] - 1], MSGCH_MUTATION);
-        you.redraw_armour_class = true;
-        you.redraw_evasion      = true;
-        break;
-
-    case MUT_CLAWS:
-        mpr((you.species == SP_TROLL ? troll_claw_lose
-                                     : lose_mutation[mutat])[you.mutation[mutat] - 1],
-             MSGCH_MUTATION);
-        break;
-
-    case MUT_GREY2_SCALES:
-        if (you.mutation[mutat] != 2)
-            modify_stat(STAT_DEXTERITY, 1, true, "losing a mutation");
-        mpr(lose_mutation[mutat][you.mutation[mutat] - 1], MSGCH_MUTATION);
-        you.redraw_armour_class = true;
-        you.redraw_evasion      = true;
-        break;
-
-    case MUT_METALLIC_SCALES:
-        if (you.mutation[mutat] == 1)
-            modify_stat(STAT_DEXTERITY, 2, true, "losing a mutation");
-        else
-            modify_stat(STAT_DEXTERITY, 1, true, "losing a mutation");
-        mpr(lose_mutation[mutat][you.mutation[mutat] - 1], MSGCH_MUTATION);
-        you.redraw_armour_class = true;
-        you.redraw_evasion      = true;
-        break;
-
-    case MUT_RED2_SCALES:
-    case MUT_YELLOW_SCALES:
-        if (you.mutation[mutat] != 1)
-            modify_stat(STAT_DEXTERITY, 1, true, "losing a mutation");
-        mpr(lose_mutation[mutat][you.mutation[mutat] - 1], MSGCH_MUTATION);
-        you.redraw_armour_class = true;
-        you.redraw_evasion      = true;
+    case MUT_STRONG: case MUT_AGILE:  case MUT_CLEVER:
+    case MUT_WEAK:   case MUT_CLUMSY: case MUT_DOPEY:
+        stat_msg = true;
+        lose_msg = false;
         break;
 
     case MUT_BREATHE_POISON:
@@ -2514,19 +2409,38 @@ bool delete_mutation(mutation_type which_mutation, bool failMsg,
         break;
 
     default:
-        mpr(lose_mutation[mutat][you.mutation[mutat] - 1], MSGCH_MUTATION);
-        // For all those various scale mutations.
-        you.redraw_armour_class = true;
         break;
     }
 
+    // For all those scale mutations.
+    you.redraw_armour_class = true;
+
     you.mutation[mutat]--;
+
+    for (int i = 0; i < 3; ++i)
+    {
+        const int new_modifier = stat_modifier(stats[i]);
+        if (new_modifier != modifiers[i])
+        {
+            modify_stat(stats[i], new_modifier - modifiers[i],
+                        !stat_msg, "losing a mutation");
+        }
+    }
+
+    if (lose_msg)
+        mpr(mdef.lose[you.mutation[mutat]], MSGCH_MUTATION);
+
+    // Do post-mutation effects.
+    if (mutat == MUT_FRAIL || mutat == MUT_ROBUST)
+        calc_hp();
+    if (mutat == MUT_LOW_MAGIC || mutat == MUT_HIGH_MAGIC)
+        calc_mp();
 
     take_note(Note(NOTE_LOSE_MUTATION, mutat, you.mutation[mutat]));
     return (true);
 }
 
-static int body_covered()
+static int _body_covered()
 {
     // Check how much of your body is covered by scales, etc.
     int covered = 0;
@@ -2537,69 +2451,108 @@ static int body_covered()
     if (player_genus(GENPC_DRACONIAN))
         covered += 3;
 
-    covered += you.mutation[MUT_TOUGH_SKIN];
-    covered += you.mutation[MUT_GREEN_SCALES];
-    covered += you.mutation[MUT_BLACK_SCALES];
-    covered += you.mutation[MUT_GREY_SCALES];
-    covered += you.mutation[MUT_BONEY_PLATES];
-    covered += you.mutation[MUT_SHAGGY_FUR];
-    covered += you.mutation[MUT_RED_SCALES];
-    covered += you.mutation[MUT_NACREOUS_SCALES];
-    covered += you.mutation[MUT_GREY2_SCALES];
-    covered += you.mutation[MUT_METALLIC_SCALES];
-    covered += you.mutation[MUT_BLACK2_SCALES];
-    covered += you.mutation[MUT_WHITE_SCALES];
-    covered += you.mutation[MUT_YELLOW_SCALES];
-    covered += you.mutation[MUT_BROWN_SCALES];
-    covered += you.mutation[MUT_BLUE_SCALES];
-    covered += you.mutation[MUT_PURPLE_SCALES];
-    covered += you.mutation[MUT_SPECKLED_SCALES];
-    covered += you.mutation[MUT_ORANGE_SCALES];
-    covered += you.mutation[MUT_INDIGO_SCALES];
-    covered += you.mutation[MUT_RED2_SCALES];
-    covered += you.mutation[MUT_IRIDESCENT_SCALES];
-    covered += you.mutation[MUT_PATTERNED_SCALES];
+    const mutation_type scales[] = {
+        MUT_SHAGGY_FUR,
+
+        MUT_BONEY_PLATES,      MUT_GREEN_SCALES,    MUT_BLACK_SCALES,
+        MUT_GREY_SCALES,       MUT_RED_SCALES,      MUT_NACREOUS_SCALES,
+        MUT_GREY2_SCALES,      MUT_METALLIC_SCALES, MUT_BLACK2_SCALES,
+        MUT_WHITE_SCALES,      MUT_YELLOW_SCALES,   MUT_BROWN_SCALES,
+        MUT_BLUE_SCALES,       MUT_PURPLE_SCALES,   MUT_SPECKLED_SCALES,
+        MUT_ORANGE_SCALES,     MUT_INDIGO_SCALES,   MUT_RED2_SCALES,
+        MUT_IRIDESCENT_SCALES, MUT_PATTERNED_SCALES
+    };
+
+    for (unsigned i = 0; i < ARRAYSZ(scales); ++i)
+        covered += you.mutation[scales[i]];
 
     return (covered);
 }
 
-const char *mutation_name(mutation_type which_mutat, int level)
+// Return a string describing the mutation.
+// If colour is true, also add the colour annotation.
+std::string mutation_name(mutation_type mut, int level, bool colour)
 {
-    static char mut_string[INFO_SIZE];
+    const bool fully_active = mutation_is_fully_active(mut);
+    const bool fully_inactive =
+        (!fully_active) && _mutation_is_fully_inactive(mut);
 
     // level == -1 means default action of current level
     if (level == -1)
     {
-        if (!_mutation_is_fully_inactive(which_mutat))
-            level = player_mutation_level(which_mutat);
+        if (!fully_inactive)
+            level = player_mutation_level(mut);
         else // give description of fully active mutation
-            level = you.mutation[which_mutat];
+            level = you.mutation[mut];
     }
 
-    if (which_mutat == MUT_STRONG || which_mutat == MUT_CLEVER
-        || which_mutat == MUT_AGILE || which_mutat == MUT_WEAK
-        || which_mutat == MUT_DOPEY || which_mutat == MUT_CLUMSY)
+    std::string result;
+    bool innate = false;
+
+    if (mut == MUT_CLAWS &&
+        (you.species == SP_TROLL || you.species == SP_GHOUL))
     {
-        snprintf(mut_string, sizeof(mut_string), "%s%d).",
-                 mutation_descrip[which_mutat][0], level);
-
-        return (mut_string);
+        innate = true;
+        if (you.species == SP_TROLL)
+            result = troll_claw_descrip[level];
     }
 
-    if (which_mutat == MUT_CLAWS && you.species == SP_TROLL)
-        return (troll_claw_descrip[level]);
-
-    if (which_mutat == MUT_FAST && you.species == SP_NAGA)
-        return (naga_speed_descrip[level]);
-
-    if (which_mutat == MUT_DEFORMED
-        && (you.species == SP_NAGA || you.species == SP_CENTAUR))
+    if ((mut == MUT_FAST || mut == MUT_BREATHE_POISON)
+        && you.species == SP_NAGA)
     {
-        return ((you.species == SP_NAGA ? naga_deformed_descrip
-                                        : centaur_deformed_descrip)[level - 1]);
+        innate = true;
+        if (mut == MUT_FAST)
+            result = naga_speed_descrip[level];
     }
 
-    return (mutation_descrip[which_mutat][level - 1]);
+    const mutation_def& mdef = get_mutation_def(mut);
+
+    if (mut == MUT_STRONG || mut == MUT_CLEVER
+        || mut == MUT_AGILE || mut == MUT_WEAK
+        || mut == MUT_DOPEY || mut == MUT_CLUMSY)
+    {
+        std::ostringstream ostr;
+        ostr << mdef.have[0] << level << ").";
+        result = ostr.str();
+    }
+    else if (result.empty() && level > 0)
+        result = mdef.have[level - 1];
+
+    if (fully_inactive)
+    {
+        result = "(" + result;
+        result += ")";
+    }
+
+    if (colour)
+    {
+        const char* colourname = "lightgrey"; // the default
+        const bool permanent = (you.demon_pow[mut] > 0);
+        if (innate)
+            colourname = (level > 0 ? "cyan" : "lightblue");
+        else if (permanent)
+        {
+            const bool demonspawn = (you.species == SP_DEMONSPAWN);
+            const bool extra = (you.mutation[mut] > you.demon_pow[mut]);
+
+            if (fully_inactive)
+                colourname = "darkgrey";
+            else if (!fully_active)
+                colourname = demonspawn ? "yellow"   : "blue";
+            else if (extra)
+                colourname = demonspawn ? "lightred" : "cyan";
+            else
+                colourname = demonspawn ? "red"      : "lightblue";
+        }
+
+        // Build the result
+        std::ostringstream ostr;
+        ostr << '<' << colourname << '>' << result
+             << "</" << colourname << ">";
+        result = ostr.str();
+    }
+
+    return (result);
 }
 
 // Use an attribute counter for how many demonic mutations a demonspawn
@@ -2607,10 +2560,10 @@ const char *mutation_name(mutation_type which_mutat, int level)
 void demonspawn()
 {
     mutation_type whichm = NUM_MUTATIONS;
-    char howm = 1;
+    int howm = 1;
     int counter = 0;
 
-    const int covered = body_covered();
+    const int covered = _body_covered();
 
     you.attribute[ATTR_NUM_DEMONIC_POWERS]++;
 
@@ -2721,10 +2674,17 @@ void demonspawn()
                 howm = 1;
             }
 
-            if (you.skills[SK_UNARMED_COMBAT] > 5 && one_chance_in(14))
+            if (you.skills[SK_UNARMED_COMBAT] > 5)
             {
-                whichm = MUT_DRAIN_LIFE;
-                howm = 1;
+                // Drain Life only works if you're unarmed, so only
+                // give it if unarmed is your best attacking skill.
+                skill_type wpn_skill = best_skill(SK_SHORT_BLADES, SK_STAVES);
+                if ((you.skills[SK_UNARMED_COMBAT] > you.skills[wpn_skill])
+                    && one_chance_in(14))
+                {
+                    whichm = MUT_DRAIN_LIFE;
+                    howm = 1;
+                }
             }
         }
 
@@ -2984,26 +2944,19 @@ int how_mutated(bool all, bool levels)
 
 bool give_bad_mutation(bool failMsg, bool force_mutation, bool non_fatal)
 {
-    mutation_type mutat = NUM_MUTATIONS;
+    const mutation_type bad_muts[] = {
+        MUT_CARNIVOROUS,   MUT_HERBIVOROUS,   MUT_FAST_METABOLISM,
+        MUT_SLOW_HEALING,  MUT_WEAK,          MUT_DOPEY,
+        MUT_CLUMSY,        MUT_TELEPORT,      MUT_DEFORMED,
+        MUT_SCREAM,        MUT_DETERIORATION, MUT_BLURRY_VISION,
+        MUT_FRAIL,         MUT_LOW_MAGIC
+    };
 
-    do {
-        switch (random2(13))
-        {
-        case 0: mutat = MUT_CARNIVOROUS; break;
-        case 1: mutat = MUT_HERBIVOROUS; break;
-        case 2: mutat = MUT_FAST_METABOLISM; break;
-        case 3: mutat = MUT_WEAK; break;
-        case 4: mutat = MUT_DOPEY; break;
-        case 5: mutat = MUT_CLUMSY; break;
-        case 6: mutat = MUT_TELEPORT; break;
-        case 7: mutat = MUT_DEFORMED; break;
-        case 8: mutat = MUT_SCREAM; break;
-        case 9: mutat = MUT_DETERIORATION; break;
-        case 10: mutat = MUT_BLURRY_VISION; break;
-        case 11: mutat = MUT_FRAIL; break;
-        case 12: mutat = MUT_LOW_MAGIC; break;
-        }
-    } while (non_fatal && !accept_mutation(mutat, true, true));
+    mutation_type mutat;
+
+    do
+        mutat = RANDOM_ELEMENT(bad_muts);
+    while (non_fatal && !_accept_mutation(mutat, true, true));
 
     const bool result = mutate(mutat, failMsg, force_mutation);
     if (result)

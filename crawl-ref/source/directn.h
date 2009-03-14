@@ -10,10 +10,24 @@
 #ifndef DIRECT_H
 #define DIRECT_H
 
+#include "describe.h"
 #include "externs.h"
 #include "enum.h"
 #include "libgui.h"
 #include "ray.h"
+#include "state.h"
+
+class range_view_annotator : public crawl_exit_hook
+{
+public:
+    range_view_annotator(int range);
+    virtual ~range_view_annotator();
+    virtual void restore_state();
+private:
+    bool do_anything;
+    FixedArray<int, ENV_SHOW_DIAMETER, ENV_SHOW_DIAMETER> orig_colours;
+    int orig_mon_colours[MAX_MONSTERS];
+};
 
 class crawl_view_buffer
 {
@@ -28,11 +42,6 @@ private:
     screen_buffer_t *buffer;
 };
 
-// last updated 12may2000 {dlb}
-/* ***********************************************************************
- * called from: acr - debug - effects - it_use3 - item_use - spells1 -
- *              spells2 - spells3 - spells4
- * *********************************************************************** */
 struct crawl_view_geometry
 {
 public:
@@ -68,6 +77,8 @@ public:
 
     void init_view();
     void set_player_at(const coord_def &c, bool force_centre = false);
+    // Set new location, but preserve scrolling as if the player didn't move.
+    void shift_player_to(const coord_def &c);
 
     coord_def view_centre() const
     {
@@ -166,11 +177,14 @@ std::string thing_do_grammar(description_level_type dtype,
 std::string get_terse_square_desc(const coord_def &gc);
 void terse_describe_square(const coord_def &c, bool in_range = true);
 void full_describe_square(const coord_def &c);
+void get_square_desc(const coord_def &c, describe_info &inf,
+                     bool examine_mons = false);
+
 void describe_floor();
-std::string get_monster_desc(const monsters *mon,
-                             bool full_desc = true,
-                             description_level_type mondtype = DESC_CAP_A,
-                             bool print_attitude = false);
+std::string get_monster_equipment_desc(const monsters *mon,
+                                bool full_desc = true,
+                                description_level_type mondtype = DESC_CAP_A,
+                                bool print_attitude = false);
 
 int dos_direction_unmunge(int doskey);
 

@@ -57,16 +57,11 @@ inline void __DUMMY_TRACE__(...)
 {
 }
 
-#define DEBUGSTR                                                1 ? ((void) 0) : __DUMMY_TRACE__
-#define TRACE                                                   1 ? ((void) 0) : __DUMMY_TRACE__
+#define DEBUGSTR 1 ? ((void) 0) : __DUMMY_TRACE__
+#define TRACE    1 ? ((void) 0) : __DUMMY_TRACE__
 
 #endif
 
-
-// last updated 12 Jun 2008 {jpeg}
-/* ***********************************************************************
- * called from: acr
- * *********************************************************************** */
 void wizard_cast_spec_spell(void);
 void wizard_cast_spec_spell_name(void);
 void wizard_create_spec_monster(void);
@@ -74,12 +69,27 @@ void wizard_create_spec_monster_name(void);
 void wizard_create_spec_object(void);
 void wizard_tweak_object(void);
 void wizard_make_object_randart(void);
+void wizard_value_randart();
+void wizard_uncurse_item();
+void wizard_create_all_artefacts();
+void wizard_heal(bool super_heal);
+void wizard_set_hunger_state();
+void wizard_spawn_control();
+void wizard_create_portal();
+void wizard_identify_pack();
+void wizard_unidentify_pack();
+void wizard_create_feature_number();
+void wizard_create_feature_name();
+void wizard_list_branches();
+void wizard_map_level();
+void wizard_gain_piety();
+void wizard_list_items();
 void wizard_exercise_skill(void);
 void wizard_set_skill_level(void);
 void wizard_set_all_skills(void);
-bool wizard_add_mutation(void);
 void wizard_change_species( void );
 void wizard_set_xl();
+bool wizard_add_mutation();
 void wizard_get_religion( void );
 void wizard_set_stats( void );
 void wizard_edit_durations( void );
@@ -125,9 +135,6 @@ void debug_miscast( int target );
 
 
 #ifdef DEBUG_DIAGNOSTICS
-/* ***********************************************************************
- * called from: acr
- * *********************************************************************** */
 void generate_map_stats();
 
 class map_def;
@@ -143,5 +150,11 @@ struct item_def;
 bool get_item_by_name(item_def *item, char* specs,
                       object_class_type class_wanted,
                       bool create_for_real = false);
+
+void do_crash_dump();
+
+std::string debug_coord_str(const coord_def &pos);
+std::string debug_mon_str(const monsters* mon);
+void        debug_dump_mon(const monsters* mon, bool recurse);
 
 #endif

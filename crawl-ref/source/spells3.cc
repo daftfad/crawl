@@ -136,7 +136,7 @@ bool remove_curse(bool suppress_msg)
         if (you.equip[i] != -1 && item_cursed(you.inv[you.equip[i]])
             && you_tran_can_wear(you.equip[i]))
         {
-            do_uncurse_item( you.inv[you.equip[i]] );
+            do_uncurse_item(you.inv[you.equip[i]]);
             success = true;
         }
     }
@@ -186,7 +186,9 @@ bool detect_curse(bool suppress_msg)
 
 bool cast_smiting(int power, const coord_def& where)
 {
-    if (invalid_monster_index(mgrd(where)))
+    monsters *m = monster_at(where);
+
+    if (m == NULL)
     {
         mpr("There's nothing there!");
         // Counts as a real cast, due to victory-dancing and
@@ -194,22 +196,20 @@ bool cast_smiting(int power, const coord_def& where)
         return (true);
     }
 
-    monsters& m = menv[mgrd(where)];
-
     god_conduct_trigger conducts[3];
     disable_attack_conducts(conducts);
 
-    const bool success = !stop_attack_prompt(&m, false, false);
+    const bool success = !stop_attack_prompt(m, false, false);
 
     if (success)
     {
-        set_attack_conducts(conducts, &m);
+        set_attack_conducts(conducts, m);
 
-        mprf("You smite %s!", m.name(DESC_NOCAP_THE).c_str());
+        mprf("You smite %s!", m->name(DESC_NOCAP_THE).c_str());
 
-        behaviour_event(&m, ME_ANNOY, MHITYOU);
-        if (mons_is_mimic(m.type))
-            mimic_alert(&m);
+        behaviour_event(m, ME_ANNOY, MHITYOU);
+        if (mons_is_mimic(m->type))
+            mimic_alert(m);
     }
 
     enable_attack_conducts(conducts);
@@ -219,9 +219,9 @@ bool cast_smiting(int power, const coord_def& where)
         // Maxes out at around 40 damage at 27 Invocations, which is
         // plenty in my book (the old max damage was around 70,
         // which seems excessive).
-        m.hurt(&you, 7 + (random2(power) * 33 / 191));
-        if (m.alive())
-            print_wounds(&m);
+        m->hurt(&you, 7 + (random2(power) * 33 / 191));
+        if (m->alive())
+            print_wounds(m);
     }
 
     return (success);
@@ -231,12 +231,12 @@ int airstrike(int power, dist &beam)
 {
     bool success = false;
 
-    if (mgrd(beam.target) == NON_MONSTER || beam.isMe)
+    monsters *monster = monster_at(beam.target);
+
+    if (monster == NULL)
         canned_msg(MSG_SPELL_FIZZLES);
     else
     {
-        monsters *monster = &menv[mgrd(beam.target)];
-
         god_conduct_trigger conducts[3];
         disable_attack_conducts(conducts);
 
@@ -404,10 +404,8 @@ bool cast_call_imp(int pow, god_type god)
 
     const int monster =
         create_monster(
-            mgen_data(mon, BEH_FRIENDLY,
-                      dur, SPELL_CALL_IMP,
-                      you.pos(), you.pet_target,
-                      MG_FORCE_BEH, god));
+            mgen_data(mon, BEH_FRIENDLY, dur, SPELL_CALL_IMP,
+                      you.pos(), MHITYOU, MG_FORCE_BEH, god));
 
     if (monster != -1)
     {
@@ -436,10 +434,7 @@ static bool _summon_demon_wrapper(int pow, god_type god, int spell,
             mgen_data(mon,
                       friendly ? BEH_FRIENDLY :
                           charmed ? BEH_CHARMED : BEH_HOSTILE,
-                      dur, spell,
-                      you.pos(),
-                      friendly ? you.pet_target : MHITYOU,
-                      MG_FORCE_BEH, god));
+                      dur, spell, you.pos(), MHITYOU, MG_FORCE_BEH, god));
 
     if (monster != -1)
     {
@@ -550,7 +545,7 @@ bool cast_shadow_creatures(god_type god)
         create_monster(
             mgen_data(RANDOM_MONSTER, BEH_FRIENDLY,
                       2, SPELL_SHADOW_CREATURES,
-                      you.pos(), you.pet_target,
+                      you.pos(), MHITYOU,
                       MG_FORCE_BEH, god), false);
 
     if (monster == -1)
@@ -595,7 +590,7 @@ bool cast_summon_horrible_things(int pow, god_type god)
         if (create_monster(
                mgen_data(MONS_TENTACLED_MONSTROSITY, BEH_FRIENDLY,
                          6, SPELL_SUMMON_HORRIBLE_THINGS,
-                         you.pos(), you.pet_target,
+                         you.pos(), MHITYOU,
                          0, god)) != -1)
         {
             count++;
@@ -609,7 +604,7 @@ bool cast_summon_horrible_things(int pow, god_type god)
         if (create_monster(
                mgen_data(MONS_ABOMINATION_LARGE, BEH_FRIENDLY,
                          6, SPELL_SUMMON_HORRIBLE_THINGS,
-                         you.pos(), you.pet_target,
+                         you.pos(), MHITYOU,
                          0, god)) != -1)
         {
             count++;
@@ -718,32 +713,21 @@ void equip_undead(const coord_def &a, int corps, int monster, int monnum)
         switch (item.base_type)
         {
         case OBJ_WEAPONS:
-            if (mon->inv[MSLOT_WEAPON] != NON_ITEM)
-            {
-                if (mons_wields_two_weapons(mon))
-                    mslot = MSLOT_ALT_WEAPON;
-                else
-                {
-                    if (is_range_weapon(mitm[mon->inv[MSLOT_WEAPON]])
-                        == is_range_weapon(item))
-                    {
-                        // Two different items going into the same
-                        // slot indicate that this and further items
-                        // weren't equipment the monster died with.
-                        return;
-                    }
-                    else if (smart_undead)
-                        mslot = MSLOT_ALT_WEAPON;
-                    else
-                    {
-                        // Stupid undead can't switch between weapons.
-                        continue;
-                    }
-                }
-            }
+        {
+            const bool weapon = mon->inv[MSLOT_WEAPON] != NON_ITEM;
+            const bool alt_weapon = mon->inv[MSLOT_ALT_WEAPON] != NON_ITEM;
+
+            if ((weapon && !alt_weapon) || (!weapon && alt_weapon))
+                mslot = !weapon ? MSLOT_WEAPON : MSLOT_ALT_WEAPON;
             else
                 mslot = MSLOT_WEAPON;
-            break;
+
+            // Stupid undead can't use ranged weapons.
+            if (smart_undead || !is_range_weapon(item))
+                break;
+
+            continue;
+        }
 
         case OBJ_ARMOUR:
             mslot = equip_slot_to_mslot(get_armour_slot(item));
@@ -755,9 +739,14 @@ void equip_undead(const coord_def &a, int corps, int monster, int monnum)
                 return;
             break;
 
+        // Stupid undead can't use missiles.
         case OBJ_MISSILES:
-            mslot = MSLOT_MISSILE;
-            break;
+            if (smart_undead)
+            {
+                mslot = MSLOT_MISSILE;
+                break;
+            }
+            continue;
 
         case OBJ_GOLD:
             mslot = MSLOT_GOLD;
@@ -878,23 +867,31 @@ static bool _raise_remains(const coord_def &a, int corps, beh_type beha,
     return (false);
 }
 
-bool animate_remains(const coord_def &a, corpse_type class_allowed,
-                     beh_type beha, unsigned short hitting,
-                     god_type god, bool actual,
-                     bool quiet, int* mon_index)
+// Note that quiet will *not* suppress the message about a corpse
+// you are butchering being animated.
+int animate_remains(const coord_def &a, corpse_type class_allowed,
+                    beh_type beha, unsigned short hitting,
+                    god_type god, bool actual,
+                    bool quiet, int* mon_index)
 {
     if (is_sanctuary(a))
-        return (false);
+        return (0);
 
+    int number_found = 0;
     bool success = false;
 
     // Search all the items on the ground for a corpse.
     for (stack_iterator si(a); si; ++si)
     {
-        if (_animatable_remains(*si)
+        if (si->base_type == OBJ_CORPSES
             && (class_allowed == CORPSE_BODY
                 || si->sub_type == CORPSE_SKELETON))
         {
+            number_found++;
+
+            if (!_animatable_remains(*si))
+                continue;
+
             const bool was_butchering = is_being_butchered(*si);
 
             success = _raise_remains(a, si.link(), beha, hitting, god, actual,
@@ -902,14 +899,12 @@ bool animate_remains(const coord_def &a, corpse_type class_allowed,
 
             if (actual && success)
             {
-                if (!quiet)
-                {
-                    if (was_butchering)
-                        mpr("The corpse you are butchering rises to attack!");
+                // Ignore quiet.
+                if (was_butchering)
+                    mpr("The corpse you are butchering rises to attack!");
 
-                    if (see_grid(a))
-                        mpr("The dead are walking!");
-                }
+                if (!quiet && see_grid(a))
+                    mpr("The dead are walking!");
 
                 if (was_butchering)
                     xom_is_stimulated(255);
@@ -919,7 +914,13 @@ bool animate_remains(const coord_def &a, corpse_type class_allowed,
         }
     }
 
-    return (success);
+    if (number_found == 0)
+        return (-1);
+
+    if (!success)
+        return (0);
+
+    return (1);
 }
 
 int animate_dead(actor *caster, int pow, beh_type beha, unsigned short hitting,
@@ -927,67 +928,29 @@ int animate_dead(actor *caster, int pow, beh_type beha, unsigned short hitting,
 {
     UNUSED(pow);
 
-    static env_show_grid losgrid;
-
-    const coord_def c(caster->pos());
-
-    int minx = c.x - 6;
-    int maxx = c.x + 7;
-    int miny = c.y - 6;
-    int maxy = c.y + 7;
-    int xinc = 1;
-    int yinc = 1;
+    // Use an alternate LOS grid, based on the caster's LOS.
+    env_show_grid losgrid;
+    if (caster->atype() != ACT_PLAYER)
+        losight(losgrid, grd, caster->pos(), true);
 
     int number_raised = 0;
     int number_seen   = 0;
 
-    if (coinflip())
+    radius_iterator ri(caster->pos(), 6, true, true, false,
+                       caster->atype() == ACT_PLAYER ? &env.no_trans_show
+                                                     : &losgrid);
+
+    // Sweep all squares in LOS.
+    for (; ri; ++ri)
     {
-        minx = c.x + 6;
-        maxx = c.x - 7;
-        xinc = -1;
-    }
-
-    if (coinflip())
-    {
-        miny = c.y + 6;
-        maxy = c.y - 7;
-        yinc = -1;
-    }
-
-    if (caster != &you)
-        losight(losgrid, grd, c, true);
-
-    env_show_grid &los(caster == &you? env.no_trans_show : losgrid);
-
-    coord_def a;
-    for (a.x = minx; a.x != maxx; a.x += xinc)
-    {
-        for (a.y = miny; a.y != maxy; a.y += yinc)
+        // This will produce a message if the corpse you are butchering
+        // is raised.
+        if (animate_remains(*ri, CORPSE_BODY, beha, hitting, god,
+                            actual, true) > 0)
         {
-            if (!in_bounds(a) || !see_grid(los, c, a))
-                continue;
-
-            // Search all the items on the ground for a corpse.  Only
-            // one of a stack will be raised.
-            for (stack_iterator si(a); si; ++si)
-            {
-                const bool was_butchering = is_being_butchered(*si, false);
-
-                if (animate_remains(a, CORPSE_BODY, beha, hitting, god,
-                                     actual, true))
-                {
-                    number_raised++;
-
-                    if (see_grid(a))
-                         number_seen++;
-
-                    if (was_butchering)
-                        mpr("The corpse you are butchering rises to attack!");
-
-                    break;
-                }
-            }
+            number_raised++;
+            if (see_grid(*ri))
+                number_seen++;
         }
     }
 
@@ -1014,33 +977,30 @@ int animate_dead(actor *caster, int pow, beh_type beha, unsigned short hitting,
 // reforming the original monster out of ice anyways.
 bool cast_simulacrum(int pow, god_type god)
 {
-    int how_many_max = std::min(8, 4 + random2(pow) / 20);
+    bool rc = false;
+    const item_def* weapon = you.weapon();
 
-    const int chunk = you.equip[EQ_WEAPON];
-
-    if (chunk != -1
-        && is_valid_item(you.inv[chunk])
-        && (you.inv[chunk].base_type == OBJ_CORPSES
-            || (you.inv[chunk].base_type == OBJ_FOOD
-                && you.inv[chunk].sub_type == FOOD_CHUNK)))
+    if (weapon
+        && (weapon->base_type == OBJ_CORPSES
+            || (weapon->base_type == OBJ_FOOD
+                && weapon->sub_type == FOOD_CHUNK)))
     {
-        const monster_type mon =
-            static_cast<monster_type>(you.inv[chunk].plus);
+        const monster_type mon = static_cast<monster_type>(weapon->plus);
 
         // Can't create more than the available chunks.
-        if (you.inv[chunk].quantity < how_many_max)
-            how_many_max = you.inv[chunk].quantity;
+        int how_many = std::min(8, 4 + random2(pow) / 20);
+        how_many = std::min<int>(how_many, weapon->quantity);
 
-        dec_inv_item_quantity(chunk, how_many_max);
+        dec_inv_item_quantity(you.equip[EQ_WEAPON], how_many);
 
         int count = 0;
 
-        for (int i = 0; i < how_many_max; ++i)
+        for (int i = 0; i < how_many; ++i)
         {
             if (create_monster(
                     mgen_data(MONS_SIMULACRUM_SMALL, BEH_FRIENDLY,
                               6, SPELL_SIMULACRUM,
-                              you.pos(), you.pet_target,
+                              you.pos(), MHITYOU,
                               0, god, mon)) != -1)
             {
                 count++;
@@ -1052,16 +1012,18 @@ bool cast_simulacrum(int pow, god_type god)
             mprf("%s icy figure%s form%s before you!",
                 count > 1 ? "Some" : "An", count > 1 ? "s" : "",
                 count > 1 ? "" : "s");
-            return (true);
+            rc = true;
         }
-
-        mpr("You feel cold for a second.");
-        return (false);
+        else
+            mpr("You feel cold for a second.");
+    }
+    else
+    {
+        mpr("You need to wield a piece of raw flesh for this spell to be "
+            "effective!");
     }
 
-    mpr("You need to wield a piece of raw flesh for this spell to be "
-        "effective!");
-    return (false);
+    return (rc);
 }
 
 bool cast_twisted_resurrection(int pow, god_type god)
@@ -1123,7 +1085,7 @@ bool cast_twisted_resurrection(int pow, god_type god)
         create_monster(
             mgen_data(mon, BEH_FRIENDLY,
                       0, SPELL_TWISTED_RESURRECTION,
-                      you.pos(), you.pet_target,
+                      you.pos(), MHITYOU,
                       MG_FORCE_BEH, god,
                       MONS_PROGRAM_BUG, 0, colour));
 
@@ -1144,7 +1106,7 @@ bool cast_twisted_resurrection(int pow, god_type god)
                                                    (colour == RED)      ? 1000
                                                                         : 2500);
 
-        menv[monster].hit_dice = MIN(30, menv[monster].hit_dice);
+        menv[monster].hit_dice = std::min(30, menv[monster].hit_dice);
 
         // XXX: No convenient way to get the hit dice size right now.
         menv[monster].hit_points = hit_points(menv[monster].hit_dice, 2, 5);
@@ -1175,9 +1137,7 @@ bool cast_summon_wraiths(int pow, god_type god)
             mgen_data(mon,
                       friendly ? BEH_FRIENDLY : BEH_HOSTILE,
                       5, SPELL_SUMMON_WRAITHS,
-                      you.pos(),
-                      friendly ? you.pet_target : MHITYOU,
-                      MG_FORCE_BEH, god));
+                      you.pos(), MHITYOU, MG_FORCE_BEH, god));
 
     if (monster != -1)
     {
@@ -1365,10 +1325,6 @@ static bool _teleport_player( bool allow_control, bool new_abyss_area )
 
         if (is_controlled)
         {
-            // no longer held in net
-            if (pos != you.pos())
-                clear_trapping_net();
-
             if (!see_grid(pos))
                 large_change = true;
 
@@ -1376,7 +1332,7 @@ static bool _teleport_player( bool allow_control, bool new_abyss_area )
 
             if (grd(you.pos()) != DNGN_FLOOR
                     && grd(you.pos()) != DNGN_SHALLOW_WATER
-                || mgrd(you.pos()) != NON_MONSTER
+                || monster_at(you.pos())
                 || env.cgrid(you.pos()) != EMPTY_CLOUD)
             {
                 is_controlled = false;
@@ -1428,13 +1384,9 @@ static bool _teleport_player( bool allow_control, bool new_abyss_area )
         }
         while (grd(newpos) != DNGN_FLOOR
                    && grd(newpos) != DNGN_SHALLOW_WATER
-               || mgrd(newpos) != NON_MONSTER
+               || monster_at(newpos)
                || env.cgrid(newpos) != EMPTY_CLOUD
                || need_distance_check && (newpos - centre).abs() < 34*34);
-
-        // no longer held in net
-        if (newpos != you.pos())
-            clear_trapping_net();
 
         if ( newpos == you.pos() )
             mpr("Your surroundings flicker for a moment.");
@@ -1446,11 +1398,7 @@ static bool _teleport_player( bool allow_control, bool new_abyss_area )
             large_change = true;
         }
 
-        you.position = newpos;
-
-        // Necessary to update the view centre.
-        you.moveto(you.pos());
-
+        you.moveto(newpos);
     }
 
     if (large_change)
@@ -1498,7 +1446,7 @@ bool entomb(int powc)
     for ( adjacent_iterator ai; ai; ++ai )
     {
         // Tile already occupied by monster
-        if (mgrd(*ai) != NON_MONSTER)
+        if (monster_at(*ai))
             continue;
 
         // This is where power comes in.
@@ -1588,7 +1536,7 @@ static int _inside_circle(const coord_def& where, int radius)
     return (dist);
 }
 
-static void _remove_sanctuary_property(coord_def where)
+static void _remove_sanctuary_property(const coord_def& where)
 {
     env.map(where).property &= ~(FPROP_SANCTUARY_1 | FPROP_SANCTUARY_2);
 }
@@ -1613,15 +1561,22 @@ bool remove_sanctuary(bool did_attack)
         }
     }
 
-//  Do not reset so as to allow monsters to see if their fleeing source
-//  used to be the centre of a sanctuary. (jpeg)
-//    env.sanctuary_pos.x = env.sanctuary_pos.y = -1;
+    env.sanctuary_pos.set(-1, -1);
 
     if (did_attack)
     {
         if (seen_change)
             simple_god_message(" revokes the gift of sanctuary.", GOD_ZIN);
         did_god_conduct(DID_FRIEND_DIED, 3);
+    }
+
+    // Now that the sanctuary is gone, monsters aren't afraid of it
+    // anymore.
+    for (int i = 0; i < MAX_MONSTERS; ++i)
+    {
+        monsters *mon = &menv[i];
+        if (mon->alive())
+            mons_stop_fleeing_from_sanctuary(mon);
     }
 
     if (is_resting())
@@ -1633,7 +1588,7 @@ bool remove_sanctuary(bool did_attack)
 // For the last (radius) counter turns the sanctuary will slowly shrink.
 void decrease_sanctuary_radius()
 {
-    int radius = 5;
+    const int radius = 5;
 
     // For the last (radius-1) turns 33% chance of not decreasing.
     if (env.sanctuary_time < radius && one_chance_in(3))
@@ -1649,30 +1604,20 @@ void decrease_sanctuary_radius()
         stop_running();
     }
 
-    radius = size+1;
-    for (int x = -radius; x <= radius; x++)
-        for (int y = -radius; y <= radius; y++)
-        {
-            int posx = env.sanctuary_pos.x + x;
-            int posy = env.sanctuary_pos.y + y;
+    for (radius_iterator ri(env.sanctuary_pos, size+1, true, false); ri; ++ri)
+    {
+        int dist = distance(*ri, env.sanctuary_pos);
 
-            if (!inside_level_bounds(posx,posy))
-                continue;
-
-            int dist = distance(posx, posy, env.sanctuary_pos.x,
-                                env.sanctuary_pos.y);
-
-            // If necessary overwrite sanctuary property.
-            if (dist > size*size)
-                _remove_sanctuary_property(coord_def(posx, posy));
-        }
+        // If necessary overwrite sanctuary property.
+        if (dist > size*size)
+            _remove_sanctuary_property(*ri);
+    }
 
     // Special case for time-out of sanctuary.
     if (!size)
     {
-        _remove_sanctuary_property(coord_def(env.sanctuary_pos.x,
-                                             env.sanctuary_pos.y));
-        if (see_grid(coord_def(env.sanctuary_pos.x,env.sanctuary_pos.y)))
+        _remove_sanctuary_property(env.sanctuary_pos);
+        if (see_grid(env.sanctuary_pos))
             mpr("The sanctuary disappears.", MSGCH_DURATION);
     }
 }
@@ -1691,7 +1636,8 @@ bool cast_sanctuary(const int power)
         mpr("You are suddenly bathed in radiance!");
 
     you.flash_colour = WHITE;
-    viewwindow( true, false );
+    viewwindow(true, false);
+
     holy_word(100, HOLY_WORD_ZIN, you.pos(), true);
 #ifndef USE_TILE
     delay(1000);
@@ -1706,16 +1652,15 @@ bool cast_sanctuary(const int power)
     // radius could also be influenced by Inv
     // and would then have to be stored globally.
     const int radius      = 5;
-    const int pattern     = random2(4);
     int       blood_count = 0;
     int       trap_count  = 0;
     int       scare_count = 0;
     int       cloud_count = 0;
     monsters *seen_mon    = NULL;
 
-    for ( radius_iterator ri(you.pos(), radius, false, false); ri; ++ri )
+    for (radius_iterator ri(you.pos(), radius, false, false); ri; ++ri)
     {
-        int dist = _inside_circle(*ri, radius);
+        const int dist = _inside_circle(*ri, radius);
 
         if (dist == -1)
             continue;
@@ -1735,32 +1680,38 @@ bool cast_sanctuary(const int power)
 
         // forming patterns
         const int x = pos.x - you.pos().x, y = pos.y - you.pos().y;
-        if (pattern == 0    // outward rays
-            && (x == 0 || y == 0 || x == y || x == -y)
-            || pattern == 1 // circles
-            && (dist >= (radius-1)*(radius-1) && dist <= radius*radius
-                || dist >= (radius/2-1)*(radius/2-1)
-                && dist <= radius*radius/4)
-            || pattern == 2 // latticed
-            && (x%2 == 0 || y%2 == 0)
-            || pattern == 3 // cross-like
-            && (abs(x)+abs(y) < 5 && x != y && x != -y))
+        bool in_yellow = false;
+        switch (random2(4))
         {
-            env.map(pos).property |= FPROP_SANCTUARY_1; // yellow
+        case 0:                 // outward rays
+            in_yellow = (x == 0 || y == 0 || x == y || x == -y);
+            break;
+        case 1:                 // circles
+            in_yellow = (dist >= (radius-1)*(radius-1)
+                         && dist <= radius*radius
+                         || dist >= (radius/2-1)*(radius/2-1)
+                            && dist <= radius*radius/4);
+            break;
+        case 2:                 // latticed
+            in_yellow = (x%2 == 0 || y%2 == 0);
+            break;
+        case 3:                 // cross-like
+            in_yellow = (abs(x)+abs(y) < 5 && x != y && x != -y);
+            break;
+        default:
+            break;
         }
-        else
-            env.map(pos).property |= FPROP_SANCTUARY_2; // white
+
+        env.map(pos).property |= (in_yellow ? FPROP_SANCTUARY_1
+                                            : FPROP_SANCTUARY_2);
 
         env.map(pos).property &= ~(FPROP_BLOODY);
 
-        // scare all attacking monsters inside sanctuary, and make
+        // Scare all attacking monsters inside sanctuary, and make
         // all friendly monsters inside sanctuary stop attacking and
         // move towards the player.
-        int monster = mgrd(pos);
-        if (monster != NON_MONSTER)
+        if (monsters* mon = monster_at(pos))
         {
-            monsters* mon = &menv[monster];
-
             if (mons_friendly(mon))
             {
                 mon->foe       = MHITYOU;
@@ -1773,18 +1724,17 @@ bool cast_sanctuary(const int power)
                 if (mons_is_mimic(mon->type))
                 {
                     mimic_alert(mon);
-                    if(you.can_see(mon))
+                    if (you.can_see(mon))
                     {
                         scare_count++;
                         seen_mon = mon;
                     }
                 }
-                else if (mon->add_ench(mon_enchant(ENCH_FEAR, 0, KC_YOU)))
+                else if (mons_is_influenced_by_sanctuary(mon))
                 {
-                    behaviour_event(mon, ME_SCARE, MHITYOU);
+                    mons_start_fleeing_from_sanctuary(mon);
 
-                    // Check to see that monster is actually fleeing,
-                    // since plants can't flee.
+                    // Check to see that monster is actually fleeing.
                     if (mons_is_fleeing(mon) && you.can_see(mon))
                     {
                         scare_count++;
@@ -1792,7 +1742,7 @@ bool cast_sanctuary(const int power)
                     }
                 }
             }
-        } // if (monster != NON_MONSTER)
+        }
 
         if (!is_harmless_cloud(cloud_type_at(pos)))
         {

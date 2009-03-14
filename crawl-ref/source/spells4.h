@@ -19,9 +19,8 @@ bool backlight_monsters(coord_def where, int pow, int garbage);
 int make_a_normal_cloud(coord_def where, int pow, int spread_rate,
                         cloud_type ctype, kill_category,
                         killer_type killer = KILL_NONE);
-int disperse_monsters(coord_def where, int pow, int message);
+int disperse_monsters(coord_def where, int pow);
 
-void cast_bend(int pow);
 void remove_condensation_shield();
 void cast_condensation_shield(int pow);
 void remove_divine_shield();
@@ -32,15 +31,11 @@ bool cast_evaporate(int pow, bolt& beem, int potion);
 void cast_fulsome_distillation(int powc);
 void cast_forescry(int pow);
 bool cast_fragmentation(int powc, const dist& spd);
-bool cast_twist(int powc, const coord_def& where);
-void cast_far_strike(int powc);
-void cast_swap(int powc);
 bool cast_apportation(int powc, const coord_def& where);
 void cast_ignite_poison(int pow);
 void cast_intoxicate(int pow);
 void cast_mass_sleep(int pow);
 void cast_passwall(int pow);
-void cast_rotting(int pow);
 bool wielding_rocks();
 bool cast_sandblast(int powc, bolt &beam);
 void cast_see_invisible(int pow);
@@ -49,7 +44,6 @@ void cast_shatter(int pow);
 void cast_silence(int pow);
 void cast_tame_beasts(int pow);
 void cast_dispersal(int pow);
-void cast_snake_charm(int pow);
 void cast_stoneskin(int pow);
 
 int cast_semi_controlled_blink(int pow);

@@ -183,12 +183,13 @@ rectangle_iterator rectangle_iterator::operator++( int dummy )
     return (copy);
 }
 
-radius_iterator::radius_iterator( const coord_def& _center, int _radius,
-                                  bool _roguelike_metric, bool _require_los,
-                                  bool _exclude_center )
+radius_iterator::radius_iterator(const coord_def& _center, int _radius,
+                                 bool _roguelike_metric, bool _require_los,
+                                 bool _exclude_center,
+                                 const env_show_grid* _losgrid)
     : center(_center), radius(_radius), roguelike_metric(_roguelike_metric),
       require_los(_require_los), exclude_center(_exclude_center),
-      iter_done(false)
+      losgrid(_losgrid), iter_done(false)
 {
     reset();
 }
@@ -258,8 +259,13 @@ bool radius_iterator::on_valid_square() const
         return (false);
     if (!roguelike_metric && (location - center).abs() > radius*radius)
         return (false);
-    if (require_los && !see_grid(location))
-        return (false);
+    if (require_los)
+    {
+        if (!losgrid && !see_grid(location))
+            return (false);
+        if (losgrid && !see_grid(*losgrid, center, location))
+            return (false);
+    }
     if (exclude_center && location == center)
         return (false);
 
@@ -269,9 +275,7 @@ bool radius_iterator::on_valid_square() const
 const radius_iterator& radius_iterator::operator++()
 {
     do
-    {
         this->step();
-    }
     while (!this->done() && !this->on_valid_square());
 
     return (*this);
@@ -280,9 +284,7 @@ const radius_iterator& radius_iterator::operator++()
 const radius_iterator& radius_iterator::operator--()
 {
     do
-    {
         this->step_back();
-    }
     while (!this->done() && !this->on_valid_square());
 
     return (*this);
@@ -337,10 +339,9 @@ static bool _tag_follower_at(const coord_def &pos)
     if (!in_bounds(pos) || pos == you.pos())
         return (false);
 
-    if (mgrd(pos) == NON_MONSTER)
+    monsters *fmenv = monster_at(pos);
+    if (fmenv == NULL)
         return (false);
-
-    monsters *fmenv = &menv[mgrd(pos)];
 
     if (fmenv->type == MONS_PLAYER_GHOST
         || !fmenv->alive()
@@ -576,28 +577,27 @@ int random_choose_weighted(int weight, int first, ...)
     return (chosen);
 }
 
-int random2( int max )
+int random2(int max)
 {
     if (max <= 1)
         return (0);
 
-    return (static_cast<int>( genrand_int32() / (0xFFFFFFFFUL / max + 1) ));
+    return (static_cast<int>(genrand_int32() / (0xFFFFFFFFUL / max + 1)));
 }
 
-bool coinflip( void )
+bool coinflip(void)
 {
-    return (static_cast<bool>( random2(2) ));
+    return (static_cast<bool>(random2(2)));
 }
 
 // Returns random2(x) if random_factor is true, otherwise the mean.
-int maybe_random2( int x, bool random_factor )
+int maybe_random2(int x, bool random_factor)
 {
     if (random_factor)
-        return random2(x);
+        return (random2(x));
     else
-        return x / 2;
+        return (x / 2);
 }
-
 
 void push_rng_state()
 {
@@ -609,9 +609,9 @@ void pop_rng_state()
     pop_mt_state();
 }
 
-// Attempts to make missile weapons nicer to the player by
-// reducing the extreme variance in damage done.
-void scale_dice( dice_def &dice, int threshold )
+// Attempts to make missile weapons nicer to the player by reducing the
+// extreme variance in damage done.
+void scale_dice(dice_def &dice, int threshold)
 {
     while (dice.size > threshold)
     {
@@ -625,32 +625,30 @@ void scale_dice( dice_def &dice, int threshold )
 int bestroll(int max, int rolls)
 {
     int best = 0;
+
     for (int i = 0; i < rolls; i++)
     {
         int curr = random2(max);
         if (curr > best)
             best = curr;
     }
+
     return (best);
 }
 
-// random2avg() returns same mean value as random2() but with a  lower variance
+// random2avg() returns same mean value as random2() but with a lower variance
 // never use with rolls < 2 as that would be silly - use random2() instead {dlb}
 int random2avg(int max, int rolls)
 {
-    int sum = 0;
-
-    sum += random2(max);
+    int sum = random2(max);
 
     for (int i = 0; i < (rolls - 1); i++)
-    {
         sum += random2(max + 1);
-    }
 
     return (sum / rolls);
 }
 
-int roll_dice( int num, int size )
+int roll_dice(int num, int size)
 {
     int ret = 0;
     int i;
@@ -663,7 +661,7 @@ int roll_dice( int num, int size )
         ret += num;     // since random2() is zero based
 
         for (i = 0; i < num; i++)
-            ret += random2( size );
+            ret += random2(size);
     }
 
     return (ret);
@@ -678,7 +676,7 @@ int random2limit(int max, int limit)
     int sum = 0;
 
     if (max < 1)
-        return 0;
+        return (0);
 
     for (i = 0; i < max; i++)
     {
@@ -686,8 +684,8 @@ int random2limit(int max, int limit)
             sum++;
     }
 
-    return sum;
-}                               // end random2limit()
+    return (sum);
+}
 
 void cio_init()
 {
@@ -796,7 +794,6 @@ void redraw_screen(void)
     you.redraw_dexterity    = true;
     you.redraw_armour_class = true;
     you.redraw_evasion      = true;
-    you.redraw_gold         = true;
     you.redraw_experience   = true;
     you.wield_change        = true;
     you.redraw_quiver       = true;
@@ -908,12 +905,12 @@ int stat_div( int stat_level, int value, int mult, int shift )
 }
 
 // Calculates num/den and randomly adds one based on the remainder.
-int div_rand_round( int num, int den )
+int div_rand_round(int num, int den)
 {
     return (num / den + (random2(den) < num % den));
 }
 
-int div_round_up( int num, int den )
+int div_round_up(int num, int den)
 {
     return (num / den + (num % den != 0));
 }
@@ -1017,9 +1014,7 @@ void canned_msg(canned_message_type which_message)
         mpr("You are now empty-handed.");
         break;
     }
-
-    return;
-}                               // end canned_msg()
+}
 
 // Like yesno, but requires a full typed answer.
 // Unlike yesno, prompt should have no trailing space.
@@ -1088,7 +1083,7 @@ bool yesno( const char *str, bool safe, int safeanswer, bool clear_after,
         else if (!noprompt)
             mpr("[Y]es or [N]o only, please.");
     }
-}                               // end yesno()
+}
 
 static std::string _list_alternative_yes(char yes1, char yes2,
                                          bool lowered = false,
@@ -1226,7 +1221,7 @@ int distance( int x, int y, int x2, int y2 )
     const int dy = y - y2;
 
     return ((dx * dx) + (dy * dy));
-}                               // end distance()
+}
 
 bool adjacent( const coord_def& p1, const coord_def& p2 )
 {
@@ -1244,87 +1239,85 @@ bool player_can_hear(const coord_def& p)
     return (!silenced(p) && !silenced(you.pos()));
 }
 
-// Returns true if inside the area the player can move and dig (ie exclusive).
-bool in_bounds( int x, int y )
+bool in_bounds_x(int x)
 {
-    return (x > X_BOUND_1 && x < X_BOUND_2
-            && y > Y_BOUND_1 && y < Y_BOUND_2);
+    return (x > X_BOUND_1 && x < X_BOUND_2);
+}
+
+bool in_bounds_y(int y)
+{
+    return (y > Y_BOUND_1 && y < Y_BOUND_2);
+}
+
+// Returns true if inside the area the player can move and dig (ie exclusive).
+bool in_bounds(int x, int y)
+{
+    return (in_bounds_x(x) && in_bounds_y(y));
+}
+
+bool map_bounds_x(int x)
+{
+    return (x >= X_BOUND_1 && x <= X_BOUND_2);
+}
+
+bool map_bounds_y(int y)
+{
+    return (y >= Y_BOUND_1 && y <= Y_BOUND_2);
 }
 
 // Returns true if inside the area the player can map (ie inclusive).
 // Note that terrain features should be in_bounds() leaving an outer
 // ring of rock to frame the level.
-bool map_bounds( int x, int y )
+bool map_bounds(int x, int y)
 {
-    return (x >= X_BOUND_1 && x <= X_BOUND_2
-            && y >= Y_BOUND_1 && y <= Y_BOUND_2);
+    return (map_bounds_x(x) && map_bounds_y(y));
 }
 
 coord_def random_in_bounds()
 {
-    return coord_def( random_range(MAPGEN_BORDER, GXM - MAPGEN_BORDER - 1),
-                      random_range(MAPGEN_BORDER, GYM - MAPGEN_BORDER - 1) );
-}
-
-// Returns a random location in (x_pos, y_pos)... the grid will be
-// DNGN_FLOOR if clear, and NON_MONSTER if empty.  Exclusive tells
-// if we're using in_bounds() or map_bounds() restriction.
-void random_in_bounds( int &x_pos, int &y_pos, int terr,
-                       bool empty, bool excl )
-{
-    bool done = false;
-
-    do
+    if (crawl_state.arena)
     {
-        x_pos = X_BOUND_1 + random2( X_WIDTH - 2 * excl ) + 1 * excl;
-        y_pos = Y_BOUND_1 + random2( Y_WIDTH - 2 * excl ) + 1 * excl;
+        const coord_def &ul = crawl_view.glos1; // Upper left
+        const coord_def &lr = crawl_view.glos2; // Lower right
 
-        if (terr == DNGN_RANDOM)
-            done = true;
-        else if (terr == grd[x_pos][y_pos])
-            done = true;
-        else if (terr == DNGN_DEEP_WATER
-                 && grd[x_pos][y_pos] == DNGN_SHALLOW_WATER)
-            done = true;
-        else if (empty
-                 && mgrd[x_pos][y_pos] != NON_MONSTER
-                 && (coord_def(x_pos,y_pos) != you.pos()))
-        {
-            done = true;
-        }
+        return coord_def(random_range(ul.x, lr.x - 1),
+                         random_range(ul.y, lr.y - 1));
     }
-    while (!done);
+    else
+        return coord_def(random_range(MAPGEN_BORDER, GXM - MAPGEN_BORDER - 1),
+                         random_range(MAPGEN_BORDER, GYM - MAPGEN_BORDER - 1));
 }
 
 unsigned char random_colour(void)
 {
     return (1 + random2(15));
-}                               // end random_colour()
+}
 
 unsigned char random_uncommon_colour()
 {
     unsigned char result;
+
     do
         result = random_colour();
-    while ( result == LIGHTCYAN || result == CYAN || result == BROWN );
-    return result;
-}
+    while (result == LIGHTCYAN || result == CYAN || result == BROWN);
 
+    return (result);
+}
 
 // returns if a colour is one of the special element colours (ie not regular)
 bool is_element_colour( int col )
 {
-    // striping any COLFLAGS (just in case)
-    return ((col & 0x007f) >= EC_FIRE);
+    // stripping any COLFLAGS (just in case)
+    return ((col & 0x007f) >= ETC_FIRE);
 }
 
 int element_colour( int element, bool no_random )
 {
     // Doing this so that we don't have to do recursion here at all
     // (these were the only cases which had possible double evaluation):
-    if (element == EC_FLOOR)
+    if (element == ETC_FLOOR)
         element = env.floor_colour;
-    else if (element == EC_ROCK)
+    else if (element == ETC_ROCK)
         element = env.rock_colour;
 
     // pass regular colours through for safety.
@@ -1340,112 +1333,112 @@ int element_colour( int element, bool no_random )
 
     switch (element & 0x007f)   // strip COLFLAGs just in case
     {
-    case EC_FIRE:
+    case ETC_FIRE:
         ret = (tmp_rand < 40) ? RED :
               (tmp_rand < 80) ? YELLOW
                               : LIGHTRED;
         break;
 
-    case EC_ICE:
+    case ETC_ICE:
         ret = (tmp_rand < 40) ? LIGHTBLUE :
               (tmp_rand < 80) ? BLUE
                               : WHITE;
         break;
 
-    case EC_EARTH:
+    case ETC_EARTH:
         ret = (tmp_rand < 60) ? BROWN : LIGHTRED;
         break;
 
-    case EC_AIR:
+    case ETC_AIR:
         ret = (tmp_rand < 60) ? LIGHTGREY : WHITE;
         break;
 
-    case EC_ELECTRICITY:
+    case ETC_ELECTRICITY:
         ret = (tmp_rand < 40) ? LIGHTCYAN :
               (tmp_rand < 80) ? LIGHTBLUE
                               : CYAN;
         break;
 
-    case EC_POISON:
+    case ETC_POISON:
         ret = (tmp_rand < 60) ? LIGHTGREEN : GREEN;
         break;
 
-    case EC_WATER:
+    case ETC_WATER:
         ret = (tmp_rand < 60) ? BLUE : CYAN;
         break;
 
-    case EC_MAGIC:
+    case ETC_MAGIC:
         ret = (tmp_rand < 30) ? LIGHTMAGENTA :
               (tmp_rand < 60) ? LIGHTBLUE :
               (tmp_rand < 90) ? MAGENTA
                               : BLUE;
         break;
 
-    case EC_MUTAGENIC:
-    case EC_WARP:
+    case ETC_MUTAGENIC:
+    case ETC_WARP:
         ret = (tmp_rand < 60) ? LIGHTMAGENTA : MAGENTA;
         break;
 
-    case EC_ENCHANT:
+    case ETC_ENCHANT:
         ret = (tmp_rand < 60) ? LIGHTBLUE : BLUE;
         break;
 
-    case EC_HEAL:
+    case ETC_HEAL:
         ret = (tmp_rand < 60) ? LIGHTBLUE : YELLOW;
         break;
 
-    case EC_BLOOD:
+    case ETC_BLOOD:
         ret = (tmp_rand < 60) ? RED : DARKGREY;
         break;
 
-    case EC_DEATH:      // assassin
-    case EC_NECRO:      // necromancer
+    case ETC_DEATH:      // assassin
+    case ETC_NECRO:      // necromancer
         ret = (tmp_rand < 80) ? DARKGREY : MAGENTA;
         break;
 
-    case EC_UNHOLY:     // ie demonology
+    case ETC_UNHOLY:     // ie demonology
         ret = (tmp_rand < 80) ? DARKGREY : RED;
         break;
 
-    case EC_DARK:
+    case ETC_DARK:
         ret = (tmp_rand < 80) ? DARKGREY : LIGHTGREY;
         break;
 
-    case EC_HOLY:
+    case ETC_HOLY:
         ret = (tmp_rand < 60) ? YELLOW : WHITE;
         break;
 
-    case EC_VEHUMET:
+    case ETC_VEHUMET:
         ret = (tmp_rand < 40) ? LIGHTRED :
               (tmp_rand < 80) ? LIGHTMAGENTA
                               : LIGHTBLUE;
         break;
 
-    case EC_BEOGH:
+    case ETC_BEOGH:
         ret = (tmp_rand < 60) ? LIGHTRED // plain Orc colour
                               : BROWN;   // Orcish mines wall/idol colour
         break;
 
-    case EC_CRYSTAL:
+    case ETC_CRYSTAL:
         ret = (tmp_rand < 40) ? LIGHTGREY :
               (tmp_rand < 80) ? GREEN
                               : LIGHTRED;
         break;
 
-    case EC_SLIME:
+    case ETC_SLIME:
         ret = (tmp_rand < 40) ? GREEN :
               (tmp_rand < 80) ? BROWN
                               : LIGHTGREEN;
         break;
 
-    case EC_SMOKE:
+    case ETC_SMOKE:
         ret = (tmp_rand < 30) ? LIGHTGREY :
               (tmp_rand < 60) ? DARKGREY :
               (tmp_rand < 90) ? LIGHTBLUE
                               : MAGENTA;
         break;
 
-    case EC_JEWEL:
+    case ETC_JEWEL:
         ret = (tmp_rand <  12) ? WHITE :
               (tmp_rand <  24) ? YELLOW :
               (tmp_rand <  36) ? LIGHTMAGENTA :
@@ -1458,28 +1451,28 @@ int element_colour( int element, bool no_random )
                                : BLUE;
         break;
 
-    case EC_ELVEN:
+    case ETC_ELVEN:
         ret = (tmp_rand <  40) ? LIGHTGREEN :
               (tmp_rand <  80) ? GREEN :
               (tmp_rand < 100) ? LIGHTBLUE
                                : BLUE;
         break;
 
-    case EC_DWARVEN:
+    case ETC_DWARVEN:
         ret = (tmp_rand <  40) ? BROWN :
               (tmp_rand <  80) ? LIGHTRED :
               (tmp_rand < 100) ? LIGHTGREY
                                : CYAN;
         break;
 
-    case EC_ORCISH:
+    case ETC_ORCISH:
         ret = (tmp_rand <  40) ? DARKGREY :
               (tmp_rand <  80) ? RED :
               (tmp_rand < 100) ? BROWN
                                : MAGENTA;
         break;
 
-    case EC_GILA:
+    case ETC_GILA:
         ret = (tmp_rand <  30) ? LIGHTMAGENTA :
               (tmp_rand <  60) ? MAGENTA :
               (tmp_rand <  90) ? YELLOW :
@@ -1487,49 +1480,49 @@ int element_colour( int element, bool no_random )
                                : RED;
         break;
 
-    case EC_STONE:
+    case ETC_STONE:
         if (player_in_branch( BRANCH_HALL_OF_ZOT ))
             ret = env.rock_colour;
         else
             ret = LIGHTGREY;
         break;
 
-    case EC_MIST:
+    case ETC_MIST:
         ret = tmp_rand < 100? CYAN : BLUE;
         break;
 
-    case EC_SHIMMER_BLUE:
+    case ETC_SHIMMER_BLUE:
         ret = random_choose_weighted(80, BLUE, 20, LIGHTBLUE, 5, CYAN, 0);
         break;
 
-    case EC_DECAY:
+    case ETC_DECAY:
         ret = (tmp_rand < 60) ? BROWN : GREEN;
         break;
 
-    case EC_SILVER:
+    case ETC_SILVER:
         ret = (tmp_rand < 90) ? LIGHTGREY : WHITE;
         break;
 
-    case EC_GOLD:
+    case ETC_GOLD:
         ret = (tmp_rand < 60) ? YELLOW : BROWN;
         break;
 
-    case EC_IRON:
+    case ETC_IRON:
         ret = (tmp_rand < 40) ? CYAN :
               (tmp_rand < 80) ? LIGHTGREY :
                                 DARKGREY;
         break;
 
-    case EC_BONE:
+    case ETC_BONE:
         ret = (tmp_rand < 90) ? WHITE : LIGHTGREY;
         break;
 
-    case EC_RANDOM:
+    case ETC_RANDOM:
         ret = 1 + random2(15);              // always random
         break;
 
-    case EC_FLOOR: // should already be handled
-    case EC_ROCK:  // should already be handled
+    case ETC_FLOOR: // should already be handled
+    case ETC_ROCK:  // should already be handled
     default:
         break;
     }
@@ -1542,7 +1535,7 @@ int element_colour( int element, bool no_random )
 char index_to_letter(int the_index)
 {
     return (the_index + ((the_index < 26) ? 'a' : ('A' - 26)));
-}                               // end index_to_letter()
+}
 
 int letter_to_index(int the_letter)
 {
@@ -1553,8 +1546,8 @@ int letter_to_index(int the_letter)
         // returns range [26-51] {dlb}
         the_letter -= ('A' - 26);
 
-    return the_letter;
-}                               // end letter_to_index()
+    return (the_letter);
+}
 
 int fuzz_value(int val, int lowfuzz, int highfuzz, int naverage)
 {
@@ -1625,8 +1618,6 @@ void zap_los_monsters()
         if (g == you.pos())
             continue;
 
-        int imon = mgrd(g);
-
         // At tutorial beginning disallow items in line of sight.
         if (Options.tutorial_events[TUT_SEEN_FIRST_OBJECT])
         {
@@ -1636,12 +1627,11 @@ void zap_los_monsters()
                 destroy_item(item);
         }
 
-        if (imon == NON_MONSTER || imon == MHITYOU)
-            continue;
-
         // If we ever allow starting with a friendly monster,
         // we'll have to check here.
-        monsters *mon = &menv[imon];
+        monsters *mon = monster_at(g);
+        if (mon == NULL)
+            continue;
 
         if (mons_class_flag( mon->type, M_NO_EXP_GAIN ))
             continue;
@@ -1662,7 +1652,7 @@ void zap_los_monsters()
 // coord_def
 int coord_def::distance_from(const coord_def &other) const
 {
-    return (grid_distance(x, y, other.x, other.y));
+    return (grid_distance(*this, other));
 }
 
 int integer_sqrt(int value)
@@ -1688,7 +1678,7 @@ int integer_sqrt(int value)
 
 int random_rod_subtype()
 {
-    return STAFF_SMITING + random2(NUM_STAVES - STAFF_SMITING);
+    return STAFF_FIRST_ROD + random2(NUM_STAVES - STAFF_FIRST_ROD);
 }
 
 int dice_def::roll() const

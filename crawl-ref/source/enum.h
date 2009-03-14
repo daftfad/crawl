@@ -33,19 +33,18 @@ enum ability_type
     ABIL_TORMENT,
     ABIL_RAISE_DEAD,
     ABIL_CONTROL_DEMON,                //   20
-    ABIL_TO_PANDEMONIUM,
     ABIL_CHANNELING,
     ABIL_THROW_FLAME,
     ABIL_THROW_FROST,
-    ABIL_BOLT_OF_DRAINING,             //   25
-    ABIL_BREATHE_HELLFIRE,
-    ABIL_FLY_II,
+    ABIL_BOLT_OF_DRAINING,
+    ABIL_FLY_II,                       //   25
     ABIL_DELAYED_FIREBALL,
     ABIL_MUMMY_RESTORATION,
-    ABIL_EVOKE_MAPPING,                //   30
+    ABIL_EVOKE_MAPPING,
     ABIL_EVOKE_TELEPORTATION,
-    ABIL_EVOKE_BLINK,                  //   32
-    // 33 - 50 unused
+    ABIL_EVOKE_BLINK,                  //   30
+    ABIL_RECHARGING,                   //   31
+    // 32 - 50 unused
     ABIL_EVOKE_TURN_INVISIBLE = 51,    //   51
     ABIL_EVOKE_TURN_VISIBLE,
     ABIL_EVOKE_LEVITATE,
@@ -102,13 +101,9 @@ enum ability_type
     ABIL_BEOGH_SMITING,                     //  235
     ABIL_BEOGH_RECALL_ORCISH_FOLLOWERS,
 
-    ABIL_CHARM_SNAKE,                       //  237
-    ABIL_TRAN_SERPENT_OF_HELL,
-    ABIL_ROTTING,
-    ABIL_TORMENT_II,
     ABIL_TRAN_BAT,
     ABIL_HARM_PROTECTION,
-    ABIL_HARM_PROTECTION_II,
+    ABIL_HARM_PROTECTION_II,                //  239
     ABIL_RENOUNCE_RELIGION = 250            //  250
 };
 
@@ -288,45 +283,44 @@ enum book_type
     BOOK_PRACTICAL_MAGIC,
     BOOK_WAR_CHANTS,                   //   20
     BOOK_CLOUDS,
-    BOOK_HEALING,                      //  XXX: not used
     BOOK_NECROMANCY,
     BOOK_CALLINGS,
-    BOOK_CHARMS,                       //   25
-    BOOK_AIR,
+    BOOK_CHARMS,
+    BOOK_AIR,                          //   25
     BOOK_SKY,
     BOOK_DIVINATIONS,
     BOOK_WARP,
-    BOOK_ENVENOMATIONS,                //   30
-    BOOK_UNLIFE,
+    BOOK_ENVENOMATIONS,
+    BOOK_UNLIFE,                       //   30
     BOOK_CONTROL,
     BOOK_MUTATIONS,
     BOOK_TUKIMA,
-    BOOK_GEOMANCY,                     //   35
-    BOOK_EARTH,
+    BOOK_GEOMANCY,
+    BOOK_EARTH,                        //   35
     BOOK_WIZARDRY,
     BOOK_POWER,
     BOOK_CANTRIPS,                     //jmf: 04jan2000
-    BOOK_PARTY_TRICKS,           // 40 //jmf: 04jan2000
-    BOOK_BEASTS,
+    BOOK_PARTY_TRICKS,                 //jmf: 04jan2000
+    BOOK_BEASTS,                       //   40
     BOOK_STALKING,         // renamed -- assassination was confusing  -- bwr
     MAX_NORMAL_BOOK = BOOK_STALKING,
 
-    MIN_GOD_ONLY_BOOK,                      // 43
-    BOOK_ANNIHILATIONS = MIN_GOD_ONLY_BOOK, // 43
+    MIN_GOD_ONLY_BOOK,                      // 42
+    BOOK_ANNIHILATIONS = MIN_GOD_ONLY_BOOK,
     BOOK_DEMONOLOGY,
-    BOOK_NECRONOMICON,                      // 45
+    BOOK_NECRONOMICON,
     MAX_GOD_ONLY_BOOK = BOOK_NECRONOMICON,
 
     MAX_FIXED_BOOK = MAX_GOD_ONLY_BOOK,
 
-    BOOK_RANDART_LEVEL,                     // 46
+    BOOK_RANDART_LEVEL,                     // 45
     BOOK_RANDART_THEME,
-    BOOK_CARD_EFFECT,
+    BOOK_CARD_EFFECT,    // not implemented
 
     MAX_MEMORISABLE_BOOK = BOOK_CARD_EFFECT,
 
     BOOK_MANUAL,
-    BOOK_DESTRUCTION,                       // 50
+    BOOK_DESTRUCTION,                       // 49
     NUM_BOOKS
 };
 
@@ -483,6 +477,7 @@ enum command_type
     CMD_WEAR_JEWELLERY,
     CMD_REMOVE_JEWELLERY,
     CMD_CYCLE_QUIVER_FORWARD,
+    CMD_CYCLE_QUIVER_BACKWARD,
     CMD_LIST_WEAPONS,
     CMD_LIST_ARMOUR,
     CMD_LIST_JEWELLERY,
@@ -708,7 +703,9 @@ enum conduct_type
     DID_KILL_HOLY,
     DID_LIVING_KILLED_BY_UNDEAD_SLAVE,
     DID_LIVING_KILLED_BY_SERVANT,
+    DID_UNDEAD_KILLED_BY_UNDEAD_SLAVE,
     DID_UNDEAD_KILLED_BY_SERVANT,
+    DID_DEMON_KILLED_BY_UNDEAD_SLAVE,
     DID_DEMON_KILLED_BY_SERVANT,
     DID_NATURAL_EVIL_KILLED_BY_SERVANT, // TSO
     DID_HOLY_KILLED_BY_UNDEAD_SLAVE,
@@ -761,6 +758,18 @@ enum startup_book_type
     SBT_COLD,
     SBT_SUMM,
     SBT_RANDOM
+};
+
+enum startup_wand_type
+{
+    SWT_NO_SELECTION = 0,
+    SWT_ENSLAVEMENT,
+    SWT_CONFUSION,
+    SWT_MAGIC_DARTS,
+    SWT_FROST,
+    SWT_FLAME,
+    SWT_STRIKING, // actually a rod
+    SWT_RANDOM
 };
 
 // When adding new delays, update their names in delay.cc, or bad things will
@@ -971,7 +980,7 @@ enum dungeon_feature_type
     DNGN_DEEP_WATER,                   //   62
 
     DNGN_SHALLOW_WATER = 65,           //   65
-    DNGN_WATER_STUCK,
+    DNGN_WATER_RESERVED,
 
     // Lowest grid value that an item can be placed on.
     DNGN_MINITEM = DNGN_SHALLOW_WATER,
@@ -1176,7 +1185,6 @@ enum duration_type
     DUR_SILENCE,
     DUR_CONDENSATION_SHIELD,
     DUR_STONESKIN,
-    DUR_REPEL_UNDEAD,
     DUR_GOURMAND,
     DUR_BARGAIN,
     DUR_INSULATION,
@@ -1324,7 +1332,8 @@ enum god_type
     GOD_BEOGH,
     NUM_GODS,                          // always after last god
 
-    GOD_RANDOM  = 100
+    GOD_RANDOM = 100,
+    GOD_NAMELESS = 101                 // for monsters with non-player gods
 };
 
 enum holy_word_source_type
@@ -1352,7 +1361,8 @@ enum immolation_source_type
 {
     IMMOLATION_GENERIC = -1,
     IMMOLATION_SCROLL  = -2,
-    IMMOLATION_SPELL   = -3  // effect when fixing fire brand
+    IMMOLATION_SPELL   = -3, // effect when fixing fire brand
+    IMMOLATION_TOME    = -4  // exploding Tome of Destruction
 };
 
 enum item_status_flag_type  // per item flags: ie. ident status, cursed status
@@ -1484,13 +1494,12 @@ enum killer_type                       // monster_die(), thing_thrown
     KILL_DISMISSED                     // only on new game startup
 };
 
-// This should be in order from the worst flight status to the best.
-// See mons_flies().
 enum flight_type
 {
     FL_NONE = 0,
-    FL_LEVITATE,
-    FL_FLY
+    FL_LEVITATE,                       // doesn't require physical effort
+    FL_FLY                             // wings, etc... paralysis == fall
+
 };
 
 enum level_area_type                   // you.level_type
@@ -2060,13 +2069,6 @@ enum mon_attitude_type
     ATT_FRIENDLY                       // created friendly (or tamed?)
 };
 
-enum mon_flight_type
-{
-    FLY_NOT,
-    FLY_POWERED,                        // wings, etc... paralysis == fall
-    FLY_LEVITATION                      // doesn't require physical effort
-};
-
 // These are now saved in an unsigned long in the monsters struct.
 enum monster_flag_type
 {
@@ -2105,7 +2107,8 @@ enum monster_flag_type
     MF_NAME_REPLACE       = 0x30000, // mname entirely replaces normal monster
                                      // name.
     MF_NAME_MASK          = 0x30000,
-    MF_GOD_GIFT           = 0x40000  // Is a god gift.
+    MF_GOD_GIFT           = 0x40000, // Is a god gift.
+    MF_FLEEING_FROM_SANCTUARY = 0x80000 // Is running away from player sanctuary
 };
 
 // Adding slots breaks saves. YHBW.
@@ -2241,97 +2244,96 @@ enum mon_spellbook_type
 
 enum mutation_type
 {
-    MUT_TOUGH_SKIN,                    //    0
+    MUT_TOUGH_SKIN,
     MUT_STRONG,
     MUT_CLEVER,
     MUT_AGILE,
     MUT_GREEN_SCALES,
-    MUT_BLACK_SCALES,                  //    5
+    MUT_BLACK_SCALES,
     MUT_GREY_SCALES,
     MUT_BONEY_PLATES,
     MUT_REPULSION_FIELD,
     MUT_POISON_RESISTANCE,
-    MUT_CARNIVOROUS,                   //   10
+    MUT_CARNIVOROUS,
     MUT_HERBIVOROUS,
     MUT_HEAT_RESISTANCE,
     MUT_COLD_RESISTANCE,
     MUT_SHOCK_RESISTANCE,
-    MUT_REGENERATION,                  //   15
+    MUT_REGENERATION,
+    MUT_SLOW_HEALING,
     MUT_FAST_METABOLISM,
     MUT_SLOW_METABOLISM,
     MUT_WEAK,
     MUT_DOPEY,
-    MUT_CLUMSY,                        //   20
+    MUT_CLUMSY,
     MUT_TELEPORT_CONTROL,
     MUT_TELEPORT,
     MUT_MAGIC_RESISTANCE,
     MUT_FAST,
-    MUT_ACUTE_VISION,                  //   25
+    MUT_ACUTE_VISION,
     MUT_DEFORMED,
     MUT_TELEPORT_AT_WILL,
     MUT_SPIT_POISON,
     MUT_MAPPING,
-    MUT_BREATHE_FLAMES,                //   30
+    MUT_BREATHE_FLAMES,
     MUT_BLINK,
     MUT_HORNS,
     MUT_BEAK,
     MUT_STRONG_STIFF,
-    MUT_FLEXIBLE_WEAK,                 //   35
+    MUT_FLEXIBLE_WEAK,
     MUT_SCREAM,
     MUT_CLARITY,
     MUT_BERSERK,
     MUT_DETERIORATION,
-    MUT_BLURRY_VISION,                 //   40
+    MUT_BLURRY_VISION,
     MUT_MUTATION_RESISTANCE,
     MUT_FRAIL,
     MUT_ROBUST,
     MUT_TORMENT_RESISTANCE,
-    MUT_NEGATIVE_ENERGY_RESISTANCE,    //   45
+    MUT_NEGATIVE_ENERGY_RESISTANCE,
     MUT_SUMMON_MINOR_DEMONS,
     MUT_SUMMON_DEMONS,
     MUT_HURL_HELLFIRE,
     MUT_CALL_TORMENT,
-    MUT_RAISE_DEAD,                    //   50
+    MUT_RAISE_DEAD,
     MUT_CONTROL_DEMONS,
-    MUT_PANDEMONIUM,
     MUT_DEATH_STRENGTH,
     MUT_CHANNEL_HELL,
-    MUT_DRAIN_LIFE,                    //   55
+    MUT_DRAIN_LIFE,
     MUT_THROW_FLAMES,
     MUT_THROW_FROST,
     MUT_SMITE,
     MUT_CLAWS,
-    MUT_FANGS,      // new in 0.3      --   60
+    MUT_FANGS,
     // hooves and talons can replace feet
     MUT_HOOVES,
-    MUT_TALONS,     // new in 0.4
+    MUT_TALONS,
     MUT_BREATHE_POISON,
     MUT_STINGER,
-    MUT_BIG_WINGS,                     //   65
-    MUT_BLUE_MARKS, // decorative, as in "mark of the devil"
-    MUT_GREEN_MARKS,
+    MUT_BIG_WINGS,
     MUT_SAPROVOROUS,
-    MUT_SHAGGY_FUR, // new in 0.4
-    MUT_HIGH_MAGIC, // new in 0.4      --   70
-    MUT_LOW_MAGIC,  // new in 0.4
+    MUT_GOURMAND,
+    MUT_SHAGGY_FUR,
+    MUT_HIGH_MAGIC,
+    MUT_LOW_MAGIC,
 
     // several types of scales (affect AC and sometimes more)
-    MUT_RED_SCALES = 75,               //   75
+    MUT_RED_SCALES,
     MUT_NACREOUS_SCALES,
     MUT_GREY2_SCALES,
     MUT_METALLIC_SCALES,
     MUT_BLACK2_SCALES,
-    MUT_WHITE_SCALES,                  //   80
+    MUT_WHITE_SCALES,
     MUT_YELLOW_SCALES,
     MUT_BROWN_SCALES,
     MUT_BLUE_SCALES,
     MUT_PURPLE_SCALES,
-    MUT_SPECKLED_SCALES,               //   85
+    MUT_SPECKLED_SCALES,
     MUT_ORANGE_SCALES,
     MUT_INDIGO_SCALES,
     MUT_RED2_SCALES,
     MUT_IRIDESCENT_SCALES,
-    MUT_PATTERNED_SCALES,              //   90
+    MUT_PATTERNED_SCALES,
     NUM_MUTATIONS,
 
     RANDOM_MUTATION = 100,
@@ -2340,7 +2342,7 @@ enum mutation_type
     RANDOM_BAD_MUTATION = 103
 };
 
-enum object_class_type                 // (unsigned char) mitm[].base_type
+enum object_class_type                 // mitm[].base_type
 {
     OBJ_WEAPONS,                       //    0
     OBJ_MISSILES,
@@ -2505,14 +2507,14 @@ enum shop_type // (unsigned char) env.sh_type[], item_in_shop(), in_a_shop()
 // These are often addressed relative to each other (esp. delta SIZE_MEDIUM).
 enum size_type
 {
-    SIZE_TINY,              // rat/bat
-    SIZE_LITTLE,            // spriggan
-    SIZE_SMALL,             // halfling/kobold/gnome
-    SIZE_MEDIUM,            // human/elf/dwarf
-    SIZE_LARGE,             // troll/ogre/centaur/naga
-    SIZE_BIG,               // large quadrupeds
-    SIZE_GIANT,             // giant
-    SIZE_HUGE,              // dragon
+    SIZE_TINY,              // rats/bats
+    SIZE_LITTLE,            // spriggans
+    SIZE_SMALL,             // halflings/kobolds
+    SIZE_MEDIUM,            // humans/elves/dwarves
+    SIZE_LARGE,             // trolls/ogres
+    SIZE_BIG,               // large quadrupeds/centaurs/nagas
+    SIZE_GIANT,             // giants
+    SIZE_HUGE,              // dragons
     NUM_SIZE_LEVELS,
     SIZE_CHARACTER          // transformations that don't change size
 };
@@ -2555,7 +2557,7 @@ enum skill_type
     SK_SUMMONINGS,
     SK_NECROMANCY,
     SK_TRANSLOCATIONS,                 //   30
-    SK_TRANSMUTATION,
+    SK_TRANSMUTATIONS,
     SK_DIVINATIONS,
     SK_FIRE_MAGIC,
     SK_ICE_MAGIC,
@@ -2583,7 +2585,6 @@ enum species_type
 {
     SP_HUMAN = 1,
     SP_HIGH_ELF,
-    SP_GREY_ELF,
     SP_DEEP_ELF,
     SP_SLUDGE_ELF,
     SP_MOUNTAIN_DWARF,
@@ -2592,7 +2593,6 @@ enum species_type
     SP_KOBOLD,
     SP_MUMMY,
     SP_NAGA,
-    SP_GNOME,
     SP_OGRE,
     SP_TROLL,
     SP_RED_DRACONIAN,
@@ -2614,9 +2614,12 @@ enum species_type
     SP_KENKU,
     SP_MERFOLK,
     SP_VAMPIRE,
+    SP_DEEP_DWARF,
     SP_ELF,                            // (placeholder)
     SP_HILL_DWARF,                     // (placeholder)
     SP_OGRE_MAGE,                      // (placeholder)
+    SP_GREY_ELF,                       // (placeholder)
+    SP_GNOME,                          // (placeholder)
     NUM_SPECIES,                       // always after the last species
 
     SP_UNKNOWN  = 100
@@ -2628,223 +2631,191 @@ enum spell_type
     SPELL_IDENTIFY,
     SPELL_TELEPORT_SELF,
     SPELL_CAUSE_FEAR,
-    SPELL_CREATE_NOISE,
-    SPELL_REMOVE_CURSE,                //    5
-    SPELL_MAGIC_DART,
+    SPELL_REMOVE_CURSE,
+    SPELL_MAGIC_DART,                  //    5
     SPELL_FIREBALL,
-    SPELL_SWAP,
     SPELL_APPORTATION,
-    SPELL_TWIST,                       //   10
-    SPELL_FAR_STRIKE,
     SPELL_DELAYED_FIREBALL,
     SPELL_STRIKING,
-    SPELL_CONJURE_FLAME,
-    SPELL_DIG,                         //   15
+    SPELL_CONJURE_FLAME,               //   10
+    SPELL_DIG,
     SPELL_BOLT_OF_FIRE,
     SPELL_BOLT_OF_COLD,
     SPELL_LIGHTNING_BOLT,
-    SPELL_BOLT_OF_MAGMA,
-    SPELL_POLYMORPH_OTHER,             //   20
+    SPELL_BOLT_OF_MAGMA,               //   15
+    SPELL_POLYMORPH_OTHER,
     SPELL_SLOW,
     SPELL_HASTE,
     SPELL_PARALYSE,
-    SPELL_CONFUSE,
-    SPELL_INVISIBILITY,                //   25
+    SPELL_CONFUSE,                     //   20
+    SPELL_INVISIBILITY,
     SPELL_THROW_FLAME,
     SPELL_THROW_FROST,
     SPELL_CONTROLLED_BLINK,
-    SPELL_FREEZING_CLOUD,
-    SPELL_MEPHITIC_CLOUD,              //   30
+    SPELL_FREEZING_CLOUD,              //   25
+    SPELL_MEPHITIC_CLOUD,
     SPELL_RING_OF_FLAMES,
-    SPELL_RESTORE_STRENGTH,
-    SPELL_RESTORE_INTELLIGENCE,
-    SPELL_RESTORE_DEXTERITY,
-    SPELL_VENOM_BOLT,                  //   35
+    SPELL_VENOM_BOLT,
     SPELL_OLGREBS_TOXIC_RADIANCE,
-    SPELL_TELEPORT_OTHER,
-    SPELL_LESSER_HEALING,
-    SPELL_GREATER_HEALING,
-    SPELL_CURE_POISON_I,               //   40
-    SPELL_PURIFICATION,
+    SPELL_TELEPORT_OTHER,              //   30
+    SPELL_MINOR_HEALING,
+    SPELL_MAJOR_HEALING,
     SPELL_DEATHS_DOOR,
     SPELL_SELECTIVE_AMNESIA,
-    SPELL_MASS_CONFUSION,
-    SPELL_SMITING,                     //   45
-    SPELL_REPEL_UNDEAD,
-    SPELL_HOLY_WORD,
+    SPELL_MASS_CONFUSION,              //   35
+    SPELL_SMITING,
     SPELL_DETECT_CURSE,
     SPELL_SUMMON_SMALL_MAMMALS,
-    SPELL_ABJURATION_I,                //   50
-    SPELL_SUMMON_SCORPIONS,
+    SPELL_ABJURATION,
+    SPELL_SUMMON_SCORPIONS,            //   40
     SPELL_LEVITATION,
     SPELL_BOLT_OF_DRAINING,
     SPELL_LEHUDIBS_CRYSTAL_SPEAR,
-    SPELL_BOLT_OF_INACCURACY,          //   55
-    SPELL_POISONOUS_CLOUD,
+    SPELL_BOLT_OF_INACCURACY,
+    SPELL_POISONOUS_CLOUD,             //   45
     SPELL_FIRE_STORM,
     SPELL_DETECT_TRAPS,
     SPELL_BLINK,
-    SPELL_ISKENDERUNS_MYSTIC_BLAST,    //   60
-    SPELL_SUMMON_SWARM,
+    SPELL_ISKENDERUNS_MYSTIC_BLAST,
+    SPELL_SUMMON_SWARM,                //   50
     SPELL_SUMMON_HORRIBLE_THINGS,
     SPELL_ENSLAVEMENT,
     SPELL_MAGIC_MAPPING,
-    SPELL_HEAL_OTHER,                  //   65
     SPELL_ANIMATE_DEAD,
-    SPELL_PAIN,
+    SPELL_PAIN,                        //   55
     SPELL_EXTENSION,
     SPELL_CONTROL_UNDEAD,
-    SPELL_ANIMATE_SKELETON,            //   70
+    SPELL_ANIMATE_SKELETON,
     SPELL_VAMPIRIC_DRAINING,
-    SPELL_SUMMON_WRAITHS,
+    SPELL_SUMMON_WRAITHS,              //   60
     SPELL_DETECT_ITEMS,
     SPELL_BORGNJORS_REVIVIFICATION,
-    SPELL_BURN,                        //   75
     SPELL_FREEZE,
     SPELL_SUMMON_ELEMENTAL,
-    SPELL_OZOCUBUS_REFRIGERATION,
+    SPELL_OZOCUBUS_REFRIGERATION,      //   65
     SPELL_STICKY_FLAME,
-    SPELL_SUMMON_ICE_BEAST,            //   80
+    SPELL_SUMMON_ICE_BEAST,
     SPELL_OZOCUBUS_ARMOUR,
     SPELL_CALL_IMP,
-    SPELL_REPEL_MISSILES,
+    SPELL_REPEL_MISSILES,              //   70
     SPELL_BERSERKER_RAGE,
-    SPELL_DISPEL_UNDEAD,               //   85
-    SPELL_SUMMON_ANGEL,
-    SPELL_PESTILENCE,
-    SPELL_THUNDERBOLT,
-    SPELL_FLAME_OF_CLEANSING,
-    SPELL_SHINING_LIGHT,               //   90
-    SPELL_SUMMON_DAEVA,
-    SPELL_ABJURATION_II,
-    SPELL_FULSOME_DISTILLATION,        //   93
-    SPELL_POISON_ARROW,                //   94
-
-    SPELL_TWISTED_RESURRECTION = 110,  //  110
+    SPELL_DISPEL_UNDEAD,
+    SPELL_FULSOME_DISTILLATION,
+    SPELL_POISON_ARROW,
+    SPELL_TWISTED_RESURRECTION,        //   75
     SPELL_REGENERATION,
     SPELL_BONE_SHARDS,
     SPELL_BANISHMENT,
     SPELL_CIGOTUVIS_DEGENERATION,
-    SPELL_STING,                       //  115
+    SPELL_STING,                       //   80
     SPELL_SUBLIMATION_OF_BLOOD,
     SPELL_TUKIMAS_DANCE,
     SPELL_HELLFIRE,
     SPELL_SUMMON_DEMON,
-    SPELL_DEMONIC_HORDE,               //  120
+    SPELL_DEMONIC_HORDE,               //   85
     SPELL_SUMMON_GREATER_DEMON,
     SPELL_CORPSE_ROT,
     SPELL_TUKIMAS_VORPAL_BLADE,
     SPELL_FIRE_BRAND,
-    SPELL_FREEZING_AURA,               //  125
+    SPELL_FREEZING_AURA,               //   90
     SPELL_LETHAL_INFUSION,
-    SPELL_CRUSH,
     SPELL_BOLT_OF_IRON,
     SPELL_STONE_ARROW,
-    SPELL_TOMB_OF_DOROKLOHE,           //  130
     SPELL_STONEMAIL,
-    SPELL_SHOCK,
+    SPELL_SHOCK,                       //   95
     SPELL_SWIFTNESS,
     SPELL_FLY,
-    SPELL_INSULATION,                  //  135
-    SPELL_ORB_OF_ELECTROCUTION,
+    SPELL_INSULATION,
     SPELL_DETECT_CREATURES,
-    SPELL_CURE_POISON_II,
+    SPELL_CURE_POISON,                 //  100
     SPELL_CONTROL_TELEPORT,
-    SPELL_POISON_AMMUNITION,           //  140
+    SPELL_POISON_AMMUNITION,
     SPELL_POISON_WEAPON,
     SPELL_RESIST_POISON,
-    SPELL_PROJECTED_NOISE,
+    SPELL_PROJECTED_NOISE,             //  105
     SPELL_ALTER_SELF,
-    SPELL_DEBUGGING_RAY,               //  145
+    SPELL_DEBUGGING_RAY,
     SPELL_RECALL,
     SPELL_PORTAL,
-    SPELL_AGONY,
+    SPELL_AGONY,                       //  110
     SPELL_SPIDER_FORM,
-    SPELL_DISRUPT,                     //  150
+    SPELL_DISRUPT,
     SPELL_DISINTEGRATE,
     SPELL_BLADE_HANDS,
-    SPELL_STATUE_FORM,
+    SPELL_STATUE_FORM,                 //  115
     SPELL_ICE_FORM,
-    SPELL_DRAGON_FORM,                 //  155
+    SPELL_DRAGON_FORM,
     SPELL_NECROMUTATION,
     SPELL_DEATH_CHANNEL,
-    SPELL_SYMBOL_OF_TORMENT,
+    SPELL_SYMBOL_OF_TORMENT,           //  120
     SPELL_DEFLECT_MISSILES,
-    SPELL_ORB_OF_FRAGMENTATION,        //  160
     SPELL_ICE_BOLT,
     SPELL_ICE_STORM,
-    SPELL_ARC,
     SPELL_AIRSTRIKE,
-    SPELL_SHADOW_CREATURES,            //  165
+    SPELL_SHADOW_CREATURES,            //  125
     SPELL_CONFUSING_TOUCH,
     SPELL_SURE_BLADE,
-//jmf: new spells
     SPELL_FLAME_TONGUE,
     SPELL_PASSWALL,
-    SPELL_IGNITE_POISON,               //  170
+    SPELL_IGNITE_POISON,               //  130
     SPELL_STICKS_TO_SNAKES,
-    SPELL_CALL_CANINE_FAMILIAR,        // e.g. hound
+    SPELL_CALL_CANINE_FAMILIAR,
     SPELL_SUMMON_DRAGON,
-    SPELL_TAME_BEASTS,                 // charm/enslave but only animals
-    SPELL_SLEEP,                       //  175
+    SPELL_TAME_BEASTS,
+    SPELL_SLEEP,                       //  135
     SPELL_MASS_SLEEP,
-    SPELL_DETECT_MAGIC,                //jmf: unfinished, perhaps useless
     SPELL_DETECT_SECRET_DOORS,
     SPELL_SEE_INVISIBLE,
-    SPELL_FORESCRY,                    //  180
-    SPELL_SUMMON_BUTTERFLIES,
+    SPELL_FORESCRY,
+    SPELL_SUMMON_BUTTERFLIES,          //  140
     SPELL_WARP_BRAND,
     SPELL_SILENCE,
     SPELL_SHATTER,
-    SPELL_DISPERSAL,                   //  185
-    SPELL_DISCHARGE,
-    SPELL_BEND,
+    SPELL_DISPERSAL,
+    SPELL_DISCHARGE,                   //  145
     SPELL_BACKLIGHT,
-    SPELL_INTOXICATE,   // confusion but only "smart" creatures
-    SPELL_EVAPORATE,    // 190, turn a potion into a cloud
-    SPELL_FRAGMENTATION,               // replacement for "orb of frag"
-    SPELL_AIR_WALK,                    // "dematerialise" (air/transmutation)
-    SPELL_SANDBLAST,     // mini-frag; can use stones for material comp
-    SPELL_ROTTING,       // evil god power or necromantic transmutation
-    SPELL_MAXWELLS_SILVER_HAMMER,      // 195, vorpal-brand maces etc.
-    SPELL_CONDENSATION_SHIELD,         // "shield" of icy vapour
-    SPELL_SEMI_CONTROLLED_BLINK,       //jmf: to test effect
+    SPELL_INTOXICATE,
+    SPELL_EVAPORATE,
+    SPELL_FRAGMENTATION,
+    SPELL_SANDBLAST,                   //  150
+    SPELL_MAXWELLS_SILVER_HAMMER,
+    SPELL_CONDENSATION_SHIELD,
     SPELL_STONESKIN,
     SPELL_SIMULACRUM,
-    SPELL_CONJURE_BALL_LIGHTNING,      //  200
+    SPELL_CONJURE_BALL_LIGHTNING,      //  155
     SPELL_CHAIN_LIGHTNING,
     SPELL_EXCRUCIATING_WOUNDS,
     SPELL_PORTAL_PROJECTILE,
     SPELL_SUMMON_UGLY_THING,
-    SPELL_PETRIFY,                     //  205
+    SPELL_PETRIFY,                     //  160
 
     // Mostly monster-only spells after this point:
-    SPELL_HELLFIRE_BURST,
+    SPELL_HELLFIRE_BURST = 175,
     SPELL_VAMPIRE_SUMMON,
     SPELL_BRAIN_FEED,
     SPELL_FAKE_RAKSHASA_SUMMON,
-    SPELL_STEAM_BALL,                  //  210
-    SPELL_SUMMON_UFETUBUS,
+    SPELL_STEAM_BALL,
+    SPELL_SUMMON_UFETUBUS,             //  180
     SPELL_SUMMON_BEAST,
     SPELL_ENERGY_BOLT,
     SPELL_POISON_SPLASH,
-    SPELL_SUMMON_UNDEAD,               //  215
-    SPELL_CANTRIP,
+    SPELL_SUMMON_UNDEAD,
+    SPELL_CANTRIP,                     //  185
     SPELL_QUICKSILVER_BOLT,
     SPELL_METAL_SPLINTERS,
     SPELL_MIASMA,
-    SPELL_SUMMON_DRAKES,               //  220
-    SPELL_BLINK_OTHER,
+    SPELL_SUMMON_DRAKES,
+    SPELL_BLINK_OTHER,                 //  190
     SPELL_SUMMON_MUSHROOMS,
     SPELL_ACID_SPLASH,
     SPELL_STICKY_FLAME_SPLASH,
-    SPELL_FIRE_BREATH,                 // 225
-    SPELL_COLD_BREATH,
+    SPELL_FIRE_BREATH,
+    SPELL_COLD_BREATH,                 // 195
     SPELL_DRACONIAN_BREATH,
     SPELL_WATER_ELEMENTALS,
-    SPELL_PORKALATOR,                  //  230
+    SPELL_PORKALATOR,                  //  198
 
-    NUM_SPELLS                         // 230
+    NUM_SPELLS                         // 199
 };
 
 enum slot_select_mode
@@ -3013,6 +2984,7 @@ enum friendly_pickup_type
 {
     FRIENDLY_PICKUP_NONE = 0,
     FRIENDLY_PICKUP_FRIEND,
+    FRIENDLY_PICKUP_PLAYER,
     FRIENDLY_PICKUP_ALL
 };
 

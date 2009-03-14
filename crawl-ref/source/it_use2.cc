@@ -38,16 +38,15 @@ REVISION("$Rev$");
 #include "xom.h"
 
 // From an actual potion, pow == 40 -- bwr
-bool potion_effect( potion_type pot_eff, int pow, bool was_known )
+bool potion_effect(potion_type pot_eff, int pow, bool drank_it, bool was_known)
 {
     bool effect = true;  // current behaviour is all potions id on quaffing
 
-    if (pow > 150)
-        pow = 150;
+    pow = std::min(pow, 150);
 
     const int factor = (you.species == SP_VAMPIRE
-                        && you.hunger_state < HS_SATIATED && pow == 40 ? 2
-                                                                       : 1);
+                        && you.hunger_state < HS_SATIATED
+                        && drank_it ? 2 : 1);
 
     switch (pot_eff)
     {
@@ -81,41 +80,47 @@ bool potion_effect( potion_type pot_eff, int pow, bool was_known )
         }
         break;
 
-  case POT_BLOOD:
-  case POT_BLOOD_COAGULATED:
+      case POT_BLOOD:
+      case POT_BLOOD_COAGULATED:
         if (you.species == SP_VAMPIRE)
         {
             // No healing anymore! (jpeg)
-
             int value = 800;
             if (pot_eff == POT_BLOOD)
             {
                 mpr("Yummy - fresh blood!");
                 value += 200;
             }
-            else // coagulated
+            else // Coagulated.
                 mpr("This tastes delicious!");
 
             lessen_hunger(value, true);
         }
         else
         {
-            if (you.omnivorous() || player_mutation_level(MUT_CARNIVOROUS))
+            const int value = 200;
+            const int herbivorous = player_mutation_level(MUT_HERBIVOROUS);
+
+            if (herbivorous < 3 && player_likes_chunks())
             {
                 // Likes it.
                 mpr("This tastes like blood.");
-                lessen_hunger(200, true);
+                lessen_hunger(value, true);
+
+                if (!player_likes_chunks(true))
+                    check_amu_the_gourmand(false);
             }
             else
             {
                 mpr("Blech - this tastes like blood!");
-                if (!player_mutation_level(MUT_HERBIVOROUS) && one_chance_in(3))
-                    lessen_hunger(100, true);
-                else
+                if (x_chance_in_y(herbivorous + 1, 4))
                 {
-                    disease_player( 50 + random2(100) );
+                    // Full herbivores always become ill from blood.
+                    disease_player(50 + random2(100));
                     xom_is_stimulated(32);
                 }
+                else
+                    lessen_hunger(value, true);
             }
         }
         did_god_conduct(DID_DRINK_BLOOD, 1 + random2(3), was_known);
@@ -127,7 +132,7 @@ bool potion_effect( potion_type pot_eff, int pow, bool was_known )
 
     case POT_MIGHT:
     {
-        const bool were_mighty = (you.duration[DUR_MIGHT] > 0);
+        const bool were_mighty = you.duration[DUR_MIGHT] > 0;
 
         mprf(MSGCH_DURATION, "You feel %s all of a sudden.",
              were_mighty ? "mightier" : "very mighty");
@@ -144,7 +149,7 @@ bool potion_effect( potion_type pot_eff, int pow, bool was_known )
         if (you.duration[DUR_MIGHT] > 80)
             you.duration[DUR_MIGHT] = 80;
 
-        did_god_conduct( DID_STIMULANTS, 4 + random2(4), was_known );
+        did_god_conduct(DID_STIMULANTS, 4 + random2(4), was_known);
         break;
     }
 
@@ -263,7 +268,7 @@ bool potion_effect( potion_type pot_eff, int pow, bool was_known )
         break;
 
     case POT_DEGENERATION:
-        if (pow == 40)
+        if (drank_it)
             mpr("There was something very wrong with that liquid!");
 
         if (lose_stat(STAT_RANDOM, (1 + random2avg(4, 2)) / factor, false,
@@ -302,20 +307,10 @@ bool potion_effect( potion_type pot_eff, int pow, bool was_known )
         break;                  // I'll let this slip past robe of archmagi
 
     case POT_MAGIC:
-    {
-        mpr( "You feel magical!" );
-        int new_value = 5 + random2avg(19, 2);
-
-        // increase intrinsic MP points
-        if (you.magic_points + new_value > you.max_magic_points)
-        {
-            new_value = (you.max_magic_points - you.magic_points)
-                + (you.magic_points + new_value - you.max_magic_points)/4 + 1;
-        }
-
-        inc_mp( new_value, true );
+        inc_mp((10 + random2avg(28, 3)), false);
+        mpr("Magic courses through your body.");
         break;
-    }
+
     case POT_RESTORE_ABILITIES:
     {
         bool nothing_happens = true;
@@ -384,12 +379,11 @@ bool potion_effect( potion_type pot_eff, int pow, bool was_known )
     }
 
     return (effect);
-}                               // end potion_effect()
+}
 
 bool unwield_item(bool showMsgs)
 {
-    const int unw = you.equip[EQ_WEAPON];
-    if (unw == -1)
+    if (!you.weapon())
         return (false);
 
     if (you.duration[DUR_BERSERKER])
@@ -398,15 +392,15 @@ bool unwield_item(bool showMsgs)
         return (false);
     }
 
-    if (!safe_to_remove_or_wear(you.inv[unw], true))
+    item_def& item = *you.weapon();
+
+    if (!safe_to_remove_or_wear(item, true))
         return (false);
 
     you.equip[EQ_WEAPON] = -1;
     you.special_wield    = SPWLD_NONE;
     you.wield_change     = true;
     you.m_quiver->on_weapon_changed();
-
-    item_def &item(you.inv[unw]);
 
     if (item.base_type == OBJ_MISCELLANY
         && item.sub_type == MISC_LANTERN_OF_SHADOWS )
@@ -448,7 +442,7 @@ bool unwield_item(bool showMsgs)
         const int brand = get_weapon_brand( item );
 
         if (is_random_artefact( item ))
-            unuse_randart(unw);
+            unuse_randart(item);
 
         if (brand != SPWPN_NORMAL)
         {
@@ -518,8 +512,7 @@ bool unwield_item(bool showMsgs)
             }
         }
     }
-
-    if (item.base_type == OBJ_STAVES && item.sub_type == STAFF_POWER)
+    else if (item.base_type == OBJ_STAVES && item.sub_type == STAFF_POWER)
     {
         calc_mp();
         mpr("You feel your mana capacity decrease.");
@@ -528,15 +521,15 @@ bool unwield_item(bool showMsgs)
     you.attribute[ATTR_WEAPON_SWAP_INTERRUPTED] = 0;
 
     return (true);
-}                               // end unwield_item()
+}
 
 // This does *not* call ev_mod!
-void unwear_armour(char unw)
+void unwear_armour(int slot)
 {
     you.redraw_armour_class = true;
     you.redraw_evasion = true;
 
-    item_def &item(you.inv[unw]);
+    item_def &item(you.inv[slot]);
 
     switch (get_armour_ego_type( item ))
     {
@@ -617,13 +610,8 @@ void unwear_armour(char unw)
         break;
     }
 
-    if (is_random_artefact( you.inv[unw] ))
-        unuse_randart(unw);
-}
-
-void unuse_randart(unsigned char unw)
-{
-    unuse_randart( you.inv[unw] );
+    if (is_random_artefact(item))
+        unuse_randart(item);
 }
 
 void unuse_randart(const item_def &item)

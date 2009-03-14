@@ -14,8 +14,6 @@ REVISION("$Rev$");
 #include <sstream>
 
 #include <string.h>
-// required for abs() {dlb}:
-#include <stdlib.h>
 #include <stdio.h>
 #include <ctype.h>
 
@@ -54,8 +52,10 @@ REVISION("$Rev$");
 #include "tutorial.h"
 #include "xom.h"
 
-static int  _determine_chunk_effect(int which_chunk_type, bool rotten_chunk);
-static void _eat_chunk(int chunk_effect, bool cannibal, int mon_intel = 0);
+static corpse_effect_type _determine_chunk_effect(corpse_effect_type chunktype,
+                                                  bool rotten_chunk);
+static void _eat_chunk(corpse_effect_type chunk_effect, bool cannibal,
+                       int mon_intel = 0);
 static void _eating(unsigned char item_class, int item_type);
 static void _describe_food_change(int hunger_increment);
 static bool _vampire_consume_corpse(int slot, bool invent);
@@ -119,7 +119,7 @@ void set_hunger(int new_hunger_level, bool suppress_msg)
     int hunger_difference = (new_hunger_level - you.hunger);
 
     if (hunger_difference < 0)
-        make_hungry(abs(hunger_difference), suppress_msg);
+        make_hungry(-hunger_difference, suppress_msg);
     else if (hunger_difference > 0)
         lessen_hunger(hunger_difference, suppress_msg);
 }
@@ -734,21 +734,6 @@ void lua_push_inv_items(lua_State *ls = NULL)
     }
 }
 
-static bool _userdef_eat_food()
-{
-#ifdef CLUA_BINDINGS
-    lua_push_floor_items(clua.state());
-    lua_push_inv_items();
-    bool ret = clua.callfn("c_eat", 2, 0);
-    if (!ret && clua.error.length())
-        mpr(clua.error.c_str());
-
-    return (ret);
-#else
-    return (false);
-#endif
-}
-
 bool prompt_eat_inventory_item(int slot)
 {
     if (inv_count() < 1)
@@ -816,7 +801,7 @@ bool prompt_eat_inventory_item(int slot)
 }
 
 // [ds] Returns true if something was eaten.
-bool eat_food(bool run_hook, int slot)
+bool eat_food(int slot)
 {
     if (you.is_undead == US_UNDEAD)
     {
@@ -833,18 +818,25 @@ bool eat_food(bool run_hook, int slot)
         return (false);
     }
 
-    // If user hook ran, we don't know whether something
-    // was eaten or not...
-    if (run_hook && _userdef_eat_food())
-        return (false);
-
-    if (igrd(you.pos()) != NON_ITEM && slot == -1)
+    int result;
+    // Skip the prompts if we already know what we're eating.
+    if (slot == -1)
     {
-        const int res = eat_from_floor(false);
-        if (res == 1)
-            return (true);
-        if (res == -1)
-            return (false);
+        result = prompt_eat_chunks();
+        if (result == 1 || result == -1)
+            return (result > 0);
+
+        if (result != -2) // else skip ahead to inventory
+        {
+            if (igrd(you.pos()) != NON_ITEM)
+            {
+                result = eat_from_floor(true);
+                if (result == 1)
+                    return (true);
+                if (result == -1)
+                    return (false);
+            }
+        }
     }
 
     return (prompt_eat_inventory_item(slot));
@@ -1113,8 +1105,8 @@ void eat_inventory_item(int which_inventory_slot)
         const int mons_type  = food.plus;
         const bool cannibal  = is_player_same_species(mons_type);
         const int intel      = mons_class_intel(mons_type) - I_ANIMAL;
-        const int chunk_type = mons_corpse_effect(mons_type);
         const bool rotten    = food_is_rotten(food);
+        const corpse_effect_type chunk_type = mons_corpse_effect(mons_type);
 
         if (rotten && !_player_can_eat_rotten_meat(true))
             return;
@@ -1144,10 +1136,10 @@ void eat_floor_item(int item_link)
     }
     else if (food.sub_type == FOOD_CHUNK)
     {
-        const int chunk_type = mons_corpse_effect(food.plus);
         const int intel      = mons_class_intel(food.plus) - I_ANIMAL;
         const bool cannibal  = is_player_same_species(food.plus);
         const bool rotten    = food_is_rotten(food);
+        const corpse_effect_type chunk_type = mons_corpse_effect(food.plus);
 
         if (rotten && !_player_can_eat_rotten_meat(true))
             return;
@@ -1310,6 +1302,9 @@ int eat_from_floor(bool skip_chunks)
                 return -1;
             case 'e':
             case 'y':
+                if (!check_warning_inscriptions(*item, OPER_EAT))
+                    break;
+
                 if (can_ingest(item->base_type, item->sub_type, false))
                 {
                     int ilink = item_on_floor(*item, you.pos());
@@ -1380,7 +1375,7 @@ bool eat_from_inventory()
 
     int unusable_corpse = 0;
     int inedible_food = 0;
-    item_def *wonteat;
+    item_def *wonteat = NULL;
     bool found_valid = false;
 
     std::vector<item_def *> food_items;
@@ -1505,11 +1500,22 @@ bool eat_from_inventory()
     return (false);
 }
 
-bool eat_chunks()
+// Returns -1 for cancel, 1 for eaten, 0 for not eaten,
+//         -2 for skip to inventory.
+int prompt_eat_chunks()
 {
-    // Herbivores cannot eat chunks.
+    // Full herbivores cannot eat chunks.
     if (player_mutation_level(MUT_HERBIVOROUS) == 3)
-        return (false);
+        return (0);
+
+    // If we *know* the player can eat chunks, doesn't have the gourmand
+    // effect and isn't hungry, don't prompt for chunks.
+    if (you.species != SP_VAMPIRE && !player_likes_chunks(true)
+        && !wearing_amulet(AMU_THE_GOURMAND, false)
+        && you.hunger_state >= HS_SATIATED)
+    {
+        return (0);
+    }
 
     bool found_valid = false;
     std::vector<item_def *> chunks;
@@ -1563,6 +1569,11 @@ bool eat_chunks()
         chunks.push_back(item);
     }
 
+    const bool easy_eat = Options.easy_eat_chunks && !you.is_undead;
+    const bool easy_contam = easy_eat
+        && (Options.easy_eat_gourmand && wearing_amulet(AMU_THE_GOURMAND)
+            || Options.easy_eat_contaminated);
+
     if (found_valid)
     {
         std::sort(chunks.begin(), chunks.end(), compare_by_freshness());
@@ -1574,20 +1585,23 @@ bool eat_chunks()
                                                             DESC_NOCAP_A,
                                                             MSGCH_PROMPT);
 
+            const bool contam = is_contaminated(*item);
+            const bool bad    = _is_bad_food(*item);
             // Excempt undead from auto-eating since:
             //  * Mummies don't eat.
             //  * Vampire feeding takes a lot more time than eating a chunk
             //    and may have unintended consequences.
             //  * Ghouls may want to wait until chunks become rotten.
-            if (Options.easy_eat_chunks && !you.is_undead
-                && !_is_bad_food(*item) && !is_contaminated(*item))
+            if (easy_eat && !bad && !contam)
             {
                 // If this chunk is safe to eat, just do so without prompting.
                 autoeat = true;
             }
+            else if (easy_contam && contam && !bad)
+                autoeat = true;
             else
             {
-                mprf(MSGCH_PROMPT, "%s %s%s? (ye/n/q)",
+                mprf(MSGCH_PROMPT, "%s %s%s? (ye/n/q/i?)",
                      (you.species == SP_VAMPIRE ? "Drink blood from" : "Eat"),
                      ((item->quantity > 1) ? "one of " : ""),
                      item_name.c_str());
@@ -1599,7 +1613,11 @@ bool eat_chunks()
             case ESCAPE:
             case 'q':
                 canned_msg(MSG_OK);
-                return (false);
+                return (-1);
+            case 'i':
+            case '?':
+                // Skip ahead to the inventory.
+                return (-2);
             case 'e':
             case 'y':
                 if (can_ingest(item->base_type, item->sub_type, false))
@@ -1616,7 +1634,7 @@ bool eat_chunks()
                     if (in_inventory(*item))
                     {
                         eat_inventory_item(item->link);
-                        return (true);
+                        return (1);
                     }
                     else
                     {
@@ -1625,9 +1643,9 @@ bool eat_chunks()
                         if (ilink != NON_ITEM)
                         {
                             eat_floor_item(ilink);
-                            return (true);
+                            return (1);
                         }
-                        return (false);
+                        return (0);
                     }
                 }
                 break;
@@ -1638,7 +1656,7 @@ bool eat_chunks()
         }
     }
 
-    return (false);
+    return (0);
 }
 
 static const char *_chunk_flavour_phrase(bool likes_chunks)
@@ -1674,7 +1692,7 @@ void chunk_nutrition_message(int nutrition)
         mpr("That was not very filling.");
 }
 
-static int _apply_herbivore_chunk_effects(int nutrition)
+static int _apply_herbivore_nutrition_effects(int nutrition)
 {
     int how_herbivorous = player_mutation_level(MUT_HERBIVOROUS);
 
@@ -1684,6 +1702,12 @@ static int _apply_herbivore_chunk_effects(int nutrition)
     return (nutrition);
 }
 
+static int _apply_gourmand_nutrition_effects(int nutrition, int gourmand)
+{
+    return (nutrition * (gourmand + GOURMAND_NUTRITION_BASE)
+                      / (GOURMAND_MAX + GOURMAND_NUTRITION_BASE));
+}
+
 static int _chunk_nutrition(bool likes_chunks)
 {
     int nutrition = CHUNK_BASE_NUTRITION;
@@ -1691,15 +1715,13 @@ static int _chunk_nutrition(bool likes_chunks)
     if (likes_chunks || you.hunger_state < HS_SATIATED)
     {
         return (likes_chunks ? nutrition
-                             : _apply_herbivore_chunk_effects(nutrition));
+                             : _apply_herbivore_nutrition_effects(nutrition));
     }
 
     const int gourmand =
-        wearing_amulet(AMU_THE_GOURMAND)? you.duration[DUR_GOURMAND] : 0;
-
-    int effective_nutrition =
-           nutrition * (gourmand + GOURMAND_NUTRITION_BASE)
-                     / (GOURMAND_MAX + GOURMAND_NUTRITION_BASE);
+        wearing_amulet(AMU_THE_GOURMAND) ? you.duration[DUR_GOURMAND] : 0;
+    const int effective_nutrition =
+        _apply_gourmand_nutrition_effects(nutrition, gourmand);
 
 #ifdef DEBUG_DIAGNOSTICS
     const int epercent = effective_nutrition * 100 / nutrition;
@@ -1708,7 +1730,7 @@ static int _chunk_nutrition(bool likes_chunks)
                 gourmand, nutrition, effective_nutrition, epercent);
 #endif
 
-    return (_apply_herbivore_chunk_effects(effective_nutrition));
+    return (_apply_herbivore_nutrition_effects(effective_nutrition));
 }
 
 static void _say_chunk_flavour(bool likes_chunks)
@@ -1718,10 +1740,10 @@ static void _say_chunk_flavour(bool likes_chunks)
 
 // Never called directly - chunk_effect values must pass
 // through food::_determine_chunk_effect() first. {dlb}:
-static void _eat_chunk(int chunk_effect, bool cannibal, int mon_intel)
+static void _eat_chunk(corpse_effect_type chunk_effect, bool cannibal,
+                       int mon_intel)
 {
-    bool likes_chunks = (you.omnivorous()
-                         || player_mutation_level(MUT_CARNIVOROUS));
+    bool likes_chunks = player_likes_chunks(true);
     int nutrition     = _chunk_nutrition(likes_chunks);
     int hp_amt        = 0;
     bool suppress_msg = false; // do we display the chunk nutrition message?
@@ -1783,7 +1805,6 @@ static void _eat_chunk(int chunk_effect, bool cannibal, int mon_intel)
         break;
 
     case CE_CLEAN:
-    {
         if (player_mutation_level(MUT_SAPROVOROUS) == 3)
         {
             mpr("This raw flesh tastes good.");
@@ -1799,7 +1820,12 @@ static void _eat_chunk(int chunk_effect, bool cannibal, int mon_intel)
 
         do_eat = true;
         break;
-    }
+
+    case CE_MUTAGEN_GOOD:
+    case CE_NOCORPSE:
+    case CE_RANDOM:
+        mprf(MSGCH_ERROR, "This flesh (%d) tastes buggy!", chunk_effect);
+        break;
     }
 
     if (cannibal)
@@ -2073,8 +2099,8 @@ void finished_eating_message(int food_type)
         restore_stat(STAT_ALL, 0, false);
         break;
     case FOOD_PIZZA:
-        if (!SysEnv.crawl_pizza.empty() && !one_chance_in(3))
-            mprf("Mmm... %s.", SysEnv.crawl_pizza.c_str());
+        if (!Options.pizza.empty() && !one_chance_in(3))
+            mprf("Mmm... %s.", Options.pizza.c_str());
         else
         {
             int temp_rand;
@@ -2391,14 +2417,17 @@ bool is_inedible(const item_def &item)
     {
         return (true);
     }
+
     if (item.base_type == OBJ_CORPSES
         && (item.sub_type == CORPSE_SKELETON
             || you.species == SP_VAMPIRE && !mons_has_blood(item.plus)))
     {
         return (true);
     }
+
     return (false);
 }
+
 // As we want to avoid autocolouring the entire food selection, this should
 // be restricted to the absolute highlights, even though other stuff may
 // still be edible or even delicious.
@@ -2462,8 +2491,31 @@ bool is_forbidden_food(const item_def &food)
     return (false);
 }
 
-bool can_ingest(int what_isit, int kindof_thing, bool suppress_msg, bool reqid,
-                bool check_hunger)
+bool check_amu_the_gourmand(bool reqid)
+{
+    if (wearing_amulet(AMU_THE_GOURMAND, !reqid))
+    {
+        const int amulet = you.equip[EQ_AMULET];
+
+        ASSERT(amulet != -1);
+
+        if (!item_type_known(you.inv[amulet]))
+        {
+            // For artefact amulets, this will tell you its name and
+            // subtype.  Other properties may still be hidden.
+            set_ident_flags(you.inv[amulet], ISFLAG_KNOW_TYPE);
+            set_ident_type(OBJ_JEWELLERY, AMU_THE_GOURMAND, ID_KNOWN_TYPE);
+            mpr(you.inv[amulet].name(DESC_INVENTORY, false).c_str());
+        }
+
+        return (true);
+    }
+
+    return (false);
+}
+
+bool can_ingest(int what_isit, int kindof_thing, bool suppress_msg,
+                bool reqid, bool check_hunger)
 {
     bool survey_says = false;
 
@@ -2487,8 +2539,9 @@ bool can_ingest(int what_isit, int kindof_thing, bool suppress_msg, bool reqid,
         if (what_isit == OBJ_CORPSES && kindof_thing == CORPSE_BODY)
             return (true);
 
-        if (what_isit == OBJ_POTIONS && (kindof_thing == POT_BLOOD
-            || kindof_thing == POT_BLOOD_COAGULATED))
+        if (what_isit == OBJ_POTIONS
+            && (kindof_thing == POT_BLOOD
+                || kindof_thing == POT_BLOOD_COAGULATED))
         {
             return (true);
         }
@@ -2499,16 +2552,14 @@ bool can_ingest(int what_isit, int kindof_thing, bool suppress_msg, bool reqid,
         return (false);
     }
 
-    bool ur_carnivorous = (player_mutation_level(MUT_CARNIVOROUS) == 3);
-
-    bool ur_herbivorous = (player_mutation_level(MUT_HERBIVOROUS) == 3);
+    bool ur_carnivorous = player_mutation_level(MUT_CARNIVOROUS) == 3;
+    bool ur_herbivorous = player_mutation_level(MUT_HERBIVOROUS) == 3;
 
     // ur_chunkslover not defined in terms of ur_carnivorous because
     // a player could be one and not the other IMHO - 13mar2000 {dlb}
-    bool ur_chunkslover = (
-                (check_hunger ? you.hunger_state < HS_SATIATED : true)
-                           || you.omnivorous()
-                           || player_mutation_level(MUT_CARNIVOROUS));
+    bool ur_chunkslover = ((check_hunger ? you.hunger_state < HS_SATIATED
+                                         : true)
+                              || player_likes_chunks(true));
 
     switch (what_isit)
     {
@@ -2521,7 +2572,7 @@ bool can_ingest(int what_isit, int kindof_thing, bool suppress_msg, bool reqid,
              return (false);
         }
 
-        int vorous = _player_likes_food_type(kindof_thing);
+        const int vorous = _player_likes_food_type(kindof_thing);
         if (vorous > 0) // Herbivorous food.
         {
             if (ur_carnivorous)
@@ -2546,24 +2597,9 @@ bool can_ingest(int what_isit, int kindof_thing, bool suppress_msg, bool reqid,
                 if (ur_chunkslover)
                     return (true);
 
-                // Else, we're not hungry enough.
-                if (wearing_amulet(AMU_THE_GOURMAND, !reqid))
-                {
-                    const int amulet = you.equip[EQ_AMULET];
-
-                    ASSERT(amulet != -1);
-
-                    if (!item_type_known(you.inv[amulet]))
-                    {
-                        // For artefact amulets, this will tell you its name
-                        // and subtype. Other properties may still be hidden.
-                        set_ident_flags( you.inv[ amulet], ISFLAG_KNOW_TYPE);
-                        set_ident_type( OBJ_JEWELLERY, AMU_THE_GOURMAND,
-                                        ID_KNOWN_TYPE );
-                        mpr(you.inv[amulet].name(DESC_INVENTORY, false).c_str());
-                    }
+                if (check_amu_the_gourmand(reqid))
                     return (true);
-                }
+
                 if (!suppress_msg)
                     mpr("You aren't quite hungry enough to eat that!");
                 return (false);
@@ -2573,6 +2609,7 @@ bool can_ingest(int what_isit, int kindof_thing, bool suppress_msg, bool reqid,
         // rations for non-herbivores) are okay.
         return (true);
     }
+
     case OBJ_CORPSES:
         if (you.species == SP_VAMPIRE)
         {
@@ -2640,22 +2677,21 @@ bool can_ingest(int what_isit, int kindof_thing, bool suppress_msg, bool reqid,
 // See if you can follow along here -- except for the amulet of the gourmand
 // addition (long missing and requested), what follows is an expansion of how
 // chunks were handled in the codebase up to this date ... {dlb}
-static int _determine_chunk_effect(int which_chunk_type, bool rotten_chunk)
+static corpse_effect_type _determine_chunk_effect(corpse_effect_type chunktype,
+                                                  bool rotten_chunk)
 {
-    int this_chunk_effect = which_chunk_type;
-
     // Determine the initial effect of eating a particular chunk. {dlb}
-    switch (this_chunk_effect)
+    switch (chunktype)
     {
     case CE_HCL:
     case CE_MUTAGEN_RANDOM:
         if (you.species == SP_GHOUL)
-            this_chunk_effect = CE_CLEAN;
+            chunktype = CE_CLEAN;
         break;
 
     case CE_POISONOUS:
         if (player_res_poison() > 0)
-            this_chunk_effect = CE_CLEAN;
+            chunktype = CE_CLEAN;
         break;
 
     case CE_CONTAMINATED:
@@ -2663,17 +2699,17 @@ static int _determine_chunk_effect(int which_chunk_type, bool rotten_chunk)
         {
         case 1:
             if (!one_chance_in(15))
-                this_chunk_effect = CE_CLEAN;
+                chunktype = CE_CLEAN;
             break;
 
         case 2:
             if (!one_chance_in(45))
-                this_chunk_effect = CE_CLEAN;
+                chunktype = CE_CLEAN;
             break;
 
         default:
             if (!one_chance_in(3))
-                this_chunk_effect = CE_CLEAN;
+                chunktype = CE_CLEAN;
             break;
         }
         break;
@@ -2685,14 +2721,14 @@ static int _determine_chunk_effect(int which_chunk_type, bool rotten_chunk)
     // Determine effects of rotting on base chunk effect {dlb}:
     if (rotten_chunk)
     {
-        switch (this_chunk_effect)
+        switch (chunktype)
         {
         case CE_CLEAN:
         case CE_CONTAMINATED:
-            this_chunk_effect = CE_ROTTEN;
+            chunktype = CE_ROTTEN;
             break;
         case CE_MUTAGEN_RANDOM:
-            this_chunk_effect = CE_MUTAGEN_BAD;
+            chunktype = CE_MUTAGEN_BAD;
             break;
         default:
             break;
@@ -2700,18 +2736,18 @@ static int _determine_chunk_effect(int which_chunk_type, bool rotten_chunk)
     }
 
     // One last chance for some species to safely eat rotten food. {dlb}
-    if (this_chunk_effect == CE_ROTTEN)
+    if (chunktype == CE_ROTTEN)
     {
         switch (player_mutation_level(MUT_SAPROVOROUS))
         {
         case 1:
             if (!one_chance_in(5))
-                this_chunk_effect = CE_CLEAN;
+                chunktype = CE_CLEAN;
             break;
 
         case 2:
             if (!one_chance_in(15))
-                this_chunk_effect = CE_CLEAN;
+                chunktype = CE_CLEAN;
             break;
 
         default:
@@ -2729,22 +2765,22 @@ static int _determine_chunk_effect(int which_chunk_type, bool rotten_chunk)
         if (player_mutation_level(MUT_SAPROVOROUS) == 3)
         {
             // [dshaligram] Level 3 saprovores relish contaminated meat.
-            if (this_chunk_effect == CE_CLEAN)
-                this_chunk_effect = CE_CONTAMINATED;
+            if (chunktype == CE_CLEAN)
+                chunktype = CE_CONTAMINATED;
         }
         else
         {
             // [dshaligram] New AotG behaviour - contaminated chunks become
             // clean, but rotten chunks remain rotten.
-            if (this_chunk_effect == CE_CONTAMINATED)
-                this_chunk_effect = CE_CLEAN;
+            if (chunktype == CE_CONTAMINATED)
+                chunktype = CE_CLEAN;
         }
     }
 
-    return (this_chunk_effect);
+    return (chunktype);
 }
 
-static bool _vampire_consume_corpse(const int slot, bool invent)
+static bool _vampire_consume_corpse(int slot, bool invent)
 {
     ASSERT(you.species == SP_VAMPIRE);
 

@@ -251,12 +251,6 @@ static void _sdump_transform(dump_params &par)
         case TRAN_LICH:
             text += "You " + verb + " in lich-form.";
             break;
-        case TRAN_SERPENT_OF_HELL:
-            text += "You " + verb + " a huge, demonic serpent!";
-            break;
-        case TRAN_AIR:
-            text += "You " + verb + " a cloud of diffuse gas.";
-            break;
         case TRAN_PIG:
             text += "You " + verb + " a filthy swine.";
             break;
@@ -807,7 +801,9 @@ static void _sdump_inventory(dump_params &par)
                             text += "\n" "   (" + origin_desc(you.inv[j]) + ")";
                         }
 
-                        if (is_dumpable_artefact( you.inv[j], false ))
+                        if (is_dumpable_artefact( you.inv[j], false )
+                            || Options.dump_book_spells
+                               && you.inv[j].base_type == OBJ_BOOKS)
                         {
                             text2 = get_item_description( you.inv[j],
                                                           false,
@@ -825,7 +821,7 @@ static void _sdump_inventory(dump_params &par)
         }
     }
     text += "\n\n";
-}                               // end dump_inventory()
+}
 
 //---------------------------------------------------------------
 //
@@ -1054,9 +1050,8 @@ static std::string _sdump_kills_place_info(PlaceInfo place_info,
     f = TO_PERCENT(place_info.mon_kill_exp_avail,
                    you.global_info.mon_kill_exp_avail);
 
-    g = (float) MAXIMUM(place_info.mon_kill_exp,
-                        place_info.mon_kill_exp_avail) /
-        (float) place_info.levels_seen;
+    g = std::max<float>(place_info.mon_kill_exp, place_info.mon_kill_exp_avail)
+        / place_info.levels_seen;
 
     out =
         make_stringf("%14s | %5.1f | %5.1f | %5.1f | %5.1f | %5.1f |"

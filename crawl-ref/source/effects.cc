@@ -61,22 +61,33 @@ REVISION("$Rev$");
 #include "view.h"
 #include "xom.h"
 
-int holy_word_player(int pow, int caster)
+int holy_word_player(int pow, int caster, actor *attacker)
 {
-    if (!you.is_undead && you.species != SP_DEMONSPAWN)
-        return 0;
+    if (!player_is_unholy())
+        return (0);
 
-    int hploss = std::max(0, you.hp / 2 - 1);
+    int hploss;
+
+    // Holy word won't kill its user.
+    if (attacker == &you)
+        hploss = std::max(0, you.hp / 2 - 1);
+    else
+        hploss = roll_dice(2, 15) + (random2(pow) / 3);
 
     if (!hploss)
-        return 0;
+        return (0);
 
     mpr("You are blasted by holy energy!");
 
     const char *aux = "holy word";
 
-    if (caster < 0)
+    kill_method_type type = KILLED_BY_MONSTER;
+    if (invalid_monster_index(caster))
     {
+        type = KILLED_BY_SOMETHING;
+        if (crawl_state.is_god_acting())
+            type = KILLED_BY_DIVINE_WRATH;
+
         switch (caster)
         {
         case HOLY_WORD_SCROLL:
@@ -93,15 +104,13 @@ int holy_word_player(int pow, int caster)
         }
     }
 
-    ouch(hploss, caster,
-         (caster != HOLY_WORD_GENERIC) ? KILLED_BY_MONSTER
-                                       : KILLED_BY_SOMETHING,
-         aux);
+    ouch(hploss, caster, type, aux);
 
-    return 1;
+    return (1);
 }
 
-int holy_word_monsters(coord_def where, int pow, int caster)
+int holy_word_monsters(coord_def where, int pow, int caster,
+                       actor *attacker)
 {
     int retval = 0;
 
@@ -110,50 +119,68 @@ int holy_word_monsters(coord_def where, int pow, int caster)
 
     // Is the player in this cell?
     if (where == you.pos())
-        retval = holy_word_player(pow, caster);
+        retval = holy_word_player(pow, caster, attacker);
 
     // Is a monster in this cell?
-    const int mon = mgrd(where);
+    monsters *monster = monster_at(where);
+    if (monster == NULL)
+        return (retval);
 
-    if (mon == NON_MONSTER)
-        return retval;
+    if (!monster->alive() || !mons_is_unholy(monster))
+        return (retval);
 
-    monsters *monster = &menv[mon];
+    int hploss;
 
-    if (!monster->alive()
-        || !mons_is_unholy(monster)
-        || (is_good_god(you.religion)
-            && (is_follower(monster) || mons_neutral(monster))))
+    // Holy word won't kill its user.
+    if (attacker == monster)
+        hploss = std::max(0, monster->hit_points / 2 - 1);
+    else
+        hploss = roll_dice(2, 15) + (random2(pow) / 3);
+
+    if (hploss)
+        simple_monster_message(monster, " convulses!");
+
+    monster->hurt(attacker, hploss, BEAM_MISSILE, false);
+
+    if (hploss)
     {
-        return retval;
+        retval = 1;
+
+        if (monster->alive())
+        {
+            // Holy word won't annoy, slow, or frighten its user.
+            if (attacker != monster)
+            {
+                // Currently, holy word annoys the monsters it affects
+                // because it can kill them, and because hostile
+                // monsters don't use it.
+                behaviour_event(monster, ME_ANNOY, MHITYOU);
+
+                if (monster->speed_increment >= 25)
+                    monster->speed_increment -= 20;
+
+                monster->add_ench(ENCH_FEAR);
+            }
+        }
+        else
+            monster->hurt(attacker, INSTANT_DEATH);
     }
 
-    const int hploss = roll_dice(2, 15) + (random2(pow) / 3);
-    retval = 1;
-
-    // Currently, holy word annoys the monsters it affects because it
-    // can kill them, and because hostile monsters don't use it.
-    behaviour_event(monster, ME_ANNOY, MHITYOU);
-    simple_monster_message(monster, " convulses!");
-    monster->hurt(&you, hploss);
-
-    if (monster->alive())
-    {
-        if (monster->speed_increment >= 25)
-            monster->speed_increment -= 20;
-
-        monster->add_ench(ENCH_FEAR);
-    }
-
-    return retval;
+    return (retval);
 }
 
-int holy_word(int pow, int caster, const coord_def& where, bool silent)
+int holy_word(int pow, int caster, const coord_def& where, bool silent,
+              actor *attacker)
 {
-    if (!silent)
-        mpr("You speak a Word of immense power!");
+    if (!silent && attacker)
+    {
+        mprf("%s %s a Word of immense power!",
+             attacker->name(DESC_CAP_THE).c_str(),
+             attacker->conj_verb("speak").c_str());
+    }
 
-    return apply_area_within_radius(holy_word_monsters, where, pow, 8, caster);
+    return (apply_area_within_radius(holy_word_monsters, where, pow, 8, caster,
+                                     attacker));
 }
 
 int torment_player(int pow, int caster)
@@ -176,15 +203,20 @@ int torment_player(int pow, int caster)
     if (!hploss)
     {
         mpr("You feel a surge of unholy energy.");
-        return 0;
+        return (0);
     }
 
     mpr("Your body is wracked with pain!");
 
     const char *aux = "torment";
 
-    if (caster < 0)
+    kill_method_type type = KILLED_BY_MONSTER;
+    if (invalid_monster_index(caster))
     {
+        type = KILLED_BY_SOMETHING;
+        if (crawl_state.is_god_acting())
+            type = KILLED_BY_DIVINE_WRATH;
+
         switch (caster)
         {
         case TORMENT_CARDS:
@@ -203,16 +235,15 @@ int torment_player(int pow, int caster)
             break;
 
         case TORMENT_XOM:
-            aux = "Xom's torment";
+            type = KILLED_BY_XOM;
+            aux  = "Xom's torment";
             break;
         }
     }
 
-    ouch(hploss, caster, (caster != TORMENT_GENERIC) ? KILLED_BY_MONSTER
-                                                     : KILLED_BY_SOMETHING,
-         aux);
+    ouch(hploss, caster, type, aux);
 
-    return 1;
+    return (1);
 }
 
 // torment_monsters() is called with power 0 because torment is
@@ -220,7 +251,7 @@ int torment_player(int pow, int caster)
 // maximum power of 1000, high level monsters and characters would save
 // too often.  (GDL)
 
-int torment_monsters(coord_def where, int pow, int caster)
+int torment_monsters(coord_def where, int pow, int caster, actor *attacker)
 {
     UNUSED(pow);
 
@@ -231,40 +262,35 @@ int torment_monsters(coord_def where, int pow, int caster)
         retval = torment_player(0, caster);
 
     // Is a monster in this cell?
-    int mon = mgrd(where);
-
-    if (mon == NON_MONSTER)
-        return retval;
-
-    monsters *monster = &menv[mon];
+    monsters *monster = monster_at(where);
+    if (monster == NULL)
+        return (retval);
 
     if (!monster->alive() || mons_res_negative_energy(monster) == 3)
-        return retval;
+        return (retval);
 
     int hploss = std::max(0, monster->hit_points / 2 - 1);
+
+    if (hploss)
+        simple_monster_message(monster, " convulses!");
 
     // Currently, torment doesn't annoy the monsters it affects because
     // it can't kill them, and because hostile monsters use it.
     monster->hurt(NULL, hploss, BEAM_TORMENT_DAMAGE);
 
     if (hploss)
-    {
         retval = 1;
-        if (!monster->alive())
-            return retval;
-    }
 
-    simple_monster_message(monster, " convulses!");
-
-    return retval;
+    return (retval);
 }
 
 int torment(int caster, const coord_def& where)
 {
-    return apply_area_within_radius(torment_monsters, where, 0, 8, caster);
+    return (apply_area_within_radius(torment_monsters, where, 0, 8, caster));
 }
 
-void immolation(int caster, bool known)
+void immolation(int pow, int caster, coord_def where, bool known,
+                actor *attacker)
 {
     ASSERT(!crawl_state.arena);
 
@@ -283,28 +309,46 @@ void immolation(int caster, bool known)
         case IMMOLATION_SPELL:
             aux = "a fiery explosion";
             break;
+
+        case IMMOLATION_TOME:
+            aux = "an exploding Tome of Destruction";
+            break;
         }
     }
 
     beam.flavour       = BEAM_FIRE;
     beam.type          = dchar_glyph(DCHAR_FIRED_BURST);
-    beam.damage        = dice_def(3, 10);
-    beam.target        = you.pos();
+    beam.damage        = dice_def(3, pow);
+    beam.target        = where;
     beam.name          = "fiery explosion";
     beam.colour        = RED;
-    beam.beam_source   = NON_MONSTER;
-    beam.thrower       = (caster == IMMOLATION_GENERIC) ? KILL_MISC : KILL_YOU;
     beam.aux_source    = aux;
     beam.ex_size       = 2;
-    beam.is_tracer     = false;
     beam.is_explosion  = true;
     beam.effect_known  = known;
     beam.affects_items = (caster != IMMOLATION_SCROLL);
 
+    if (caster == IMMOLATION_GENERIC)
+    {
+        beam.thrower     = KILL_MISC;
+        beam.beam_source = NON_MONSTER;
+    }
+    else if (attacker == &you)
+    {
+        beam.thrower     = KILL_YOU;
+        beam.beam_source = NON_MONSTER;
+    }
+    else
+    {
+        beam.thrower     = KILL_MON;
+        beam.beam_source = attacker->mindex();
+    }
+
     beam.explode();
 }
 
-void cleansing_flame(int pow, int caster)
+void cleansing_flame(int pow, int caster, coord_def where,
+                     actor *attacker)
 {
     ASSERT(!crawl_state.arena);
 
@@ -328,14 +372,25 @@ void cleansing_flame(int pow, int caster)
     beam.target       = you.pos();
     beam.name         = "golden flame";
     beam.colour       = YELLOW;
-    beam.thrower      = (caster == CLEANSING_FLAME_GENERIC
-                            || caster == CLEANSING_FLAME_TSO) ? KILL_MISC
-                                                              : KILL_YOU;
-    beam.beam_source  = NON_MONSTER;
     beam.aux_source   = aux;
     beam.ex_size      = 2;
-    beam.is_tracer    = false;
     beam.is_explosion = true;
+
+    if (caster == CLEANSING_FLAME_GENERIC || caster == CLEANSING_FLAME_TSO)
+    {
+        beam.thrower     = KILL_MISC;
+        beam.beam_source = NON_MONSTER;
+    }
+    else if (attacker == &you)
+    {
+        beam.thrower     = KILL_YOU;
+        beam.beam_source = NON_MONSTER;
+    }
+    else
+    {
+        beam.thrower     = KILL_MON;
+        beam.beam_source = attacker->mindex();
+    }
 
     beam.explode();
 }
@@ -487,9 +542,6 @@ void banished(dungeon_feature_type gate_type, const std::string &who)
         take_note(Note(NOTE_MESSAGE, 0, 0, what.c_str()), true);
     }
 
-    // No longer held in net.
-    clear_trapping_net();
-
     down_stairs(you.your_level, gate_type, you.entry_cause);  // heh heh
 }
 
@@ -517,10 +569,12 @@ bool forget_spell(void)
     if (slot == -1)              // should never happen though
         return (false);
 
-    del_spell_from_memory_by_slot( slot );
+    mprf("Your knowledge of %s becomes hazy all of a sudden, and you forget "
+         "the spell!", spell_title(you.spells[slot]));
 
+    del_spell_from_memory_by_slot( slot );
     return (true);
-}                               // end forget_spell()
+}
 
 // use player::decrease_stats() instead iff:
 // (a) player_sust_abil() should not factor in; and
@@ -626,7 +680,7 @@ bool lose_stat(unsigned char which_stat, unsigned char stat_loss,
     if (cause == NULL || invalid_monster(cause))
         return lose_stat(which_stat, stat_loss, force, NULL, true);
 
-    bool        vis  = mons_near(cause) && player_monster_visible(cause);
+    bool        vis  = you.can_see(cause);
     std::string name = cause->name(DESC_NOCAP_A, true);
 
     if (cause->has_ench(ENCH_SHAPESHIFTER))
@@ -675,25 +729,26 @@ bool lose_stat(unsigned char which_stat, unsigned char stat_loss,
 void direct_effect(monsters *source, spell_type spell,
                    bolt &pbolt, actor *defender)
 {
-    const bool mons_defender = defender->atype() == ACT_MONSTER;
-    monsters *mdef = mons_defender? dynamic_cast<monsters*>(defender) : NULL;
+    monsters *def =
+        (defender->atype() == ACT_MONSTER) ? dynamic_cast<monsters*>(defender)
+                                           : NULL;
 
-    if (mdef)
+    if (def)
     {
         // annoy the target
-        behaviour_event(mdef, ME_ANNOY, monster_index(source));
+        behaviour_event(def, ME_ANNOY, monster_index(source));
     }
 
-
     int damage_taken = 0;
+
     switch (spell)
     {
     case SPELL_SMITING:
-        if (mons_defender)
-            simple_monster_message(dynamic_cast<monsters*>(defender),
-                                   " is smitten.");
+        if (def)
+            simple_monster_message(def, " is smitten.");
         else
-            mpr( "Something smites you!" );
+            mpr("Something smites you!");
+
         pbolt.name       = "smiting";
         pbolt.flavour    = BEAM_MISSILE;
         pbolt.aux_source = "by divine providence";
@@ -701,7 +756,7 @@ void direct_effect(monsters *source, spell_type spell,
         break;
 
     case SPELL_BRAIN_FEED:
-        if (!mons_defender)
+        if (!def)
         {
             // lose_stat() must come last {dlb}
             if (one_chance_in(3)
@@ -722,8 +777,8 @@ void direct_effect(monsters *source, spell_type spell,
     // apply damage and handle death, where appropriate {dlb}
     if (damage_taken > 0)
     {
-        if (mdef)
-            mdef->hurt(source, damage_taken);
+        if (def)
+            def->hurt(source, damage_taken);
         else
             ouch(damage_taken, pbolt.beam_source, KILLED_BY_BEAM,
                  pbolt.aux_source.c_str());
@@ -747,7 +802,7 @@ void random_uselessness(int scroll_slot)
         break;
 
     case 1:
-        mpr("The scroll reassembles itself in your hand!");
+        mpr("The scroll reassembles itself in your hands!");
         inc_inv_item_quantity(scroll_slot, 1);
         break;
 
@@ -781,7 +836,7 @@ void random_uselessness(int scroll_slot)
     case 5:
         temp_rand = random2(3);
         mprf("Your %s",
-             (temp_rand == 0) ? "ears itch."   :
+             (temp_rand == 0) ? "ears itch!" :
              (temp_rand == 1) ? "brain hurts!"
                               : "nose twitches suddenly!");
         break;
@@ -806,668 +861,507 @@ static armour_type _random_nonbody_armour_type()
     return (at);
 }
 
+const int max_has_value = 100;
+typedef FixedVector<int, max_has_value> has_vector;
+
+static armour_type _acquirement_armour_subtype()
+{
+    // Increasing the representation of the non-body armour
+    // slots here to make up for the fact that there's one
+    // one type of item for most of them. -- bwr
+    //
+    // NUM_ARMOURS is body armour and handled below
+    armour_type result = (coinflip()) ? NUM_ARMOURS
+                                      : _random_nonbody_armour_type();
+
+    // Some species specific fitting problems.
+    // FIXME: switch to the cleaner logic in can_wear_armour()
+    switch (you.species)
+    {
+    case SP_OGRE:
+    case SP_TROLL:
+    case SP_RED_DRACONIAN:
+    case SP_WHITE_DRACONIAN:
+    case SP_GREEN_DRACONIAN:
+    case SP_YELLOW_DRACONIAN:
+    case SP_GREY_DRACONIAN:
+    case SP_BLACK_DRACONIAN:
+    case SP_PURPLE_DRACONIAN:
+    case SP_MOTTLED_DRACONIAN:
+    case SP_PALE_DRACONIAN:
+    case SP_BASE_DRACONIAN:
+    case SP_SPRIGGAN:
+        if (result == ARM_GLOVES
+            || result == ARM_BOOTS
+            || result == ARM_CENTAUR_BARDING
+            || result == ARM_NAGA_BARDING)
+        {
+            result = ARM_ROBE;  // no heavy armour
+        }
+        else if (result == ARM_SHIELD)
+        {
+            if (you.species == SP_SPRIGGAN)
+                result = ARM_BUCKLER;
+            else if (coinflip()) // giant races: 50/50 shield/large shield
+                result = ARM_LARGE_SHIELD;
+        }
+        else if (result == NUM_ARMOURS)
+        {
+            result = ARM_ROBE;  // no heavy armour, see below
+        }
+        break;
+
+    case SP_NAGA:
+        if (result == ARM_BOOTS || result == ARM_CENTAUR_BARDING)
+            result = ARM_NAGA_BARDING;
+        break;
+
+    case SP_CENTAUR:
+        if (result == ARM_BOOTS || result == ARM_NAGA_BARDING)
+            result = ARM_CENTAUR_BARDING;
+        break;
+
+    default:
+        if (result == ARM_CENTAUR_BARDING || result == ARM_NAGA_BARDING)
+            result = ARM_BOOTS;
+        break;
+    }
+
+    // Mutation specific problems (horns allow caps).
+    if (result == ARM_BOOTS && !player_has_feet()
+        || result == ARM_GLOVES && you.has_claws(false) >= 3)
+    {
+        result = NUM_ARMOURS;
+    }
+
+    // Do this here, before acquirement()'s call to can_wear_armour(),
+    // so that caps will be just as common as helmets for those
+    // that can't wear helmets.
+    // We check for the mutation directly to avoid acquirement fiddles
+    // with vampires.
+    if (result == ARM_HELMET
+        && (!you_can_wear(EQ_HELMET) || you.mutation[MUT_HORNS]))
+    {
+        result = coinflip()? ARM_CAP : ARM_WIZARD_HAT;
+    }
+
+    // Now we'll randomly pick a body armour up to plate mail (light
+    // only in the case of robes or animal skins).  Unlike before, now
+    // we're only giving out the finished products here, never the
+    // hides.  -- bwr
+    if (result == NUM_ARMOURS || result == ARM_ROBE)
+    {
+        // start with normal base armour
+        if (result == ARM_ROBE)
+            result = coinflip() ? ARM_ROBE : ARM_ANIMAL_SKIN;
+        else
+        {
+            const armour_type armours[] = { ARM_ROBE, ARM_LEATHER_ARMOUR,
+                                            ARM_RING_MAIL, ARM_SCALE_MAIL,
+                                            ARM_CHAIN_MAIL, ARM_SPLINT_MAIL,
+                                            ARM_BANDED_MAIL, ARM_PLATE_MAIL };
+
+            result = static_cast<armour_type>(RANDOM_ELEMENT(armours));
+
+            if (one_chance_in(10) && you.skills[SK_ARMOUR] >= 10)
+                result = ARM_CRYSTAL_PLATE_MAIL;
+
+            if (one_chance_in(10))
+                result = ARM_ANIMAL_SKIN;
+        }
+
+        // everyone can wear things made from hides
+        if (one_chance_in(20))
+        {
+            result = static_cast<armour_type>(
+                random_choose_weighted(20, ARM_TROLL_LEATHER_ARMOUR,
+                                       20, ARM_STEAM_DRAGON_ARMOUR,
+                                       15, ARM_MOTTLED_DRAGON_ARMOUR,
+                                       15, ARM_SWAMP_DRAGON_ARMOUR,
+                                       10, ARM_DRAGON_ARMOUR,
+                                       10, ARM_ICE_DRAGON_ARMOUR,
+                                        5, ARM_STORM_DRAGON_ARMOUR,
+                                        5, ARM_GOLD_DRAGON_ARMOUR,
+                                        0));
+        }
+    }
+
+    return (result);
+}
+
+// Write results into arguments.
+void _acquirement_determine_food(int& type_wanted, int& quantity,
+                                 const has_vector& already_has)
+{
+    // food is a little less predictable now -- bwr
+    if (you.species == SP_GHOUL)
+        type_wanted = one_chance_in(10) ? FOOD_ROYAL_JELLY : FOOD_CHUNK;
+    else if (you.species == SP_VAMPIRE)
+    {
+        // Vampires really don't want any OBJ_FOOD but OBJ_CORPSES
+        // but it's easier to just give them a potion of blood
+        // class type is set elsewhere
+        type_wanted = POT_BLOOD;
+        quantity = 2 + random2(4);
+    }
+    else
+    {
+        // Meat is better than bread (except for herbivores), and
+        // by choosing it as the default we don't have to worry
+        // about special cases for carnivorous races (e.g. kobolds)
+        type_wanted = FOOD_MEAT_RATION;
+
+        if (player_mutation_level(MUT_HERBIVOROUS))
+            type_wanted = FOOD_BREAD_RATION;
+
+        // If we have some regular rations, then we're probably more
+        // interested in faster foods (especially royal jelly)...
+        // otherwise the regular rations should be a good enough offer.
+        if (already_has[FOOD_MEAT_RATION]
+            + already_has[FOOD_BREAD_RATION] >= 2 || coinflip())
+        {
+            type_wanted = one_chance_in(5) ? FOOD_HONEYCOMB
+                : FOOD_ROYAL_JELLY;
+        }
+    }
+
+    quantity = 3 + random2(5);
+
+    // giving more of the lower food value items
+    if (type_wanted == FOOD_HONEYCOMB || type_wanted == FOOD_CHUNK)
+    {
+        quantity += random2avg(10, 2);
+    }
+}
+
+static int _acquirement_weapon_subtype()
+{
+    // Asking for a weapon is biased towards your skills.
+    // First pick a skill, weighting towards those you have.
+    int count = 0;
+    int skill = SK_FIGHTING;
+
+    for (int i = SK_SHORT_BLADES; i <= SK_DARTS; i++)
+    {
+        if (is_invalid_skill(i))
+            continue;
+
+        // Adding a small constant allows for the occasional
+        // weapon in an untrained skill.
+
+        const int weight = you.skills[i] + 1;
+        count += weight;
+
+        if (x_chance_in_y(weight, count))
+            skill = i;
+    }
+
+
+    // Now choose a subtype which uses that skill.
+    int result = OBJ_RANDOM;
+    count = 0;
+    item_def item_considered;
+    item_considered.base_type = OBJ_WEAPONS;
+    for (int i = 0; i < NUM_WEAPONS; ++i)
+    {
+        item_considered.sub_type = i;
+
+        const int acqweight = property(item_considered, PWPN_ACQ_WEIGHT);
+
+        if (!acqweight)
+            continue;
+
+        int wskill = range_skill(OBJ_WEAPONS, i);
+        if (wskill == SK_THROWING)
+            wskill = weapon_skill(OBJ_WEAPONS, i);
+
+        if (wskill == skill && x_chance_in_y(acqweight, count += acqweight))
+            result = i;
+    }
+    return (result);
+}
+
+static bool _have_item_with_types(object_class_type basetype, int subtype)
+{
+    for (int i = 0; i < ENDOFPACK; i++)
+    {
+        const item_def& item = you.inv[i];
+        if (is_valid_item(item)
+            && item.base_type == basetype && item.sub_type == subtype)
+        {
+            return (true);
+        }
+    }
+    return (false);
+}
+
+static missile_type _acquirement_missile_subtype()
+{
+    int count = 0;
+    int skill = SK_THROWING;
+
+    for (int i = SK_SLINGS; i <= SK_DARTS; i++)
+    {
+        if (you.skills[i])
+        {
+            count += you.skills[i];
+            if (x_chance_in_y(you.skills[i], count))
+                skill = i;
+        }
+    }
+
+    missile_type result = MI_DART;
+
+    switch (skill)
+    {
+    case SK_SLINGS: result = MI_STONE; break;
+    case SK_BOWS:   result = MI_ARROW; break;
+
+    case SK_CROSSBOWS:
+        // Assuming that crossbow in inventory means that they
+        // want bolts for it (not darts for a hand crossbow)...
+        // perhaps we should check for both and compare ammo
+        // amounts on hand?
+        result = (_have_item_with_types(OBJ_WEAPONS, WPN_CROSSBOW) ? MI_BOLT
+                                                                   : MI_DART);
+        break;
+
+    case SK_DARTS:
+        // Assuming that blowgun in inventory means that they
+        // may want needles for it (but darts might also be
+        // wanted).  Maybe expand this... see above comment.
+        result =
+            (_have_item_with_types(OBJ_WEAPONS, WPN_BLOWGUN) && coinflip())
+            ? MI_NEEDLE : MI_DART;
+        break;
+
+    default:
+        break;
+    }
+    return (result);
+}
+
+static int _acquirement_jewellery_subtype()
+{
+    int result = 0;
+
+    // Try ten times to give something the player hasn't seen.
+    for (int i = 0; i < 10; i++)
+    {
+        // 1/3 amulets, 2/3 rings.
+        result = (one_chance_in(3) ? get_random_amulet_type()
+                                   : get_random_ring_type());
+
+        // If we haven't seen this yet, we're done.
+        if (get_ident_type(OBJ_JEWELLERY, result) == ID_UNKNOWN_TYPE)
+            break;
+    }
+
+    return (result);
+}
+
+static int _acquirement_staff_subtype(const has_vector& already_has)
+{
+    int result = random2(STAFF_FIRST_ROD);
+
+    // Elemental preferences -- bwr
+    if (result == STAFF_FIRE || result == STAFF_COLD)
+    {
+        if (you.skills[SK_FIRE_MAGIC] > you.skills[SK_ICE_MAGIC])
+            result = STAFF_FIRE;
+        if (you.skills[SK_FIRE_MAGIC] < you.skills[SK_ICE_MAGIC])
+            result = STAFF_COLD;
+    }
+    else if (result == STAFF_AIR || result == STAFF_EARTH)
+    {
+        if (you.skills[SK_AIR_MAGIC] > you.skills[SK_EARTH_MAGIC])
+            result = STAFF_AIR;
+        if (you.skills[SK_AIR_MAGIC] < you.skills[SK_EARTH_MAGIC])
+            result = STAFF_EARTH;
+    }
+
+    skill_type best_spell_skill = best_skill(SK_SPELLCASTING, NUM_SKILLS - 1);
+
+#define TRY_GIVE(x) { if (!already_has[x]) result = x; }
+    // If we're going to give out an enhancer staff,
+    // we should at least bias things towards the
+    // best spell skill. -- bwr
+    switch (best_spell_skill)
+    {
+    case SK_FIRE_MAGIC:   TRY_GIVE(STAFF_FIRE);        break;
+    case SK_ICE_MAGIC:    TRY_GIVE(STAFF_COLD);        break;
+    case SK_AIR_MAGIC:    TRY_GIVE(STAFF_AIR);         break;
+    case SK_EARTH_MAGIC:  TRY_GIVE(STAFF_EARTH);       break;
+    case SK_POISON_MAGIC: TRY_GIVE(STAFF_POISON);      break;
+    case SK_NECROMANCY:   TRY_GIVE(STAFF_DEATH);       break;
+    case SK_CONJURATIONS: TRY_GIVE(STAFF_CONJURATION); break;
+    case SK_ENCHANTMENTS: TRY_GIVE(STAFF_ENCHANTMENT); break;
+    case SK_SUMMONINGS:   TRY_GIVE(STAFF_SUMMONING);   break;
+#undef TRY_GIVE
+
+    case SK_EVOCATIONS:
+        if (!one_chance_in(4))
+            result = random_rod_subtype();
+        break;
+
+    default: // Invocations and leftover spell schools.
+        switch (random2(5))
+        {
+        case 0: result = STAFF_WIZARDRY;   break;
+        case 1: result = STAFF_POWER;      break;
+        case 2: result = STAFF_ENERGY;     break;
+        case 3: result = STAFF_CHANNELING; break;
+        case 4: break;          // keep the original random staff
+        }
+        break;
+    }
+
+    int spell_skills = 0;
+    for (int i = SK_SPELLCASTING; i <= SK_POISON_MAGIC; i++)
+        spell_skills += you.skills[i];
+
+    // Increased chance of getting a rod for new or
+    // non-spellcasters.  -- bwr
+    if (one_chance_in(20)
+        || (spell_skills <= 1               // short on spells
+            && result < STAFF_FIRST_ROD
+            && !one_chance_in(4)))
+    {
+        result = coinflip() ? STAFF_STRIKING : random_rod_subtype();
+    }
+
+    return (result);
+}
+
+static int _acquirement_misc_subtype()
+{
+    int result = NUM_MISCELLANY;
+    do
+    {
+        result = random2(NUM_MISCELLANY);
+    }
+    while (result == MISC_HORN_OF_GERYON
+           || result == MISC_RUNE_OF_ZOT
+           || result == MISC_CRYSTAL_BALL_OF_FIXATION
+           || result == MISC_EMPTY_EBONY_CASKET
+           || result == MISC_DECK_OF_PUNISHMENT);
+
+    return (result);
+}
+
 static int _find_acquirement_subtype(object_class_type class_wanted,
                                      int &quantity)
 {
     ASSERT(class_wanted != OBJ_RANDOM);
 
     int type_wanted = OBJ_RANDOM;
-    int iteration = 0;
 
-    const int max_has_value = 100;
-    FixedVector< int, max_has_value > already_has;
-
-    skill_type best_spell = SK_NONE;
-    skill_type best_any   = SK_NONE;
-
+    // Write down what the player is carrying.
+    has_vector already_has;
     already_has.init(0);
-
-    int spell_skills = 0;
-    for (int i = SK_SPELLCASTING; i <= SK_POISON_MAGIC; i++)
-        spell_skills += you.skills[i];
-
-    for (int acqc = 0; acqc < ENDOFPACK; acqc++)
+    for (int i = 0; i < ENDOFPACK; ++i)
     {
-        if (is_valid_item( you.inv[acqc] )
-            && you.inv[acqc].base_type == class_wanted)
+        const item_def& item = you.inv[i];
+        if (is_valid_item(item) && item.base_type == class_wanted)
         {
-            ASSERT( you.inv[acqc].sub_type < max_has_value );
-            already_has[you.inv[acqc].sub_type] += you.inv[acqc].quantity;
+            ASSERT(item.sub_type < max_has_value);
+            already_has[item.sub_type] += item.quantity;
         }
     }
 
-    if (class_wanted == OBJ_FOOD)
+    bool try_again = (class_wanted == OBJ_JEWELLERY
+                      || class_wanted == OBJ_STAVES
+                      || class_wanted == OBJ_MISCELLANY);
+
+    do
     {
-        // food is a little less predictable now -- bwr
-
-        if (you.species == SP_GHOUL)
+        switch (class_wanted)
         {
-            type_wanted = one_chance_in(10) ? FOOD_ROYAL_JELLY
-                                            : FOOD_CHUNK;
-        }
-        else if (you.species == SP_VAMPIRE)
-        {
-            // Vampires really don't want any OBJ_FOOD but OBJ_CORPSES
-            // but it's easier to just give them a potion of blood
-            // class type is set elsewhere
-            type_wanted = POT_BLOOD;
-            quantity = 2 + random2(4);
-        }
-        else
-        {
-            // Meat is better than bread (except for herbivores), and
-            // by choosing it as the default we don't have to worry
-            // about special cases for carnivorous races (e.g. kobolds)
-            type_wanted = FOOD_MEAT_RATION;
+        case OBJ_FOOD:
+            // set type_wanted and quantity
+            _acquirement_determine_food(type_wanted, quantity, already_has);
+            break;
 
-            if (player_mutation_level(MUT_HERBIVOROUS))
-                type_wanted = FOOD_BREAD_RATION;
-
-            // If we have some regular rations, then we're probably more
-            // interested in faster foods (especially royal jelly)...
-            // otherwise the regular rations should be a good enough offer.
-            if (already_has[FOOD_MEAT_RATION]
-                    + already_has[FOOD_BREAD_RATION] >= 2 || coinflip())
-            {
-                type_wanted = one_chance_in(5) ? FOOD_HONEYCOMB
-                                               : FOOD_ROYAL_JELLY;
-            }
+        case OBJ_WEAPONS:  type_wanted = _acquirement_weapon_subtype();  break;
+        case OBJ_MISSILES: type_wanted = _acquirement_missile_subtype(); break;
+        case OBJ_ARMOUR:   type_wanted = _acquirement_armour_subtype();  break;
+        case OBJ_MISCELLANY: type_wanted = _acquirement_misc_subtype();  break;
+        case OBJ_STAVES: type_wanted = _acquirement_staff_subtype(already_has);
+            break;
+        case OBJ_JEWELLERY: type_wanted = _acquirement_jewellery_subtype();
+            break;
+        default: break;         // gold, books
         }
 
-        quantity = 3 + random2(5);
-
-        // giving more of the lower food value items
-        if (type_wanted == FOOD_HONEYCOMB || type_wanted == FOOD_CHUNK)
+        if (try_again)
         {
-            quantity += random2avg(10, 2);
+            ASSERT(type_wanted < max_has_value);
+            if (!already_has[type_wanted])
+                try_again = false;
+            if (one_chance_in(200))
+                try_again = false;
         }
     }
-    else if (class_wanted == OBJ_WEAPONS)
-    {
-        // Now asking for a weapon is biased towards your skills,
-        // although launchers are right out for now. -- bwr
-        int count = 0;
-        int skill = SK_FIGHTING;
-
-        for (int i = SK_SHORT_BLADES; i <= SK_DARTS; i++)
-        {
-            if (i == SK_UNUSED_1)
-                continue;
-
-            // Adding a small constant allows for the occasional
-            // weapon in an untrained skill.
-
-            const int weight = you.skills[i] + 1;
-            count += weight;
-
-            if (x_chance_in_y(weight, count))
-                skill = i;
-        }
-
-        count = 0;
-
-        item_def item_considered;
-        item_considered.base_type = OBJ_WEAPONS;
-        for (int i = 0; i < NUM_WEAPONS; ++i)
-        {
-            item_considered.sub_type = i;
-
-            const int acqweight = property(item_considered, PWPN_ACQ_WEIGHT);
-
-            if (!acqweight)
-                continue;
-
-            int wskill = range_skill(OBJ_WEAPONS, i);
-            if (wskill == SK_THROWING)
-                wskill = weapon_skill(OBJ_WEAPONS, i);
-
-            if (wskill == skill && x_chance_in_y(acqweight, count += acqweight))
-                type_wanted = i;
-        }
-    }
-    else if (class_wanted == OBJ_MISSILES)
-    {
-        int count = 0;
-        int skill = SK_THROWING;
-
-        for (int i = SK_SLINGS; i <= SK_DARTS; i++)
-        {
-            if (you.skills[i])
-            {
-                count += you.skills[i];
-                if (x_chance_in_y(you.skills[i], count))
-                    skill = i;
-            }
-        }
-
-        switch (skill)
-        {
-        case SK_SLINGS:
-            type_wanted = MI_STONE;
-            break;
-
-        case SK_BOWS:
-            type_wanted = MI_ARROW;
-            break;
-
-        case SK_CROSSBOWS:
-            type_wanted = MI_DART;
-            for (int i = 0; i < ENDOFPACK; i++)
-            {
-                // Assuming that crossbow in inventory means that they
-                // want bolts for it (not darts for a hand crossbow)...
-                // perhaps we should check for both and compare ammo
-                // amounts on hand?
-                if (is_valid_item( you.inv[i] )
-                    && you.inv[i].base_type == OBJ_WEAPONS
-                    && you.inv[i].sub_type == WPN_CROSSBOW)
-                {
-                    type_wanted = MI_BOLT;
-                    break;
-                }
-            }
-            break;
-
-        case SK_DARTS:
-            type_wanted = MI_DART;
-            for (int i = 0; i < ENDOFPACK; i++)
-            {
-                if (is_valid_item( you.inv[i] )
-                    && you.inv[i].base_type == OBJ_WEAPONS
-                    && you.inv[i].sub_type == WPN_BLOWGUN)
-                {
-                    // Assuming that blowgun in inventory means that they
-                    // may want needles for it (but darts might also be
-                    // wanted).  Maybe expand this... see above comment.
-                    if (coinflip())
-                        type_wanted = MI_NEEDLE;
-                    break;
-                }
-            }
-            break;
-
-        default:
-            type_wanted = MI_DART;
-            break;
-        }
-    }
-    else if (class_wanted == OBJ_ARMOUR)
-    {
-        // Increasing the representation of the non-body armour
-        // slots here to make up for the fact that there's one
-        // one type of item for most of them. -- bwr
-        //
-        // OBJ_RANDOM is body armour and handled below
-        type_wanted = (coinflip())? OBJ_RANDOM :
-            static_cast<int>(_random_nonbody_armour_type());
-
-        // Some species specific fitting problems.
-        switch (you.species)
-        {
-        case SP_OGRE:
-        case SP_TROLL:
-        case SP_RED_DRACONIAN:
-        case SP_WHITE_DRACONIAN:
-        case SP_GREEN_DRACONIAN:
-        case SP_YELLOW_DRACONIAN:
-        case SP_GREY_DRACONIAN:
-        case SP_BLACK_DRACONIAN:
-        case SP_PURPLE_DRACONIAN:
-        case SP_MOTTLED_DRACONIAN:
-        case SP_PALE_DRACONIAN:
-        case SP_BASE_DRACONIAN:
-        case SP_SPRIGGAN:
-            if (type_wanted == ARM_GLOVES || type_wanted == ARM_BOOTS
-                || type_wanted == ARM_CENTAUR_BARDING
-                || type_wanted == ARM_NAGA_BARDING)
-            {
-                type_wanted = ARM_ROBE;  // no heavy armour
-            }
-            else if (type_wanted == ARM_SHIELD)
-            {
-                if (you.species == SP_SPRIGGAN)
-                    type_wanted = ARM_BUCKLER;
-                else if (coinflip()) // giant races: 50/50 shield/large shield
-                    type_wanted = ARM_LARGE_SHIELD;
-            }
-            else if (type_wanted == OBJ_RANDOM)
-            {
-                type_wanted = ARM_ROBE;  // no heavy armour, see below
-            }
-            break;
-
-        case SP_NAGA:
-            if (type_wanted == ARM_BOOTS || type_wanted == ARM_CENTAUR_BARDING)
-                type_wanted = ARM_NAGA_BARDING;
-            break;
-
-        case SP_CENTAUR:
-            if (type_wanted == ARM_BOOTS || type_wanted == ARM_NAGA_BARDING)
-                type_wanted = ARM_CENTAUR_BARDING;
-            break;
-
-        default:
-            if (type_wanted == ARM_CENTAUR_BARDING
-                || type_wanted == ARM_NAGA_BARDING)
-            {
-                type_wanted = ARM_BOOTS;
-            }
-            break;
-        }
-
-        // Mutation specific problems (horns allow caps).
-        if (type_wanted == ARM_BOOTS && !player_has_feet()
-            || type_wanted == ARM_GLOVES && you.has_claws(false) >= 3)
-        {
-            type_wanted = OBJ_RANDOM;
-        }
-
-        // Do this here, before acquirement()'s call to can_wear_armour(),
-        // so that caps will be just as common as helmets for those
-        // that can't wear helmets.
-        // We check for the mutation directly to avoid acquirement fiddles
-        // with vampires.
-        if (type_wanted == ARM_HELMET
-            && (!you_can_wear(EQ_HELMET) || you.mutation[MUT_HORNS]))
-        {
-            type_wanted = coinflip()? ARM_CAP : ARM_WIZARD_HAT;
-        }
-
-        // Now we'll randomly pick a body armour (light only in the
-        // case of ARM_ROBE).  Unlike before, now we're only giving
-        // out the finished products here, never the hides.  -- bwr
-        if (type_wanted == OBJ_RANDOM || type_wanted == ARM_ROBE)
-        {
-            // start with normal base armour
-            if (type_wanted == ARM_ROBE)
-                type_wanted = coinflip() ? ARM_ROBE : ARM_ANIMAL_SKIN;
-            else
-            {
-                type_wanted = ARM_ROBE + random2(8);
-
-                if (one_chance_in(10) && you.skills[SK_ARMOUR] >= 10)
-                    type_wanted = ARM_CRYSTAL_PLATE_MAIL;
-
-                if (one_chance_in(10))
-                    type_wanted = ARM_ANIMAL_SKIN;
-            }
-
-            // everyone can wear things made from hides
-            if (one_chance_in(20))
-            {
-                int rnd = random2(20);
-
-                type_wanted = (rnd <  4) ? ARM_TROLL_LEATHER_ARMOUR  :  // 20%
-                              (rnd <  8) ? ARM_STEAM_DRAGON_ARMOUR   :  // 20%
-                              (rnd < 11) ? ARM_MOTTLED_DRAGON_ARMOUR :  // 15%
-                              (rnd < 14) ? ARM_SWAMP_DRAGON_ARMOUR   :  // 15%
-                              (rnd < 16) ? ARM_DRAGON_ARMOUR         :  // 10%
-                              (rnd < 18) ? ARM_ICE_DRAGON_ARMOUR     :  // 10%
-                              (rnd < 19) ? ARM_STORM_DRAGON_ARMOUR      //  5%
-                                         : ARM_GOLD_DRAGON_ARMOUR;      //  5%
-            }
-        }
-    }
-    else if (class_wanted != OBJ_GOLD)
-    {
-        do
-        {
-            unsigned char i;
-
-            switch (class_wanted)
-            {
-            case OBJ_JEWELLERY:
-                // Try for a base type the player hasn't identified
-                for (i = 0; i < 10; i++)
-                {
-                    type_wanted = random2(24);
-
-                    if (one_chance_in(3))
-                        type_wanted = AMU_RAGE + random2(10);
-
-                    if (get_ident_type(OBJ_JEWELLERY, type_wanted) ==
-                        ID_UNKNOWN_TYPE)
-                    {
-                        break;
-                    }
-                }
-                break;
-
-            case OBJ_BOOKS:
-                // Remember, put rarer books higher in the list.
-                iteration = 1;
-                type_wanted = NUM_BOOKS;
-
-                best_spell = best_skill( SK_SPELLCASTING, (NUM_SKILLS - 1),
-                                         best_spell );
-
-              which_book:
-#if DEBUG_DIAGNOSTICS
-                mprf(MSGCH_DIAGNOSTICS,
-                     "acquirement: iteration = %d, best_spell = %d",
-                     iteration, best_spell );
-#endif
-
-                switch (best_spell)
-                {
-                default:
-                case SK_SPELLCASTING:
-                    if (you.skills[SK_SPELLCASTING] <= 3
-                        && !you.had_book[BOOK_CANTRIPS])
-                    {
-                        // Handful of level one spells, very useful for the
-                        // new spellcaster who's asking for a book -- bwr
-                        type_wanted = BOOK_CANTRIPS;
-                    }
-                    else if (!you.had_book[BOOK_MINOR_MAGIC_I])
-                        type_wanted = BOOK_MINOR_MAGIC_I + random2(3);
-                    else if (!you.had_book[BOOK_WIZARDRY])
-                        type_wanted = BOOK_WIZARDRY;
-                    else if (!you.had_book[BOOK_CONTROL])
-                        type_wanted = BOOK_CONTROL;
-                    else if (!you.had_book[BOOK_POWER])
-                        type_wanted = BOOK_POWER;
-                    break;
-
-                case SK_POISON_MAGIC:
-                    if (!you.had_book[BOOK_YOUNG_POISONERS])
-                        type_wanted = BOOK_YOUNG_POISONERS;
-                    else if (!you.had_book[BOOK_ENVENOMATIONS])
-                        type_wanted = BOOK_ENVENOMATIONS;
-                    break;
-
-                case SK_EARTH_MAGIC:
-                    if (!you.had_book[BOOK_GEOMANCY])
-                        type_wanted = BOOK_GEOMANCY;
-                    else if (!you.had_book[BOOK_EARTH])
-                        type_wanted = BOOK_EARTH;
-                    break;
-
-                case SK_AIR_MAGIC:
-                    // removed the book of clouds... all the other elements
-                    // (and most other spell skills) only get two.
-                    if (!you.had_book[BOOK_AIR])
-                        type_wanted = BOOK_AIR;
-                    else if (!you.had_book[BOOK_SKY])
-                        type_wanted = BOOK_SKY;
-                    break;
-
-                case SK_ICE_MAGIC:
-                    if (!you.had_book[BOOK_FROST])
-                        type_wanted = BOOK_FROST;
-                    else if (!you.had_book[BOOK_ICE])
-                        type_wanted = BOOK_ICE;
-                    break;
-
-                case SK_FIRE_MAGIC:
-                    if (!you.had_book[BOOK_FLAMES])
-                        type_wanted = BOOK_FLAMES;
-                    else if (!you.had_book[BOOK_FIRE])
-                        type_wanted = BOOK_FIRE;
-                    break;
-
-                case SK_SUMMONINGS:
-                    if (!you.had_book[BOOK_CALLINGS])
-                        type_wanted = BOOK_CALLINGS;
-                    else if (!you.had_book[BOOK_SUMMONINGS])
-                        type_wanted = BOOK_SUMMONINGS;
-
-                    // now a Vehumet special -- bwr
-                    // else if (!you.had_book[BOOK_DEMONOLOGY])
-                    //     type_wanted = BOOK_DEMONOLOGY;
-                    break;
-
-                case SK_ENCHANTMENTS:
-                    best_any = best_skill(SK_FIGHTING, (NUM_SKILLS - 1), 99);
-
-                    // So many enchantment books!  I really can't feel
-                    // guilty at all for dividing out the fighting
-                    // books and forcing the player to raise a fighting
-                    // skill (or enchantments in the case of Crusaders)
-                    // to get the remaining books... enchantments are
-                    // much too good (most spells, lots of books here,
-                    // id wand charges, gives magic resistance),
-                    // something will eventually have to be done.  -- bwr
-                    if (best_any >= SK_FIGHTING && best_any <= SK_STAVES)
-                    {
-                        // Fighter mages get the fighting enchantment books
-                        if (!you.had_book[BOOK_WAR_CHANTS])
-                            type_wanted = BOOK_WAR_CHANTS;
-                        else if (!you.had_book[BOOK_TUKIMA])
-                            type_wanted = BOOK_TUKIMA;
-                    }
-                    else if (!you.had_book[BOOK_CHARMS])
-                        type_wanted = BOOK_CHARMS;
-                    else if (!you.had_book[BOOK_HINDERANCE])
-                        type_wanted = BOOK_HINDERANCE;
-                    else if (!you.had_book[BOOK_ENCHANTMENTS])
-                        type_wanted = BOOK_ENCHANTMENTS;
-                    break;
-
-                case SK_CONJURATIONS:
-                    if (!you.had_book[BOOK_CONJURATIONS_I])
-                        type_wanted = give_first_conjuration_book();
-                    else if (!you.had_book[BOOK_TEMPESTS])
-                        type_wanted = BOOK_TEMPESTS;
-
-                    // now a Vehumet special -- bwr
-                    // else if (!you.had_book[BOOK_ANNIHILATIONS])
-                    //     type_wanted = BOOK_ANNIHILATIONS;
-                    break;
-
-                case SK_NECROMANCY:
-                    if (!you.had_book[BOOK_NECROMANCY])
-                        type_wanted = BOOK_NECROMANCY;
-                    else if (!you.had_book[BOOK_DEATH])
-                        type_wanted = BOOK_DEATH;
-                    else if (!you.had_book[BOOK_UNLIFE])
-                        type_wanted = BOOK_UNLIFE;
-
-                    // now a Kikubaaqudgha special -- bwr
-                    // else if (!you.had_book[BOOK_NECRONOMICON])
-                    //    type_wanted = BOOK_NECRONOMICON;
-                    break;
-
-                case SK_TRANSLOCATIONS:
-                    if (!you.had_book[BOOK_SPATIAL_TRANSLOCATIONS])
-                        type_wanted = BOOK_SPATIAL_TRANSLOCATIONS;
-                    else if (!you.had_book[BOOK_WARP])
-                        type_wanted = BOOK_WARP;
-                    break;
-
-                case SK_TRANSMUTATION:
-                    if (!you.had_book[BOOK_CHANGES])
-                        type_wanted = BOOK_CHANGES;
-                    else if (!you.had_book[BOOK_TRANSFIGURATIONS])
-                        type_wanted = BOOK_TRANSFIGURATIONS;
-                    else if (!you.had_book[BOOK_MUTATIONS])
-                        type_wanted = BOOK_MUTATIONS;
-                    break;
-
-                case SK_DIVINATIONS:    //jmf: added 24mar2000
-                    if (!you.had_book[BOOK_SURVEYANCES])
-                        type_wanted = BOOK_SURVEYANCES;
-                    else if (!you.had_book[BOOK_DIVINATIONS])
-                        type_wanted = BOOK_DIVINATIONS;
-                    break;
-                }
-/*
-                if (type_wanted == 99 && glof == best_skill(SK_SPELLCASTING, (NUM_SKILLS - 1), 99))
-*/
-                if (type_wanted == NUM_BOOKS && iteration == 1)
-                {
-                    best_spell = best_skill( SK_SPELLCASTING, NUM_SKILLS - 1,
-                                             best_skill(SK_SPELLCASTING,
-                                                        NUM_SKILLS - 1, 99) );
-                    iteration++;
-                    goto which_book;
-                }
-
-                // If we don't have a book, try and get a new one.
-                if (type_wanted > MAX_FIXED_BOOK)
-                {
-                    do
-                    {
-                        type_wanted = random2(NUM_NORMAL_BOOKS);
-                        if (one_chance_in(500))
-                            break;
-                    }
-                    while (you.had_book[type_wanted]);
-                }
-
-                // If the book is invalid find any valid one.
-                while (type_wanted == BOOK_HEALING)
-                    type_wanted = random2(NUM_NORMAL_BOOKS);
-                break;
-
-            case OBJ_STAVES:
-                type_wanted = random2(13);
-
-                if (type_wanted >= 10)
-                    type_wanted = STAFF_AIR + type_wanted - 10;
-
-                // Elemental preferences -- bwr
-                if (type_wanted == STAFF_FIRE || type_wanted == STAFF_COLD)
-                {
-                    if (you.skills[SK_FIRE_MAGIC] > you.skills[SK_ICE_MAGIC])
-                        type_wanted = STAFF_FIRE;
-                    else if (you.skills[SK_FIRE_MAGIC] != you.skills[SK_ICE_MAGIC])
-                        type_wanted = STAFF_COLD;
-                }
-                else if (type_wanted == STAFF_AIR || type_wanted == STAFF_EARTH)
-                {
-                    if (you.skills[SK_AIR_MAGIC] > you.skills[SK_EARTH_MAGIC])
-                        type_wanted = STAFF_AIR;
-                    else if (you.skills[SK_AIR_MAGIC] != you.skills[SK_EARTH_MAGIC])
-                        type_wanted = STAFF_EARTH;
-                }
-
-                best_spell = best_skill( SK_SPELLCASTING, (NUM_SKILLS-1), 99 );
-
-                // If we're going to give out an enhancer staff,
-                // we should at least bias things towards the
-                // best spell skill. -- bwr
-                switch (best_spell)
-                {
-                case SK_FIRE_MAGIC:
-                    if (!already_has[STAFF_FIRE])
-                        type_wanted = STAFF_FIRE;
-                    break;
-
-                case SK_ICE_MAGIC:
-                    if (!already_has[STAFF_COLD])
-                        type_wanted = STAFF_COLD;
-                    break;
-
-                case SK_AIR_MAGIC:
-                    if (!already_has[STAFF_AIR])
-                        type_wanted = STAFF_AIR;
-                    break;
-
-                case SK_EARTH_MAGIC:
-                    if (!already_has[STAFF_EARTH])
-                        type_wanted = STAFF_EARTH;
-                    break;
-
-                case SK_POISON_MAGIC:
-                    if (!already_has[STAFF_POISON])
-                        type_wanted = STAFF_POISON;
-                    break;
-
-                case SK_NECROMANCY:
-                    if (!already_has[STAFF_DEATH])
-                        type_wanted = STAFF_DEATH;
-                    break;
-
-                case SK_CONJURATIONS:
-                    if (!already_has[STAFF_CONJURATION])
-                        type_wanted = STAFF_CONJURATION;
-                    break;
-
-                case SK_ENCHANTMENTS:
-                    if (!already_has[STAFF_ENCHANTMENT])
-                        type_wanted = STAFF_ENCHANTMENT;
-                    break;
-
-                case SK_SUMMONINGS:
-                    if (!already_has[STAFF_SUMMONING])
-                        type_wanted = STAFF_SUMMONING;
-                    break;
-
-                case SK_EVOCATIONS:
-                    if (!one_chance_in(4))
-                        type_wanted = random_rod_subtype();
-                    break;
-
-                default: // Invocations and leftover spell schools.
-                    switch (random2(5))
-                    {
-                    case 0:
-                        type_wanted = STAFF_WIZARDRY;
-                        break;
-
-                    case 1:
-                        type_wanted = STAFF_POWER;
-                        break;
-
-                    case 2:
-                        type_wanted = STAFF_ENERGY;
-                        break;
-
-                    case 3:
-                        type_wanted = STAFF_CHANNELING;
-                        break;
-
-                    case 4:
-                        break;
-                    }
-                    break;
-                }
-
-                // Increased chance of getting a rod for new or
-                // non-spellcasters.  -- bwr
-                if (one_chance_in(20)
-                    || (spell_skills <= 1               // short on spells
-                        && type_wanted < STAFF_SMITING
-                        && !one_chance_in(4)))
-                {
-                    type_wanted = coinflip() ? STAFF_STRIKING :
-                        random_rod_subtype();
-                }
-                break;
-
-            case OBJ_MISCELLANY:
-                do
-                {
-                    type_wanted = random2(NUM_MISCELLANY);
-                }
-                while (type_wanted == MISC_HORN_OF_GERYON
-                       || type_wanted == MISC_RUNE_OF_ZOT
-                       || type_wanted == MISC_CRYSTAL_BALL_OF_FIXATION
-                       || type_wanted == MISC_EMPTY_EBONY_CASKET
-                       || type_wanted == MISC_DECK_OF_PUNISHMENT);
-                break;
-            default:
-                break;
-            }
-
-            ASSERT( type_wanted < max_has_value );
-        }
-        while (already_has[type_wanted] && !one_chance_in(200));
-    }
+    while (try_again);
 
     return (type_wanted);
 }
 
-static void _do_book_acquirement(item_def &book, int agent)
+// The weight of a spell is defined as the average of all disciplines'
+// skill levels minus the doubled spell level.
+static int _spell_weight(spell_type spell)
+{
+    ASSERT(spell != SPELL_NO_SPELL);
+
+    int weight = 0;
+    unsigned int disciplines = get_spell_disciplines(spell);
+    int count = 0;
+    for (int i = 0; i <= SPTYP_LAST_EXPONENT; i++)
+    {
+        int disc = 1 << i;
+        if (disciplines & disc)
+        {
+            int skill = you.skills[spell_type2skill(disc)];
+
+            weight += skill + 1;
+            count++;
+        }
+    }
+    ASSERT(count > 0);
+
+    int leveldiff = 5 - spell_difficulty(spell);
+
+    return std::max(0, 2 * weight/count + leveldiff);
+
+}
+
+// When randomly picking a book for acquirement, use the sum of the
+// weights of all unknown spells in the book.
+static int _book_weight(int book)
+{
+    ASSERT(book >= 0 && book <= MAX_NORMAL_BOOK);
+
+    int total_weight = 0;
+    for (int i = 0; i < SPELLBOOK_SIZE; i++)
+    {
+        spell_type stype = which_spell_in_book(book, i);
+        if (stype == SPELL_NO_SPELL)
+            continue;
+
+        // Skip over spells already seen.
+        if (you.seen_spell[stype])
+            continue;
+
+        total_weight += _spell_weight(stype);
+    }
+
+    return (total_weight);
+}
+
+static bool _do_book_acquirement(item_def &book, int agent)
 {
     // items() shouldn't make book a randart for acquirement items.
     ASSERT(!is_random_artefact(book));
-
-    // Non-normal books (i.e. manuals/book of destruction) are rare enough
-    // without turning them into randart books.
-    if (book.sub_type > MAX_NORMAL_BOOK)
-        return;
 
     int          level       = (you.skills[SK_SPELLCASTING] + 2) / 3;
     unsigned int seen_levels = you.attribute[ATTR_RND_LVL_BOOKS];
@@ -1495,68 +1389,141 @@ static void _do_book_acquirement(item_def &book, int agent)
             level = -1;
     }
 
-    int choice = random_choose_weighted(
-            55, BOOK_RANDART_THEME,
-            24, book.sub_type,
-            level == -1 ? 0 : 12, BOOK_RANDART_LEVEL,
-       agent == GOD_XOM ? 0 : 6, BOOK_MANUAL, // too useful for Xom
-            0);
+    int choice = NUM_BOOKS;
 
-    // No changes.
-    if (choice == book.sub_type)
-        return;
+    bool knows_magic = false;
+    // Manuals are too useful for Xom, and useless when gifted from Sif Muna.
+    if (agent != GOD_XOM && agent != GOD_SIF_MUNA)
+    {
+        int magic_weights = 0;
+        int other_weights = 0;
 
-    book.sub_type = choice;
+        for (int i = 0; i < NUM_SKILLS; i++)
+        {
+            if (is_invalid_skill(i))
+                continue;
+
+            int weight = you.skills[i];
+
+            // Anyone can get Spellcasting 1. Doesn't prove anything.
+            if (i == SK_SPELLCASTING && weight >= 1)
+                weight--;
+
+            // Count magic skills double to bias against manuals
+            // for magic users.
+            if (i >= SK_SPELLCASTING && i <= SK_POISON_MAGIC)
+                magic_weights += weight;
+            else
+                other_weights += weight;
+        }
+
+        if (x_chance_in_y(other_weights, 2*magic_weights + other_weights))
+        {
+            choice = BOOK_MANUAL;
+            if (magic_weights > 0)
+                knows_magic = true;
+        }
+    }
+
+    if (choice == NUM_BOOKS)
+    {
+        choice = random_choose_weighted(
+                                        30, BOOK_RANDART_THEME,
+           agent == GOD_SIF_MUNA ? 10 : 40, NUM_BOOKS, // normal books
+                     level == -1 ?  0 :  1, BOOK_RANDART_LEVEL, 0);
+    }
+
+    // Acquired randart books have a chance of being named after the player.
+    std::string owner = "";
+    if (agent == AQ_SCROLL && one_chance_in(12)
+        || agent == AQ_CARD_GENIE && one_chance_in(6))
+    {
+        owner = you.your_name;
+    }
 
     switch (choice)
     {
+    default:
+    case NUM_BOOKS:
+    {
+        int total_weights = 0;
+
+        // Pick a random spellbook according to unknown spells contained.
+        int weights[MAX_NORMAL_BOOK+1];
+        for (int bk = 0; bk <= MAX_NORMAL_BOOK; bk++)
+        {
+            weights[bk]    = _book_weight(bk);
+            total_weights += weights[bk];
+        }
+
+        if (total_weights > 0)
+        {
+            book.sub_type = choose_random_weighted(weights,
+                                                   weights + ARRAYSZ(weights));
+            break;
+        }
+        // else intentional fall-through
+    }
     case BOOK_RANDART_THEME:
-        make_book_theme_randart(book, 0, 0, 7, 22);
+        book.sub_type = BOOK_RANDART_THEME;
+        if (!make_book_theme_randart(book, 0, 0, 5 + coinflip(), 20,
+                                     SPELL_NO_SPELL, owner))
+        {
+            return (false);
+        }
         break;
 
     case BOOK_RANDART_LEVEL:
     {
-        int num_spells = 7 - (level + 1) / 2 + random_range(1, 2);
-        make_book_level_randart(book, level, num_spells);
+        book.sub_type  = BOOK_RANDART_LEVEL;
+        int max_spells = 5 + level/3;
+        if (!make_book_level_randart(book, level, max_spells, owner))
+            return (false);
         break;
     }
 
-    // Spell discipline manual
     case BOOK_MANUAL:
     {
-        int weights[SK_POISON_MAGIC - SK_CONJURATIONS + 1];
+        // The Tome of Destruction is rare enough we won't change this.
+        if (book.sub_type == BOOK_DESTRUCTION)
+            return (true);
+
+        int weights[NUM_SKILLS];
         int total_weights = 0;
 
-        for (int i = SK_CONJURATIONS; i <= SK_POISON_MAGIC; i++)
+        for (int i = 0; i < NUM_SKILLS; i++)
         {
-            int w = std::max(0, 24 - you.skills[i])
-                * 100 / species_skills(i, you.species);
+            if (is_invalid_skill(i))
+            {
+                weights[i] = 0;
+                continue;
+            }
 
-            weights[i - SK_CONJURATIONS] = w;
+            int skill = you.skills[i];
+            int w = (skill < 12) ? skill + 3
+                                 : std::max(0, 25 - skill);
+
+            // If we don't know any magic skills, make non-magic skills
+            // more likely.
+            if (!knows_magic && (i < SK_SPELLCASTING || i > SK_POISON_MAGIC))
+                w *= 2;
+
+            weights[i] = w;
             total_weights += w;
         }
 
         // Are we too skilled to get any manuals?
         if (total_weights == 0)
-        {
-            _do_book_acquirement(book, agent);
-            return;
-        }
-
-        int skill = choose_random_weighted(weights,
-                                           weights + ARRAYSZ(weights));
-        skill += SK_CONJURATIONS;
+            return _do_book_acquirement(book, agent);
 
         book.sub_type = BOOK_MANUAL;
-        book.plus = skill;
+        book.plus     = choose_random_weighted(weights, weights + NUM_SKILLS);
         // Set number of reads possible before it "crumbles to dust".
-        book.plus2 = 3 + random2(15);
+        book.plus2    = 3 + random2(15);
         break;
     }
-
-    default:
-        ASSERT(false);
     }
+    return (true);
 }
 
 bool acquirement(object_class_type class_wanted, int agent,
@@ -1743,7 +1710,14 @@ bool acquirement(object_class_type class_wanted, int agent,
 
         if (thing.base_type == OBJ_BOOKS)
         {
-            _do_book_acquirement(thing, agent);
+            if (!_do_book_acquirement(thing, agent))
+            {
+                if (!quiet)
+                    mpr("The demon of the infinite void smiles upon you.");
+                *item_index = NON_ITEM;
+                destroy_item(thing, true);
+                return (false);
+            }
             mark_had_book(thing);
         }
         else if (thing.base_type == OBJ_JEWELLERY)
@@ -1752,9 +1726,7 @@ bool acquirement(object_class_type class_wanted, int agent,
             {
             case RING_SLAYING:
                 // Make sure plus to damage is >= 1.
-                thing.plus2 = abs( thing.plus2 );
-                if (thing.plus2 == 0)
-                    thing.plus2 = 1;
+                thing.plus2 = std::max(abs(thing.plus2), 1);
                 // fall through...
 
             case RING_PROTECTION:
@@ -1763,16 +1735,14 @@ bool acquirement(object_class_type class_wanted, int agent,
             case RING_DEXTERITY:
             case RING_EVASION:
                 // Make sure plus is >= 1.
-                thing.plus = abs( thing.plus );
-                if (thing.plus == 0)
-                    thing.plus = 1;
+                thing.plus = std::max(abs(thing.plus), 1);
                 break;
 
             case RING_HUNGER:
             case AMU_INACCURACY:
                 // These are the only truly bad pieces of jewellery.
                 if (!one_chance_in(9))
-                    make_item_randart( thing );
+                    make_item_randart(thing);
                 break;
 
             default:
@@ -1792,13 +1762,12 @@ bool acquirement(object_class_type class_wanted, int agent,
             case SP_GHOUL:
             case SP_VAMPIRE:
                 {
-                    int brand = get_weapon_brand( thing );
+                    int brand = get_weapon_brand(thing);
                     if (brand == SPWPN_HOLY_WRATH)
                     {
-                        if (!is_random_artefact( thing ))
+                        if (!is_random_artefact(thing))
                         {
-                            set_item_ego_type( thing,
-                                               OBJ_WEAPONS, SPWPN_VORPAL );
+                            set_item_ego_type(thing, OBJ_WEAPONS, SPWPN_VORPAL);
                         }
                         else
                         {
@@ -1806,7 +1775,7 @@ bool acquirement(object_class_type class_wanted, int agent,
                             for (; brand == SPWPN_HOLY_WRATH;
                                   brand = get_weapon_brand(thing))
                             {
-                                make_item_randart( thing );
+                                make_item_randart(thing);
                             }
                         }
                     }
@@ -1814,7 +1783,6 @@ bool acquirement(object_class_type class_wanted, int agent,
                 break;
 
             case SP_HALFLING:
-            case SP_GNOME:
             case SP_KOBOLD:
             case SP_SPRIGGAN:
                 switch (thing.sub_type)
@@ -2115,9 +2083,8 @@ void yell(bool force)
         std::string previous;
         if (!(you.prev_targ == MHITNOT || you.prev_targ == MHITYOU))
         {
-            monsters *target = &menv[you.prev_targ];
-            if (target->alive() && mons_near(target)
-                && player_monster_visible(target))
+            const monsters *target = &menv[you.prev_targ];
+            if (target->alive() && you.can_see(target))
             {
                 previous = "   p - Attack previous target.";
                 targ_prev = true;
@@ -2194,7 +2161,7 @@ void yell(bool force)
         }
 
         mpr("Gang up on whom?", MSGCH_PROMPT);
-        direction( targ, DIR_TARGET, TARG_ENEMY, -1, false, false );
+        direction(targ, DIR_TARGET, TARG_ENEMY, -1, false, false);
 
         if (targ.isCancel)
         {
@@ -2202,14 +2169,22 @@ void yell(bool force)
             return;
         }
 
-        if (!targ.isValid || mgrd(targ.target) == NON_MONSTER
-            || !player_monster_visible(&env.mons[mgrd(targ.target)]))
         {
-            mpr("Yeah, whatever.");
-            return;
-        }
+            bool cancel = !targ.isValid;
+            if (!cancel)
+            {
+                const monsters* m = monster_at(targ.target);
+                cancel = (m == NULL || !you.can_see(m));
+                if (!cancel)
+                    mons_targd = m->mindex();
+            }
 
-        mons_targd = mgrd(targ.target);
+            if (cancel)
+            {
+                mpr("Yeah, whatever.");
+                return;
+            }
+        }
         break;
 
     default:
@@ -2626,13 +2601,13 @@ void change_labyrinth(bool msg)
     std::vector<coord_def> targets;
 
     // Try 10 times for an area that is little mapped.
-    for (int tries = 10; tries > 0; tries--)
+    for (int tries = 10; tries > 0; --tries)
     {
         targets.clear();
 
         int x = random_range(LABYRINTH_BORDER, GXM - LABYRINTH_BORDER - size);
         int y = random_range(LABYRINTH_BORDER, GYM - LABYRINTH_BORDER - size);
-        c1 = coord_def(x,y);
+        c1 = coord_def(x, y);
         c2 = coord_def(x + size, y + size);
 
         int count_known = 0;
@@ -2758,7 +2733,7 @@ void change_labyrinth(bool msg)
                 continue;
 
             // We don't want to deal with monsters being shifted around.
-            if (mgrd(p) != NON_MONSTER)
+            if (monster_at(p))
                 continue;
 
             // Do not pick a grid right next to the original wall.
@@ -3121,7 +3096,7 @@ static void _rot_inventory_food(long time_delta)
 // This function is called about every 20 turns.
 void handle_time(long time_delta)
 {
-    // Update all of the corpses, food chunks and potions of blood on
+    // Update all of the corpses, food chunks, and potions of blood on
     // the floor.
     update_corpses(time_delta);
 
@@ -3137,14 +3112,38 @@ void handle_time(long time_delta)
     // Adjust the player's stats if s/he's diseased (or recovering).
     if (!you.disease)
     {
-        if (you.strength < you.max_strength && one_chance_in(100))
-            restore_stat(STAT_STRENGTH, 0, false, true);
+        bool recovery = true;
 
-        if (you.intel < you.max_intel && one_chance_in(100))
-            restore_stat(STAT_INTELLIGENCE, 0, false, true);
+        // The better-fed you are, the faster your stat recovery.
+        if (you.species == SP_VAMPIRE)
+        {
+            if (you.hunger_state == HS_STARVING)
+                // No stat recovery for starving vampires.
+                recovery = false;
+            else if (you.hunger_state <= HS_HUNGRY)
+                // Halved stat recovery for hungry vampires.
+                recovery = coinflip();
+        }
 
-        if (you.dex < you.max_dex && one_chance_in(100))
-            restore_stat(STAT_DEXTERITY, 0, false, true);
+        // Slow heal mutation.  Applied last.
+        // Each level reduces your stat recovery by one third.
+        if (player_mutation_level(MUT_SLOW_HEALING) > 0)
+        {
+            if (x_chance_in_y(player_mutation_level(MUT_SLOW_HEALING), 3))
+                recovery = false;
+        }
+
+        if (recovery)
+        {
+            if (you.strength < you.max_strength && one_chance_in(100))
+                restore_stat(STAT_STRENGTH, 0, false, true);
+
+            if (you.intel < you.max_intel && one_chance_in(100))
+                restore_stat(STAT_INTELLIGENCE, 0, false, true);
+
+            if (you.dex < you.max_dex && one_chance_in(100))
+                restore_stat(STAT_DEXTERITY, 0, false, true);
+        }
     }
     else
     {
@@ -3211,42 +3210,40 @@ void handle_time(long time_delta)
         // sufficiently used to beta 26's unkindness that we can use a lower
         // roll.)
         if (is_sanctuary(you.pos())
-            && you.magic_contamination >= 5
+            && you.magic_contamination > 5
             && x_chance_in_y(you.magic_contamination + 1, 25))
         {
             mpr("Your body momentarily shudders from a surge of wild "
                 "energies until Zin's power calms it.", MSGCH_GOD);
         }
-        else if (you.magic_contamination >= 5
+        else if (you.magic_contamination > 5
                  && x_chance_in_y(you.magic_contamination + 1, 25))
         {
             mpr("Your body shudders with the violent release "
                 "of wild energies!", MSGCH_WARN);
 
             // For particularly violent releases, make a little boom.
-            if (you.magic_contamination >= 10 && coinflip())
+            // Undead enjoy extra contamination explosion damage because
+            // the magical contamination has a harder time dissipating
+            // through non-living flesh. :-)
+            if (you.magic_contamination > 10 && coinflip())
             {
-                bolt boom;
-                boom.type     = dchar_glyph(DCHAR_FIRED_BURST);
-                boom.colour   = BLACK;
-                boom.flavour  = BEAM_RANDOM;
-                boom.target   = you.pos();
-                // Undead enjoy extra contamination explosion damage because
-                // the magical contamination has a harder time dissipating
-                // through non-living flesh. :-)
-                boom.damage = dice_def(3, you.magic_contamination
-                                           * (you.is_undead ? 4 : 2) / 4);
-                boom.thrower      = KILL_MISC;
-                boom.aux_source   = "a magical explosion";
-                boom.beam_source  = NON_MONSTER;
-                boom.is_beam      = false;
-                boom.is_tracer    = false;
-                boom.is_explosion = true;
-                boom.name = "magical storm";
+                bolt beam;
 
-                boom.ench_power = (you.magic_contamination * 5);
-                boom.ex_size = std::min(9, you.magic_contamination / 15);
-                boom.explode();
+                beam.flavour      = BEAM_RANDOM;
+                beam.type         = dchar_glyph(DCHAR_FIRED_BURST);
+                beam.damage       = dice_def(3, you.magic_contamination
+                                             * (you.is_undead ? 4 : 2) / 4);
+                beam.target       = you.pos();
+                beam.name         = "magical storm";
+                beam.beam_source  = NON_MONSTER;
+                beam.aux_source   = "a magical explosion";
+                beam.ex_size      = std::max(1, std::min(9,
+                                        you.magic_contamination / 15));
+                beam.ench_power   = you.magic_contamination * 5;
+                beam.is_explosion = true;
+
+                beam.explode();
             }
 
             // we want to warp the player, not do good stuff!
@@ -3405,10 +3402,10 @@ static void _catchup_monster_moves(monsters *mon, int turns)
     const int moves = (range > 50) ? 50 : range;
 
     // const bool short_time = (range >= 5 + random2(10));
-    const bool long_time  = (range >= (500 + roll_dice( 2, 500 )));
+    const bool long_time = (range >= (500 + roll_dice(2, 500)));
 
-    const bool ranged_attack = (mons_has_ranged_spell( mon, true )
-                                || mons_has_ranged_attack( mon ));
+    const bool ranged_attack = (mons_has_ranged_spell(mon, true)
+                                || mons_has_ranged_attack(mon));
 
 #if DEBUG_DIAGNOSTICS
     // probably too annoying even for DEBUG_DIAGNOSTICS
@@ -3433,11 +3430,11 @@ static void _catchup_monster_moves(monsters *mon, int turns)
         {
             mon->behaviour = BEH_WANDER;
             mon->foe = MHITNOT;
-            mon->target.set(10 + random2(GXM - 10), 10 + random2(GYM - 10));
+            mon->target = random_in_bounds();
         }
         else
         {
-            // monster will be sleeping after we move it
+            // The monster will be sleeping after we move it.
             mon->behaviour = BEH_SLEEP;
         }
     }
@@ -3445,13 +3442,14 @@ static void _catchup_monster_moves(monsters *mon, int turns)
     {
         // If we're doing short time movement and the monster has a
         // ranged attack (missile or spell), then the monster will
-        // flee to gain distance if its "too close", else it will
+        // flee to gain distance if it's "too close", else it will
         // just shift its position rather than charge the player. -- bwr
         if (grid_distance(mon->pos(), mon->target) < 3)
         {
             mon->behaviour = BEH_FLEE;
 
-            // If the monster is on the target square, fleeing won't work.
+            // If the monster is on the target square, fleeing won't
+            // work.
             if (mon->pos() == mon->target)
             {
                 if (you.pos() != mon->pos())
@@ -3461,22 +3459,33 @@ static void _catchup_monster_moves(monsters *mon, int turns)
                 }
                 else
                 {
-                    // Randomize the target so we have a direction to flee.
-                    mon->target.x += (random2(3) - 1);
-                    mon->target.y += (random2(3) - 1);
+                    coord_def mshift(random2(3) - 1, random2(3) - 1);
+
+                    // Bounds check: don't let fleeing monsters try to
+                    // run off the grid.
+                    const coord_def s = mon->target + mshift;
+                    if (!in_bounds_x(s.x))
+                        mshift.x = 0;
+                    if (!in_bounds_y(s.y))
+                        mshift.y = 0;
+
+                    // Randomise the target so we have a direction to
+                    // flee.
+                    mon->target.x += mshift.x;
+                    mon->target.y += mshift.y;
                 }
             }
 
 #if DEBUG_DIAGNOSTICS
-            mpr( "backing off...", MSGCH_DIAGNOSTICS );
+            mpr("backing off...", MSGCH_DIAGNOSTICS);
 #endif
         }
         else
         {
-            shift_monster( mon, mon->pos() );
+            shift_monster(mon, mon->pos());
 
 #if DEBUG_DIAGNOSTICS
-            mprf(MSGCH_DIAGNOSTICS, "shifted to (%d,%d)",
+            mprf(MSGCH_DIAGNOSTICS, "shifted to (%d, %d)",
                  mon->pos().x, mon->pos().y);
 #endif
             return;
@@ -3484,8 +3493,9 @@ static void _catchup_monster_moves(monsters *mon, int turns)
     }
 
     coord_def pos(mon->pos());
-    // dirt simple movement:
-    for (int i = 0; i < moves; i++)
+
+    // Dirt simple movement.
+    for (int i = 0; i < moves; ++i)
     {
         coord_def inc(mon->target - pos);
         inc = coord_def(sgn(inc.x), sgn(inc.y));
@@ -3493,10 +3503,12 @@ static void _catchup_monster_moves(monsters *mon, int turns)
         if (mons_is_fleeing(mon))
             inc *= -1;
 
-        if (pos.x + inc.x < 0 || pos.x + inc.x >= GXM)
+        // Bounds check: don't let shifting monsters try to run off the
+        // grid.
+        const coord_def s = pos + inc;
+        if (!in_bounds_x(s.x))
             inc.x = 0;
-
-        if (pos.y + inc.y < 0 || pos.y + inc.y >= GYM)
+        if (!in_bounds_y(s.y))
             inc.y = 0;
 
         if (inc.origin())
@@ -3505,18 +3517,20 @@ static void _catchup_monster_moves(monsters *mon, int turns)
         const coord_def next(pos + inc);
         const dungeon_feature_type feat = grd(next);
         if (grid_is_solid(feat)
-            || mgrd(next) != NON_MONSTER
+            || monster_at(next)
             || !monster_habitable_grid(mon, feat))
+        {
             break;
+        }
 
         pos = next;
     }
 
-    if (!shift_monster( mon, pos ))
-        shift_monster( mon, mon->pos() );
+    if (!shift_monster(mon, pos))
+        shift_monster(mon, mon->pos());
 
 #if DEBUG_DIAGNOSTICS
-    mprf(MSGCH_DIAGNOSTICS, "moved to (%d,%d)", mon->pos().x, mon->pos().y );
+    mprf(MSGCH_DIAGNOSTICS, "moved to (%d, %d)", mon->pos().x, mon->pos().y);
 #endif
 }
 

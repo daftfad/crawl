@@ -18,9 +18,11 @@ REVISION("$Rev$");
 
 #include "externs.h"
 
+#include "arena.h"
 #include "beam.h"
 #include "database.h"
 #include "debug.h"
+#include "delay.h"
 #include "effects.h"
 #include "item_use.h"
 #include "itemname.h"
@@ -95,7 +97,8 @@ static monster_type _pick_undead_summon()
 
 static void _do_high_level_summon(monsters *monster, bool monsterNearby,
                                   spell_type spell_cast,
-                                  monster_type (*mpicker)(), int nsummons)
+                                  monster_type (*mpicker)(), int nsummons,
+                                  god_type god)
 {
     if (_mons_abjured(monster, monsterNearby))
         return;
@@ -111,7 +114,8 @@ static void _do_high_level_summon(monsters *monster, bool monsterNearby,
 
         create_monster(
             mgen_data(which_mons, SAME_ATTITUDE(monster),
-                      duration, spell_cast, monster->pos(), monster->foe));
+                      duration, spell_cast, monster->pos(), monster->foe, 0,
+                      god));
     }
 }
 
@@ -134,14 +138,6 @@ void mons_cast(monsters *monster, bolt &pbolt, spell_type spell_cast,
     // single calculation permissible {dlb}
     bool monsterNearby = mons_near(monster);
 
-    // Make sure the "comes into view" type messages are displayed before
-    // the spell is cast.
-    if (monsterNearby && player_monster_visible(monster) 
-        && !(monster->flags & MF_WAS_IN_VIEW))
-    {
-        fire_monster_alerts();
-    }
-
     int sumcount = 0;
     int sumcount2;
     int duration = 0;
@@ -150,6 +146,9 @@ void mons_cast(monsters *monster, bolt &pbolt, spell_type spell_cast,
     mprf(MSGCH_DIAGNOSTICS, "Mon #%d casts %s (#%d)",
          monster_index(monster), spell_title(spell_cast), spell_cast);
 #endif
+
+    if (spell_cast == SPELL_CANTRIP)
+        do_noise = false;       // Spell itself does the messaging
 
     if (_los_free_spell(spell_cast) && !spell_is_direct_explosion(spell_cast))
     {
@@ -182,12 +181,21 @@ void mons_cast(monsters *monster, bolt &pbolt, spell_type spell_cast,
     if (do_noise)
         mons_cast_noise(monster, pbolt, spell_cast);
 
+    // If the monster's a priest, assume summons come from priestly
+    // abilities, in which case they'll have the same god.  If the
+    // monster is neither a priest nor a wizard, assume summons come
+    // from intrinsic abilities, in which case they'll also have the
+    // same god.
+    const bool priest = mons_class_flag(monster->type, M_PRIEST);
+    const bool wizard = mons_class_flag(monster->type, M_ACTUAL_SPELLS);
+    god_type god = (priest || !(priest || wizard)) ? monster->god : GOD_NO_GOD;
+
     switch (spell_cast)
     {
     default:
         break;
 
-    case SPELL_GREATER_HEALING:
+    case SPELL_MAJOR_HEALING:
         if (heal_monster(monster, 50 + random2avg(monster->hit_dice * 10, 2),
                          false))
         {
@@ -208,22 +216,13 @@ void mons_cast(monsters *monster, bolt &pbolt, spell_type spell_cast,
 
         for (sumcount = 0; sumcount < sumcount2; ++sumcount)
         {
-            monster_type mon = MONS_GIANT_BAT;
-
-            if (!one_chance_in(3))
-            {
-                int temp_rand = random2(4);
-
-                mon = (temp_rand == 0) ? MONS_ORANGE_RAT :
-                      (temp_rand == 1) ? MONS_GREEN_RAT :
-                      (temp_rand == 2) ? MONS_GREY_RAT
-                                       : MONS_RAT;
-
-            }
-
+            const monster_type rats[] = { MONS_ORANGE_RAT, MONS_GREEN_RAT,
+                                          MONS_GREY_RAT,   MONS_RAT };
+            const monster_type mon = (one_chance_in(3) ? MONS_GIANT_BAT
+                                                       : RANDOM_ELEMENT(rats));
             create_monster(
                 mgen_data(mon, SAME_ATTITUDE(monster),
-                          5, spell_cast, monster->pos(), monster->foe));
+                          5, spell_cast, monster->pos(), monster->foe, 0, god));
         }
         return;
 
@@ -237,7 +236,7 @@ void mons_cast(monsters *monster, bolt &pbolt, spell_type spell_cast,
         {
             create_monster(
                 mgen_data(RANDOM_MONSTER, SAME_ATTITUDE(monster),
-                          5, spell_cast, monster->pos(), monster->foe));
+                          5, spell_cast, monster->pos(), monster->foe, 0, god));
         }
         return;
 
@@ -250,8 +249,8 @@ void mons_cast(monsters *monster, bolt &pbolt, spell_type spell_cast,
         for (sumcount = 0; sumcount < sumcount2; sumcount++)
         {
             create_monster(
-                mgen_data(MONS_WATER_ELEMENTAL, SAME_ATTITUDE(monster), 3,
-                          spell_cast, monster->pos(), monster->foe));
+                mgen_data(MONS_WATER_ELEMENTAL, SAME_ATTITUDE(monster),
+                          3, spell_cast, monster->pos(), monster->foe, 0, god));
         }
         return;
 
@@ -262,7 +261,7 @@ void mons_cast(monsters *monster, bolt &pbolt, spell_type spell_cast,
         {
             create_monster(
                 mgen_data(MONS_RAKSHASA_FAKE, SAME_ATTITUDE(monster),
-                          3, spell_cast, monster->pos(), monster->foe));
+                          3, spell_cast, monster->pos(), monster->foe, 0, god));
         }
         return;
 
@@ -278,7 +277,7 @@ void mons_cast(monsters *monster, bolt &pbolt, spell_type spell_cast,
             create_monster(
                 mgen_data(summon_any_demon(DEMON_COMMON),
                           SAME_ATTITUDE(monster), duration, spell_cast,
-                          monster->pos(), monster->foe));
+                          monster->pos(), monster->foe, 0, god));
         }
         return;
 
@@ -297,14 +296,15 @@ void mons_cast(monsters *monster, bolt &pbolt, spell_type spell_cast,
 
             create_monster(
                 mgen_data(mon, SAME_ATTITUDE(monster),
-                          duration, spell_cast, monster->pos(), monster->foe));
+                          duration, spell_cast, monster->pos(), monster->foe, 0,
+                          god));
         }
         return;
 
     case SPELL_ANIMATE_DEAD:
         // see special handling in monstuff::handle_spell() {dlb}
         animate_dead(monster, 5 + random2(5), SAME_ATTITUDE(monster),
-                     monster->foe);
+                     monster->foe, god);
         return;
 
     case SPELL_CALL_IMP: // class 5 demons
@@ -316,7 +316,8 @@ void mons_cast(monsters *monster, bolt &pbolt, spell_type spell_cast,
             create_monster(
                 mgen_data(summon_any_demon(DEMON_LESSER),
                           SAME_ATTITUDE(monster),
-                          duration, spell_cast, monster->pos(), monster->foe));
+                          duration, spell_cast, monster->pos(), monster->foe, 0,
+                          god));
         }
         return;
 
@@ -331,7 +332,8 @@ void mons_cast(monsters *monster, bolt &pbolt, spell_type spell_cast,
         {
             create_monster(
                 mgen_data(MONS_SCORPION, SAME_ATTITUDE(monster),
-                          duration, spell_cast, monster->pos(), monster->foe));
+                          duration, spell_cast, monster->pos(), monster->foe, 0,
+                          god));
         }
         return;
 
@@ -344,20 +346,21 @@ void mons_cast(monsters *monster, bolt &pbolt, spell_type spell_cast,
         {
             create_monster(
                 mgen_data(MONS_UFETUBUS, SAME_ATTITUDE(monster),
-                          duration, spell_cast, monster->pos(), monster->foe));
+                          duration, spell_cast, monster->pos(), monster->foe, 0,
+                          god));
         }
         return;
 
     case SPELL_SUMMON_BEAST:       // Geryon
         create_monster(
             mgen_data(MONS_BEAST, SAME_ATTITUDE(monster),
-                      4, spell_cast, monster->pos(), monster->foe));
+                      4, spell_cast, monster->pos(), monster->foe, 0, god));
         return;
 
     case SPELL_SUMMON_ICE_BEAST:
         create_monster(
             mgen_data(MONS_ICE_BEAST, SAME_ATTITUDE(monster),
-                      5, spell_cast, monster->pos(), monster->foe));
+                      5, spell_cast, monster->pos(), monster->foe, 0, god));
         return;
 
     case SPELL_SUMMON_MUSHROOMS:   // Summon swarms of icky crawling fungi.
@@ -371,18 +374,19 @@ void mons_cast(monsters *monster, bolt &pbolt, spell_type spell_cast,
         {
             create_monster(
                 mgen_data(MONS_WANDERING_MUSHROOM, SAME_ATTITUDE(monster),
-                          duration, spell_cast, monster->pos(), monster->foe));
+                          duration, spell_cast, monster->pos(), monster->foe, 0,
+                          god));
         }
         return;
 
     case SPELL_SUMMON_WRAITHS:
         _do_high_level_summon(monster, monsterNearby, spell_cast,
-                              _pick_random_wraith, random_range(3, 6));
+                              _pick_random_wraith, random_range(3, 6), god);
         return;
 
     case SPELL_SUMMON_HORRIBLE_THINGS:
         _do_high_level_summon(monster, monsterNearby, spell_cast,
-                              _pick_horrible_thing, random_range(3, 5));
+                              _pick_horrible_thing, random_range(3, 5), god);
         return;
 
     case SPELL_CONJURE_BALL_LIGHTNING:
@@ -392,7 +396,7 @@ void mons_cast(monsters *monster, bolt &pbolt, spell_type spell_cast,
         {
             create_monster(
                 mgen_data(MONS_BALL_LIGHTNING, SAME_ATTITUDE(monster),
-                          2, spell_cast, monster->pos(), monster->foe));
+                          2, spell_cast, monster->pos(), monster->foe, 0, god));
         }
         return;
     }
@@ -401,7 +405,7 @@ void mons_cast(monsters *monster, bolt &pbolt, spell_type spell_cast,
         _do_high_level_summon(monster, monsterNearby, spell_cast,
                               _pick_undead_summon,
                               2 + random2(2)
-                                + random2(monster->hit_dice / 4 + 1));
+                                + random2(monster->hit_dice / 4 + 1), god);
         return;
 
     case SPELL_SYMBOL_OF_TORMENT:
@@ -423,7 +427,8 @@ void mons_cast(monsters *monster, bolt &pbolt, spell_type spell_cast,
             create_monster(
                 mgen_data(summon_any_demon(DEMON_GREATER),
                           SAME_ATTITUDE(monster),
-                          duration, spell_cast, monster->pos(), monster->foe));
+                          duration, spell_cast, monster->pos(), monster->foe,
+                          0, god));
         }
         return;
 
@@ -458,13 +463,18 @@ void mons_cast(monsters *monster, bolt &pbolt, spell_type spell_cast,
                 create_monster(
                     mgen_data(monsters[i], SAME_ATTITUDE(monster),
                               duration, spell_cast,
-                              monster->pos(), monster->foe));
+                              monster->pos(), monster->foe, 0, god));
             }
         }
         return;
 
     case SPELL_CANTRIP:
     {
+        // Don't give any message if the monster isn't nearby.
+        // (Otherwise you could get them from halfway across the level.)
+        if (!mons_near(monster))
+            return;
+
         const bool friendly      = mons_friendly(monster);
         const bool buff_only     = !friendly && is_sanctuary(you.pos());
         bool need_friendly_stub  = false;
@@ -527,6 +537,9 @@ void mons_cast(monsters *monster, bolt &pbolt, spell_type spell_cast,
     }
     }
 
+    // If a monster just came into view and immediately cast a spell,
+    // we need to refresh the screen before drawing the beam.
+    viewwindow(true, false);
     if (spell_is_direct_explosion(spell_cast))
     {
         const actor *foe = monster->get_foe();
@@ -756,7 +769,7 @@ void mons_cast_noise(monsters *monster, bolt &pbolt, spell_type spell_cast)
     // Monsters should only use targeted spells while foe == MHITNOT
     // if they're targeting themselves.
     else if (monster->foe == MHITNOT && !monster->confused())
-        target = "NONEXISTANT FOE";
+        target = "NONEXISTENT FOE";
     else if (!invalid_monster_index(monster->foe)
              && menv[monster->foe].type == -1)
     {
@@ -764,14 +777,9 @@ void mons_cast_noise(monsters *monster, bolt &pbolt, spell_type spell_cast)
     }
     else if (in_bounds(pbolt.target) && see_grid(pbolt.target))
     {
-        int midx = mgrd(pbolt.target);
-        if (midx != NON_MONSTER)
-        {
-            monsters* mtarg = &menv[midx];
-
+        if (const monsters* mtarg = monster_at(pbolt.target))
             if (you.can_see(mtarg))
                 target = mtarg->name(DESC_NOCAP_THE);
-        }
     }
 
     // Monster might be aiming past the real target, or maybe some fuzz has
@@ -783,23 +791,16 @@ void mons_cast_noise(monsters *monster, bolt &pbolt, spell_type spell_cast)
             int count = 0;
             for (adjacent_iterator ai(pbolt.target); ai; ++ai)
             {
-                if (*ai == monster->pos())
-                    continue;
-
-                if (*ai == you.pos())
+                const actor* act = actor_at(*ai);
+                if (act && act != monster && you.can_see(act))
                 {
                     targ_prep = "next to";
-                    target    = "you";
-                    break;
-                }
 
-                const int midx = mgrd(*ai);
+                    if (act->atype() == ACT_PLAYER || one_chance_in(++count))
+                        target = act->name(DESC_NOCAP_THE);
 
-                if (midx != NON_MONSTER && you.can_see(&menv[midx]))
-                {
-                    targ_prep = "next to";
-                    if (one_chance_in(count++))
-                        target = menv[midx].name(DESC_NOCAP_THE);
+                    if (act->atype() == ACT_PLAYER)
+                        break;
                 }
             }
         }
@@ -815,7 +816,7 @@ void mons_cast_noise(monsters *monster, bolt &pbolt, spell_type spell_cast)
             if (pos == monster->pos())
                 continue;
 
-            const int midx = mgrd(pos);
+            const monsters *m = monster_at(pos);
             if (pos == you.pos())
             {
                 // Be egotistical and assume that the monster is aiming at
@@ -833,16 +834,15 @@ void mons_cast_noise(monsters *monster, bolt &pbolt, spell_type spell_cast)
                 // in the path.
                 else if (target == "nothing")
                 {
-                    target            = "you";
                     targ_prep         = "at";
+                    target            = "you";
                     mons_targ_aligned = true;
                 }
             }
-            else if (visible_path && midx != NON_MONSTER
-                     && you.can_see(&menv[midx]))
+            else if (visible_path && m && you.can_see(m))
             {
-                bool        is_aligned = mons_aligned(midx, monster->mindex());
-                std::string name       = menv[midx].name(DESC_NOCAP_THE);
+                bool is_aligned  = mons_aligned(m->mindex(), monster->mindex());
+                std::string name = m->name(DESC_NOCAP_THE);
 
                 if (target == "nothing")
                 {
@@ -864,31 +864,25 @@ void mons_cast_noise(monsters *monster, bolt &pbolt, spell_type spell_cast)
                 int count = 0;
                 for (adjacent_iterator ai(pbolt.target); ai; ++ai)
                 {
-                    if (*ai == monster->pos())
-                        continue;
-
-                    if (*ai == you.pos())
+                    const actor* act = monster_at(*ai);
+                    if (act && act != monster && you.can_see(act))
                     {
                         targ_prep = "past";
-                        target    = "you";
-                        break;
-                    }
+                        if (act->atype() == ACT_PLAYER
+                            || one_chance_in(++count))
+                        {
+                            target = act->name(DESC_NOCAP_THE);
+                        }
 
-                    const int midx2 = mgrd(*ai);
-                    if (midx2 != NON_MONSTER && you.can_see(&menv[midx2]))
-                    {
-                        targ_prep = "past";
-                        if (one_chance_in(count++))
-                            target = menv[midx2].name(DESC_NOCAP_THE);
+                        if (act->atype() == ACT_PLAYER)
+                            break;
                     }
                 }
             }
         } // for (unsigned int i = 0; i < path.size(); i++)
     } // if (target == "nothing" && targeted)
 
-    const actor*    foe   = monster->get_foe();
-    const monsters* m_foe = (foe && foe->atype() == ACT_MONSTER) ?
-                            dynamic_cast<const monsters*>(foe) : NULL;
+    const actor* foe = monster->get_foe();
 
     // If we still can't find what appears to be the target, and the
     // monster isn't just throwing the spell in a random direction,
@@ -897,20 +891,16 @@ void mons_cast_noise(monsters *monster, bolt &pbolt, spell_type spell_cast)
     // implied by gesturing).  But only if the beam didn't actually hit
     // anything (but if it did hit something, why didn't that monster
     // show up in the beam's path?)
-    if (targeted && target == "nothing" && foe != NULL
+    if (targeted
+        && target == "nothing"
         && (tracer.foe_info.count + tracer.friend_info.count) == 0
-        && (you.can_see(foe) || foe == &you) && !monster->confused()
+        && foe != NULL
+        && you.can_see(foe)
+        && !monster->confused()
         && (visible_beam || gestured))
     {
-        if (foe == &you)
-            target = "you";
-        else
-            target = m_foe->name(DESC_NOCAP_THE);
-
-        if (pbolt.aimed_at_spot)
-            targ_prep = "next to";
-        else
-            targ_prep = "past";
+        target = foe->name(DESC_NOCAP_THE);
+        targ_prep = (pbolt.aimed_at_spot ? "next to" : "past");
     }
 
     // If the monster gestures to create an invisible beam then
@@ -944,12 +934,12 @@ void mons_cast_noise(monsters *monster, bolt &pbolt, spell_type spell_cast)
     if (silent)
     {
         mons_speaks_msg(monster, msg, chan, true);
-        return;
     }
-
-    // noisy() returns true if the player heard the noise.
-    if (noisy(noise, monster->pos()) || !unseen)
+    else if (noisy(noise, monster->pos()) || !unseen)
+    {
+        // noisy() returns true if the player heard the noise.
         mons_speaks_msg(monster, msg, chan);
+    }
 }
 
 // Set up bolt structure for monster spell casting.
@@ -996,7 +986,7 @@ void setup_mons_cast(monsters *monster, bolt &pbolt,
     switch (spell_cast)
     {
     case SPELL_SUMMON_SMALL_MAMMALS:
-    case SPELL_GREATER_HEALING:
+    case SPELL_MAJOR_HEALING:
     case SPELL_VAMPIRE_SUMMON:
     case SPELL_SHADOW_CREATURES:       // summon anything appropriate for level
     case SPELL_FAKE_RAKSHASA_SUMMON:
@@ -1059,7 +1049,7 @@ void setup_mons_cast(monsters *monster, bolt &pbolt,
 
     if (spell_cast == SPELL_HASTE
         || spell_cast == SPELL_INVISIBILITY
-        || spell_cast == SPELL_LESSER_HEALING
+        || spell_cast == SPELL_MINOR_HEALING
         || spell_cast == SPELL_TELEPORT_SELF)
     {
         pbolt.target = monster->pos();
@@ -1072,23 +1062,10 @@ bool monster_random_space(const monsters *monster, coord_def& target,
     int tries = 0;
     while (tries++ < 1000)
     {
-
-        if (crawl_state.arena)
-        {
-            const coord_def &ul = crawl_view.glos1; // Upper left
-            const coord_def &lr = crawl_view.glos2; // Lower right
-
-            target.x = ul.x + random2(lr.x - ul.x);
-            target.y = ul.y + random2(lr.y - ul.y);
-        }
-        else
-        {
-            target.x = 10 + random2(GXM - 20);
-            target.y = 10 + random2(GYM - 20);
-        }
+        target = random_in_bounds();
 
         // Don't land on top of another monster.
-        if (mgrd(target) != NON_MONSTER || target == you.pos())
+        if (actor_at(target))
             continue;
 
         if (is_sanctuary(target) && forbid_sanctuary)
@@ -1131,8 +1108,7 @@ void monster_teleport(monsters *monster, bool instan, bool silent)
         return;
     }
 
-    bool was_seen = player_monster_visible(monster) && mons_near(monster)
-                    && !mons_is_lurking(monster);
+    bool was_seen = you.can_see(monster) && !mons_is_lurking(monster);
 
     if (!silent)
         simple_monster_message(monster, " disappears!");
@@ -1141,8 +1117,6 @@ void monster_teleport(monsters *monster, bool instan, bool silent)
 
     // Pick the monster up.
     mgrd(oldplace) = NON_MONSTER;
-
-    mons_clear_trapping_net(monster);
 
     coord_def newpos;
     if (monster_random_space(monster, newpos, !mons_wont_attack(monster)))
@@ -1170,8 +1144,14 @@ void monster_teleport(monsters *monster, bool instan, bool silent)
         if (was_seen)
             simple_monster_message(monster, " reappears nearby!");
         else
-            simple_monster_message(monster, " appears out of thin air!",
-                                   MSGCH_PLAIN, 0, DESC_CAP_A);
+        {
+            // Even if it doesn't interrupt an activity (the player isn't
+            // delayed, the monster isn't hostile) we still want to give
+            // a message.
+            activity_interrupt_data ai(monster, "thin air");
+            if (!interrupt_activity(AI_SEE_MONSTER, ai))
+                simple_monster_message(monster, " appears out of thin air!");
+        }
     }
 
     if (player_monster_visible(monster) && now_visible)
@@ -1443,10 +1423,7 @@ bool mons_throw(struct monsters *monster, struct bolt &pbolt, int hand_used)
     msg += ((projected == LRET_LAUNCHED) ? " shoots " : " throws ");
 
     if (!pbolt.name.empty() && projected == LRET_LAUNCHED)
-    {
-        msg += "a ";
-        msg += pbolt.name;
-    }
+        msg += article_a(pbolt.name);
     else
     {
         // build shoot message
@@ -1535,6 +1512,10 @@ bool mons_throw(struct monsters *monster, struct bolt &pbolt, int hand_used)
         really_returns = false;
 
     pbolt.drop_item = !really_returns;
+
+    // Redraw the screen before firing, in case the monster just
+    // came into view and the screen hasn't been updated yet.
+    viewwindow(true, false);
     pbolt.fire();
 
     // The item can be destroyed before returning.
@@ -1550,7 +1531,7 @@ bool mons_throw(struct monsters *monster, struct bolt &pbolt, int hand_used)
         viewwindow(true, false);
         pbolt.fire();
         msg::stream << "The weapon returns "
-                    << (player_monster_visible(monster)?
+                    << (you.can_see(monster)?
                           ("to " + monster->name(DESC_NOCAP_THE))
                         : "whence it came from")
                     << "!" << std::endl;
@@ -1602,6 +1583,30 @@ static void _scale_draconian_breath(bolt& beam, int drac_type)
     beam.damage.size = scaling * beam.damage.size / 100;
 }
 
+static spell_type _draco_type_to_breath(int drac_type)
+{
+    switch (drac_type)
+    {
+    case MONS_BLACK_DRACONIAN:   return SPELL_LIGHTNING_BOLT;
+    case MONS_MOTTLED_DRACONIAN: return SPELL_STICKY_FLAME_SPLASH;
+    case MONS_YELLOW_DRACONIAN:  return SPELL_ACID_SPLASH;
+    case MONS_GREEN_DRACONIAN:   return SPELL_POISONOUS_CLOUD;
+    case MONS_PURPLE_DRACONIAN:  return SPELL_ISKENDERUNS_MYSTIC_BLAST;
+    case MONS_RED_DRACONIAN:     return SPELL_FIRE_BREATH;
+    case MONS_WHITE_DRACONIAN:   return SPELL_COLD_BREATH;
+    case MONS_PALE_DRACONIAN:    return SPELL_STEAM_BALL;
+
+    // Handled later.
+    case MONS_PLAYER_GHOST:      return SPELL_DRACONIAN_BREATH;
+
+    default:
+        DEBUGSTR("Invalid monster using draconian breath spell");
+        break;
+    }
+
+    return (SPELL_DRACONIAN_BREATH);
+}
+
 
 bolt mons_spells( monsters *mons, spell_type spell_cast, int power )
 {
@@ -1631,54 +1636,11 @@ bolt mons_spells( monsters *mons, spell_type spell_cast, int power )
     spell_type real_spell = spell_cast;
 
     if (spell_cast == SPELL_DRACONIAN_BREATH)
-    {
-        switch(drac_type)
-        {
-        case MONS_BLACK_DRACONIAN:
-            real_spell = SPELL_LIGHTNING_BOLT;
-            break;
-
-        case MONS_MOTTLED_DRACONIAN:
-            real_spell = SPELL_STICKY_FLAME_SPLASH;
-            break;
-
-        case MONS_YELLOW_DRACONIAN:
-            real_spell = SPELL_ACID_SPLASH;
-            break;
-
-        case MONS_GREEN_DRACONIAN:
-            real_spell = SPELL_POISONOUS_CLOUD;
-            break;
-
-        case MONS_PURPLE_DRACONIAN:
-            real_spell = SPELL_ISKENDERUNS_MYSTIC_BLAST;
-            break;
-
-        case MONS_RED_DRACONIAN:
-            real_spell = SPELL_FIRE_BREATH;
-            break;
-
-        case MONS_WHITE_DRACONIAN:
-            real_spell = SPELL_COLD_BREATH;
-            break;
-
-        case MONS_PALE_DRACONIAN:
-            real_spell = SPELL_STEAM_BALL;
-            break;
-
-        case MONS_PLAYER_GHOST:
-            // Handled later
-            break;
-
-        default:
-            DEBUGSTR("Invalid monster using draconian breath spell");
-            break;
-        }
-    }
+        real_spell = _draco_type_to_breath(drac_type);
 
     beam.type = dchar_glyph(DCHAR_FIRED_ZAP); // default
     beam.thrower = KILL_MON_MISSILE;
-    
+
     // FIXME: this should use the zap_data[] struct from beam.cc!
     switch (real_spell)
     {
@@ -1753,6 +1715,9 @@ bolt mons_spells( monsters *mons, spell_type spell_cast, int power )
     case SPELL_POLYMORPH_OTHER:
         beam.flavour  = BEAM_POLYMORPH;
         beam.is_beam  = true;
+        // Be careful with this one.
+        // Having allies mutate you is infuriating.
+        beam.foe_ratio = 1000;
         break;
 
     case SPELL_VENOM_BOLT:
@@ -1847,6 +1812,7 @@ bolt mons_spells( monsters *mons, spell_type spell_cast, int power )
         beam.damage   = dice_def( 3, 7 + power / 10 );
         beam.hit      = 40;
         beam.flavour  = BEAM_FIRE;
+        beam.foe_ratio = 60;
         beam.is_explosion = true;
         break;
 
@@ -1868,7 +1834,7 @@ bolt mons_spells( monsters *mons, spell_type spell_cast, int power )
 
     case SPELL_HELLFIRE_BURST:
         beam.aux_source   = "burst of hellfire";
-        beam.name         = "hellfire";
+        beam.name         = "burst of hellfire";
         beam.ex_size      = 1;
         beam.flavour      = BEAM_HELLFIRE;
         beam.is_explosion = true;
@@ -1880,7 +1846,7 @@ bolt mons_spells( monsters *mons, spell_type spell_cast, int power )
                                                    : dice_def(3, 20);
         break;
 
-    case SPELL_LESSER_HEALING:
+    case SPELL_MINOR_HEALING:
         beam.flavour  = BEAM_HEALING;
         beam.hit      = 25 + (power / 5);
         break;
@@ -2019,13 +1985,15 @@ bolt mons_spells( monsters *mons, spell_type spell_cast, int power )
         beam.is_beam    = true;
         break;
 
-    case SPELL_MEPHITIC_CLOUD:          // swamp drake
+    case SPELL_MEPHITIC_CLOUD:          // swamp drake, player ghost
         beam.name     = "foul vapour";
-        beam.damage   = dice_def( 3, 2 + power / 25 );
+        beam.damage   = dice_def(1,0);
         beam.colour   = GREEN;
-        beam.flavour  = BEAM_POISON;
+        // Well, it works, even if the name isn't quite intuitive.
+        beam.flavour  = BEAM_POTION_STINKING_CLOUD;
         beam.hit      = 14 + power / 30;
-        beam.is_beam  = true;
+        beam.ench_power = power; // probably meaningless
+        beam.is_explosion = true;
         beam.is_big_cloud = true;
         break;
 
@@ -2049,7 +2017,7 @@ bolt mons_spells( monsters *mons, spell_type spell_cast, int power )
         break;
 
     case SPELL_HELLFIRE:           // fiend's hellfire
-        beam.name         = "hellfire";
+        beam.name         = "blast of hellfire";
         beam.aux_source   = "blast of hellfire";
         beam.colour       = RED;
         beam.damage       = dice_def( 3, 25 );
@@ -2125,7 +2093,7 @@ bolt mons_spells( monsters *mons, spell_type spell_cast, int power )
 
         return (beam);
     }
-    
+
     if (beam.is_enchantment())
     {
         beam.type = dchar_glyph(DCHAR_SPACE);
@@ -2163,11 +2131,10 @@ static int _monster_abjure_square(const coord_def &pos,
                                   int pow, int actual,
                                   int wont_attack)
 {
-    const int mindex = mgrd(pos);
-    if (mindex == NON_MONSTER)
+    monsters *target = monster_at(pos);
+    if (target == NULL)
         return (0);
 
-    monsters *target = &menv[mindex];
     if (!target->alive()
         || ((bool)wont_attack == mons_wont_attack_real(target)))
     {
@@ -2207,9 +2174,10 @@ static int _monster_abjure_square(const coord_def &pos,
     }
     else if (is_sanctuary(target->pos()))
     {
+        pow = 0;
         mpr("Zin's power protects your fellow warrior from evil magic!",
             MSGCH_GOD);
-        return (0);
+        shielded = true;
     }
 
 #ifdef DEBUG_DIAGNOSTICS
@@ -2218,10 +2186,14 @@ static int _monster_abjure_square(const coord_def &pos,
 #endif
 
     mon_enchant abj = target->get_ench(ENCH_ABJ);
-    if (!target->lose_ench_duration(abj, pow) && !shielded)
-        simple_monster_message(target, " shudders.");
+    if (!target->lose_ench_duration(abj, pow))
+    {
+        if (!shielded)
+            simple_monster_message(target, " shudders.");
+        return (1);
+    }
 
-    return (1);
+    return (0);
 }
 
 static int _apply_radius_around_square( const coord_def &c, int radius,
@@ -2462,7 +2434,7 @@ static bool _make_monster_angry(const monsters *mon, monsters *targ)
     if (victim.distance_from(targ->pos()) > victim.distance_from(mon->pos()))
         return (false);
 
-    if (mons_near(mon) && player_monster_visible(mon))
+    if (you.can_see(mon))
     {
         mprf("%s goads %s on!", mon->name(DESC_CAP_THE).c_str(),
              targ->name(DESC_NOCAP_THE).c_str());
@@ -2529,7 +2501,8 @@ bool mons_clonable(const monsters* mon, bool needs_adjacent)
         {
             const coord_def p = mon->pos() + Compass[i];
 
-            if (in_bounds(p) && p != you.pos() && mgrd(p) == NON_MONSTER
+            if (in_bounds(p)
+                && !actor_at(p)
                 && monster_habitable_grid(mon, grd(p)))
             {
                 square_found = true;
@@ -2578,7 +2551,8 @@ int clone_mons(const monsters* orig, bool quiet, bool* obvious,
         {
             const coord_def p = orig->pos() + Compass[i];
 
-            if (in_bounds(p) && p != you.pos() && mgrd(p) == NON_MONSTER
+            if (in_bounds(p)
+                && !actor_at(p)
                 && monster_habitable_grid(orig, grd(p)))
             {
                 if (one_chance_in(++squares))
@@ -2590,7 +2564,7 @@ int clone_mons(const monsters* orig, bool quiet, bool* obvious,
             return (NON_MONSTER);
     }
 
-    ASSERT(mgrd(pos) == NON_MONSTER && you.pos() != pos);
+    ASSERT( !actor_at(pos) );
 
     monsters &mon(menv[midx]);
 
@@ -2636,6 +2610,9 @@ int clone_mons(const monsters* orig, bool quiet, bool* obvious,
         seen_monster(&mon);
         viewwindow(true, false);
     }
+
+    if (crawl_state.arena)
+        arena_placed_monster(&mon);
 
     return (midx);
 }

@@ -34,12 +34,6 @@ REVISION("$Rev$");
 #include "travel.h"
 #include "view.h"
 
-static inline bool _is_sewers()
-{
-    return (you.level_type == LEVEL_PORTAL_VAULT
-            && you.level_type_name == "sewer");
-}
-
 void TileNewLevel(bool first_time)
 {
     tiles.clear_minimap();
@@ -88,10 +82,10 @@ int tile_unseen_flag(const coord_def& gc)
 {
     if (!map_bounds(gc))
         return TILE_FLAG_UNSEEN;
-    else if (is_terrain_known(gc.x,gc.y)
-                && !is_terrain_seen(gc.x,gc.y)
-             || is_envmap_detected_item(gc.x,gc.y)
-             || is_envmap_detected_mons(gc.x,gc.y))
+    else if (is_terrain_known(gc)
+                && !is_terrain_seen(gc)
+             || is_envmap_detected_item(gc)
+             || is_envmap_detected_mons(gc))
     {
         return TILE_FLAG_MM_UNSEEN;
     }
@@ -121,10 +115,9 @@ static int _bow_offset(const monsters *mon)
     }
 }
 
-static int _tileidx_monster_base(const monsters *mon, bool detected)
+int tileidx_monster_base(const monsters *mon, bool detected)
 {
-    int grid = grd(mon->pos());
-    bool in_water = (grid == DNGN_SHALLOW_WATER || grid == DNGN_DEEP_WATER);
+    bool in_water = grid_is_water(grd(mon->pos()));
 
     int type = mon->type;
 
@@ -862,13 +855,14 @@ static int _tileidx_monster_base(const monsters *mon, bool detected)
         return TILEP_MONS_TOENAIL_GOLEM;
     case MONS_ELECTRIC_GOLEM:
         return TILEP_MONS_ELECTRIC_GOLEM;
+
     // statues (also '8')
     case MONS_ICE_STATUE:
-        return TILEP_ICE_STATUE;
+        return TILEP_MONS_ICE_STATUE;
     case MONS_SILVER_STATUE:
-        return TILEP_SILVER_STATUE;
+        return TILEP_MONS_SILVER_STATUE;
     case MONS_ORANGE_STATUE:
-        return TILEP_ORANGE_CRYSTAL_STATUE;
+        return TILEP_MONS_ORANGE_CRYSTAL_STATUE;
 
     // gargoyles ('9')
     case MONS_GARGOYLE:
@@ -918,11 +912,11 @@ static int _tileidx_monster_base(const monsters *mon, bool detected)
     case MONS_MURRAY:
         return TILEP_MONS_MURRAY;
     case MONS_ROXANNE:
-        return TILEP_ICE_STATUE; // TODO enne
+        return TILEP_MONS_ROXANNE;
     case MONS_SONJA:
-        return TILEP_MONS_KOBOLD; // TODO enne
+        return TILEP_MONS_SONJA;
     case MONS_AZRAEL:
-        return TILEP_MONS_EFREET; // TODO enne
+        return TILEP_MONS_AZRAEL;
     case MONS_ILSUIW:
         if (in_water)
             return TILEP_MONS_ILSUIW_WATER;
@@ -931,9 +925,9 @@ static int _tileidx_monster_base(const monsters *mon, bool detected)
     case MONS_PRINCE_RIBBIT:
         return TILEP_MONS_PRINCE_RIBBIT;
     case MONS_NERGALLE:
-        return TILEP_MONS_ORC_SORCERER; // TODO enne
+        return TILEP_MONS_NERGALLE;
     case MONS_SAINT_ROKA:
-        return TILEP_MONS_ORC_WARLORD; // TODO enne
+        return TILEP_MONS_SAINT_ROKA;
     case MONS_NESSOS:
         return TILEP_MONS_NESSOS;
     case MONS_LERNAEAN_HYDRA:
@@ -993,7 +987,7 @@ static int _tileidx_monster_base(const monsters *mon, bool detected)
     case MONS_MARGERY:
         return TILEP_MONS_MARGERY;
     case MONS_EUSTACHIO:
-        return TILEP_MONS_HUMAN; // TODO enne
+        return TILEP_MONS_EUSTACHIO;
 
     // unique major demons ('&')
     case MONS_MNOLEG:
@@ -1014,12 +1008,12 @@ static int _tileidx_monster_base(const monsters *mon, bool detected)
         return TILEP_MONS_ERESHKIGAL;
     }
 
-    return TILEP_ERROR;
+    return TILEP_MONS_PROGRAM_BUG;
 }
 
 int tileidx_monster(const monsters *mons, bool detected)
 {
-    int ch = _tileidx_monster_base(mons, detected);
+    int ch = tileidx_monster_base(mons, detected);
 
     if (mons_flies(mons))
         ch |= TILE_FLAG_FLYING;
@@ -1027,6 +1021,8 @@ int tileidx_monster(const monsters *mons, bool detected)
         ch |= TILE_FLAG_NET;
     if (mons->has_ench(ENCH_POISON))
         ch |= TILE_FLAG_POISON;
+    if (mons->has_ench(ENCH_STICKY_FLAME))
+        ch |= TILE_FLAG_FLAME;
 
     if (mons_friendly_real(mons))
         ch |= TILE_FLAG_PET;
@@ -1068,6 +1064,7 @@ int tileidx_monster(const monsters *mons, bool detected)
         // no flag for okay.
         break;
     }
+
     return ch;
 }
 
@@ -1080,25 +1077,25 @@ static int _tileidx_monster(int mon_idx, bool detected)
 
 static int _tileidx_fixed_artefact(int special)
 {
-  switch(special)
-  {
-  case SPWPN_SINGING_SWORD:       return TILE_SPWPN_SINGING_SWORD;
-  case SPWPN_WRATH_OF_TROG:       return TILE_SPWPN_WRATH_OF_TROG;
-  case SPWPN_SCYTHE_OF_CURSES:    return TILE_SPWPN_SCYTHE_OF_CURSES;
-  case SPWPN_MACE_OF_VARIABILITY: return TILE_SPWPN_MACE_OF_VARIABILITY;
-  case SPWPN_GLAIVE_OF_PRUNE:     return TILE_SPWPN_GLAIVE_OF_PRUNE;
-  case SPWPN_SCEPTRE_OF_TORMENT:  return TILE_SPWPN_SCEPTRE_OF_TORMENT;
-  case SPWPN_SWORD_OF_ZONGULDROK: return TILE_SPWPN_SWORD_OF_ZONGULDROK;
-  case SPWPN_SWORD_OF_CEREBOV:    return TILE_SPWPN_SWORD_OF_CEREBOV;
-  case SPWPN_STAFF_OF_DISPATER:   return TILE_SPWPN_STAFF_OF_DISPATER;
-  case SPWPN_SCEPTRE_OF_ASMODEUS: return TILE_SPWPN_SCEPTRE_OF_ASMODEUS;
-  case SPWPN_SWORD_OF_POWER:      return TILE_SPWPN_SWORD_OF_POWER;
-  case SPWPN_STAFF_OF_OLGREB:     return TILE_SPWPN_STAFF_OF_OLGREB;
-  case SPWPN_VAMPIRES_TOOTH:      return TILE_SPWPN_VAMPIRES_TOOTH;
-  case SPWPN_STAFF_OF_WUCAD_MU:   return TILE_SPWPN_STAFF_OF_WUCAD_MU;
-  }
+    switch(special)
+    {
+    case SPWPN_SINGING_SWORD:       return TILE_SPWPN_SINGING_SWORD;
+    case SPWPN_WRATH_OF_TROG:       return TILE_SPWPN_WRATH_OF_TROG;
+    case SPWPN_SCYTHE_OF_CURSES:    return TILE_SPWPN_SCYTHE_OF_CURSES;
+    case SPWPN_MACE_OF_VARIABILITY: return TILE_SPWPN_MACE_OF_VARIABILITY;
+    case SPWPN_GLAIVE_OF_PRUNE:     return TILE_SPWPN_GLAIVE_OF_PRUNE;
+    case SPWPN_SCEPTRE_OF_TORMENT:  return TILE_SPWPN_SCEPTRE_OF_TORMENT;
+    case SPWPN_SWORD_OF_ZONGULDROK: return TILE_SPWPN_SWORD_OF_ZONGULDROK;
+    case SPWPN_SWORD_OF_CEREBOV:    return TILE_SPWPN_SWORD_OF_CEREBOV;
+    case SPWPN_STAFF_OF_DISPATER:   return TILE_SPWPN_STAFF_OF_DISPATER;
+    case SPWPN_SCEPTRE_OF_ASMODEUS: return TILE_SPWPN_SCEPTRE_OF_ASMODEUS;
+    case SPWPN_SWORD_OF_POWER:      return TILE_SPWPN_SWORD_OF_POWER;
+    case SPWPN_STAFF_OF_OLGREB:     return TILE_SPWPN_STAFF_OF_OLGREB;
+    case SPWPN_VAMPIRES_TOOTH:      return TILE_SPWPN_VAMPIRES_TOOTH;
+    case SPWPN_STAFF_OF_WUCAD_MU:   return TILE_SPWPN_STAFF_OF_WUCAD_MU;
+    }
 
-  return TILE_ERROR;
+    return TILE_ERROR;
 }
 
 static int _tileidx_unrand_artefact(int idx)
@@ -1762,6 +1759,8 @@ static int _tileidx_corpse(int mon)
         return TILE_CORPSE_BRAIN_WORM;
     case MONS_SPINY_WORM:
         return TILE_CORPSE_SPINY_WORM;
+    case MONS_SWAMP_WORM:
+        return TILE_CORPSE_SWAMP_WORM;
     case MONS_YELLOW_WASP:
         return TILE_CORPSE_YELLOW_WASP;
     case MONS_GIANT_MOSQUITO:
@@ -1798,6 +1797,10 @@ static int _tileidx_corpse(int mon)
         return TILE_CORPSE_HYDRA;
     case MONS_ICE_DRAGON:
         return TILE_CORPSE_ICE_DRAGON;
+    case MONS_IRON_DRAGON:
+        return TILE_CORPSE_IRON_DRAGON;
+    case MONS_QUICKSILVER_DRAGON:
+        return TILE_CORPSE_QUICKSILVER_DRAGON;
     case MONS_STEAM_DRAGON:
         return TILE_CORPSE_STEAM_DRAGON;
     case MONS_SWAMP_DRAGON:
@@ -1910,6 +1913,7 @@ static int _tileidx_rune(const item_def &item)
 {
     switch (item.plus)
     {
+    // the hell runes:
     case RUNE_DIS:         return TILE_MISC_RUNE_DIS;
     case RUNE_GEHENNA:     return TILE_MISC_RUNE_GEHENNA;
     case RUNE_COCYTUS:     return TILE_MISC_RUNE_COCYTUS;
@@ -2353,7 +2357,7 @@ int tileidx_feature(int object, int gx, int gy)
     case DNGN_LAVA:
         return TILE_DNGN_LAVA;
     case DNGN_DEEP_WATER:
-        if (_is_sewers() || env.grid_colours[gx][gy] == GREEN
+        if (env.grid_colours[gx][gy] == GREEN
             || env.grid_colours[gx][gy] == LIGHTGREEN)
         {
             return TILE_DNGN_DEEP_WATER_MURKY;
@@ -2362,7 +2366,7 @@ int tileidx_feature(int object, int gx, int gy)
     case DNGN_SHALLOW_WATER:
     {
         int t = TILE_DNGN_SHALLOW_WATER;
-        if (_is_sewers() || env.grid_colours[gx][gy] == GREEN
+        if (env.grid_colours[gx][gy] == GREEN
             || env.grid_colours[gx][gy] == LIGHTGREEN)
         {
             t = TILE_DNGN_SHALLOW_WATER_MURKY;
@@ -2440,9 +2444,6 @@ int tileidx_feature(int object, int gx, int gy)
     case DNGN_ENTER_TOMB:
     case DNGN_ENTER_SWAMP:
     case DNGN_ENTER_SHOALS:
-    case DNGN_ENTER_RESERVED_2:
-    case DNGN_ENTER_RESERVED_3:
-    case DNGN_ENTER_RESERVED_4:
        return TILE_DNGN_ENTER;
     case DNGN_RETURN_FROM_ORCISH_MINES:
     case DNGN_RETURN_FROM_HIVE:
@@ -2458,9 +2459,6 @@ int tileidx_feature(int object, int gx, int gy)
     case DNGN_RETURN_FROM_TOMB:
     case DNGN_RETURN_FROM_SWAMP:
     case DNGN_RETURN_FROM_SHOALS:
-    case DNGN_RETURN_RESERVED_2:
-    case DNGN_RETURN_RESERVED_3:
-    case DNGN_RETURN_RESERVED_4:
        return TILE_DNGN_RETURN;
     case DNGN_ENTER_PORTAL_VAULT:
     case DNGN_EXIT_PORTAL_VAULT:
@@ -2636,7 +2634,7 @@ void tileidx_unseen(unsigned int &fg, unsigned int &bg, int ch,
         case '+': fg = TILE_BOOK_PAPER_OFFSET + 15; break;
 
         case '/': fg = TILE_WAND_OFFSET; break;
-        case '8': fg = TILEP_SILVER_STATUE; break;
+        case '8': fg = TILEP_MONS_SILVER_STATUE; break;
         case '<': bg = TILE_DNGN_STONE_STAIRS_UP; break;
         case '=': fg = TILE_RING_NORMAL_OFFSET + 1; break;
         case '>': bg = TILE_DNGN_STONE_STAIRS_DOWN; break;
@@ -2805,7 +2803,6 @@ void tilep_race_default(int race, int gender, int level, int *parts)
             break;
         case SP_ELF:
         case SP_HIGH_ELF:
-        case SP_GREY_ELF:
         case SP_SLUDGE_ELF:
             result = TILEP_BASE_ELF;
             hair   = TILEP_HAIR_ELF_YELLOW;
@@ -2845,9 +2842,6 @@ void tilep_race_default(int race, int gender, int level, int *parts)
             break;
         case SP_NAGA:
             result = TILEP_BASE_NAGA;
-            break;
-        case SP_GNOME:
-            result = TILEP_BASE_GNOME;
             break;
         case SP_OGRE:
             result = TILEP_BASE_OGRE;
@@ -2911,6 +2905,19 @@ void tilep_race_default(int race, int gender, int level, int *parts)
                 hair = TILEP_HAIR_ARAGORN;
             else
                 hair = TILEP_HAIR_ARWEN;
+            break;
+        case SP_DEEP_DWARF:
+            result = TILEP_BASE_DEEP_DWARF;
+            if (gender == TILEP_GENDER_MALE)
+            {
+                hair  = TILEP_HAIR_SHORT_WHITE;
+                beard = TILEP_BEARD_LONG_WHITE;
+            }
+            else
+            {
+                hair  = TILEP_HAIR_FEM_WHITE;
+                beard = TILEP_BEARD_SHORT_WHITE;
+            }
             break;
         default:
             result = TILEP_BASE_HUMAN;
@@ -3968,69 +3975,71 @@ int jitter(SpecialIdx i)
 
 void tile_clear_flavour()
 {
-    for (int y = 0; y < GYM; y++)
-        for (int x = 0; x < GXM; x++)
-        {
-            env.tile_flv[x][y].floor = 0;
-            env.tile_flv[x][y].wall = 0;
-            env.tile_flv[x][y].special = 0;
-        }
+    for (rectangle_iterator ri(1); ri; ++ri)
+    {
+        env.tile_flv(*ri).floor = 0;
+        env.tile_flv(*ri).wall = 0;
+        env.tile_flv(*ri).special = 0;
+    }
 }
 
 // For floors and walls that have not already been set to a particular tile,
 // set them to a random instance of the default floor and wall tileset.
 void tile_init_flavour()
 {
-    for (int y = 0; y < GYM; y++)
-        for (int x = 0; x < GXM; x++)
+    for (rectangle_iterator ri(1); ri; ++ri)
+        tile_init_flavour(*ri);
+}
+
+void tile_init_flavour(const coord_def &gc)
+{
+    if (!in_bounds(gc))
+        return;
+
+    if (!env.tile_flv(gc).floor)
+    {
+        int floor_rnd = random2(tile_dngn_count(env.tile_default.floor));
+        env.tile_flv(gc).floor = env.tile_default.floor + floor_rnd;
+    }
+
+    if (!env.tile_flv(gc).wall)
+    {
+        int wall_rnd = random2(tile_dngn_count(env.tile_default.wall));
+        env.tile_flv(gc).wall = env.tile_default.wall + wall_rnd;
+    }
+
+    if (grd(gc) == DNGN_CLOSED_DOOR || grd(gc) == DNGN_OPEN_DOOR)
+    {
+        // Check for horizontal gates.
+
+        const coord_def left(gc.x - 1, gc.y);
+        const coord_def right(gc.x + 1, gc.y);
+
+        bool door_left  = (grd(left) == grd(gc));
+        bool door_right = (grd(right) == grd(gc));
+
+        if (door_left || door_right)
         {
-            int max_wall_flavor = tile_dngn_count(env.tile_default.wall) - 1;
-            int max_floor_flavor = tile_dngn_count(env.tile_default.floor) - 1;
-            int wall_rnd = random_range(0, max_wall_flavor);
-            int floor_rnd = random_range(0, max_floor_flavor);
+            int target;
+            if (door_left && door_right)
+                target = TILE_DNGN_GATE_CLOSED_MIDDLE;
+            else if (door_left)
+                target = TILE_DNGN_GATE_CLOSED_RIGHT;
+            else
+                target = TILE_DNGN_GATE_CLOSED_LEFT;
 
-            if (!env.tile_flv[x][y].floor)
-                env.tile_flv[x][y].floor = env.tile_default.floor + floor_rnd;
-            if (!env.tile_flv[x][y].wall)
-                env.tile_flv[x][y].wall = env.tile_default.wall + wall_rnd;
-
-            if (grd[x][y] == DNGN_CLOSED_DOOR || grd[x][y] == DNGN_OPEN_DOOR)
-            {
-                // Check for horizontal gates.
-
-                bool door_left  = (x > 0 && grd[x-1][y] == grd[x][y]);
-                bool door_right = (x < GXM - 1 && grd[x+1][y] == grd[x][y]);
-
-                if (door_left || door_right)
-                {
-                    int target;
-                    if (door_left && door_right)
-                        target = TILE_DNGN_GATE_CLOSED_MIDDLE;
-                    else if (door_left)
-                        target = TILE_DNGN_GATE_CLOSED_RIGHT;
-                    else
-                        target = TILE_DNGN_GATE_CLOSED_LEFT;
-
-                    // NOTE: This requires that closed gates and open gates
-                    // are positioned in the tile set relative to their
-                    // door counterpart.
-                    env.tile_flv[x][y].special =
-                        target - TILE_DNGN_CLOSED_DOOR;
-                }
-                else
-                {
-                    env.tile_flv[x][y].special = 0;
-                }
-            }
-            else if (grd[x][y] == DNGN_SECRET_DOOR)
-            {
-                env.tile_flv[x][y].special = 0;
-            }
-            else if (!env.tile_flv[x][y].special)
-            {
-                env.tile_flv[x][y].special = random2(256);
-            }
+            // NOTE: This requires that closed gates and open gates
+            // are positioned in the tile set relative to their
+            // door counterpart.
+            env.tile_flv(gc).special = target - TILE_DNGN_CLOSED_DOOR;
         }
+        else
+            env.tile_flv(gc).special = 0;
+    }
+    else if (grd(gc) == DNGN_SECRET_DOOR)
+        env.tile_flv(gc).special = 0;
+    else if (!env.tile_flv(gc).special)
+        env.tile_flv(gc).special = random2(256);
 }
 
 static bool _adjacent_target(dungeon_feature_type target, int x, int y)
@@ -4041,10 +4050,10 @@ static bool _adjacent_target(dungeon_feature_type target, int x, int y)
             if (!map_bounds(x+i, y+j))
                 continue;
             if (grd[x+i][y+j] == target)
-                return true;
+                return (true);
         }
 
-    return false;
+    return (false);
 }
 
 void tile_floor_halo(dungeon_feature_type target, int tile)
@@ -4354,7 +4363,7 @@ void tile_place_monster(int gx, int gy, int idx, bool foreground, bool detected)
         if (!mons_is_known_mimic(mon))
         {
             // if necessary add item brand
-            if (igrd[gx][gy] != NON_ITEM)
+            if (igrd(gc) != NON_ITEM)
             {
                 if (foreground)
                     t |= TILE_FLAG_S_UNDER;
@@ -4369,14 +4378,14 @@ void tile_place_monster(int gx, int gy, int idx, bool foreground, bool detected)
                 if (foreground)
                     env.tile_bg[ep.x-1][ep.y-1] |= TILE_FLAG_CURSOR3;
                 else
-                    env.tile_bk_bg[gx][gy] |= TILE_FLAG_CURSOR3;
+                    env.tile_bk_bg(gc) |= TILE_FLAG_CURSOR3;
             }
         }
     }
     else if (menv[idx].holiness() == MH_PLANT)
     {
         // if necessary add item brand
-        if (igrd[gx][gy] != NON_ITEM)
+        if (igrd(gc) != NON_ITEM)
         {
             if (foreground)
                 t |= TILE_FLAG_S_UNDER;
@@ -4397,7 +4406,7 @@ void tile_place_monster(int gx, int gy, int idx, bool foreground, bool detected)
 
         if (!player_monster_visible(mon)
             || mons_is_lurking(mon)
-            || (mons_is_mimic(mon->type) && !mons_is_known_mimic(mon))
+            || mons_is_unknown_mimic(mon)
             || mons_class_flag(mon->type, M_NO_EXP_GAIN))
         {
             return;
@@ -4424,20 +4433,11 @@ void tile_place_monster(int gx, int gy, int idx, bool foreground, bool detected)
         if (mon->type == MONS_PANDEMONIUM_DEMON)
             return;
 
-        if (mon->type == MONS_PLAYER_GHOST)
-        {
-            // Beautification hack.  "Foo's ghost" is a little bit
-            // verbose as a tag.  "Foo" on its own should be sufficient.
-            tiles.add_text_tag(TAG_NAMED_MONSTER, mon->mname, gc);
-        }
-        else
-        {
-            tiles.add_text_tag(TAG_NAMED_MONSTER, mon->name(DESC_PLAIN), gc);
-        }
+        tiles.add_text_tag(TAG_NAMED_MONSTER, mon);
     }
     else
     {
-        env.tile_bk_fg[gc.x][gc.y] = t0;
+        env.tile_bk_fg(gc) = t0;
     }
 }
 
@@ -4498,9 +4498,9 @@ void tile_finish_dngn(unsigned int *tileb, int cx, int cy)
 
             if (in_bounds)
             {
-                wall_flv    = env.tile_flv[gc.x][gc.y].wall;
-                floor_flv   = env.tile_flv[gc.x][gc.y].floor;
-                special_flv = env.tile_flv[gc.x][gc.y].special;
+                wall_flv    = env.tile_flv(gc).wall;
+                floor_flv   = env.tile_flv(gc).floor;
+                special_flv = env.tile_flv(gc).special;
             }
 
             _finalize_tile(&tileb[count+1], wall_flv, floor_flv, special_flv);

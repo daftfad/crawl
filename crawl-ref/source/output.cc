@@ -51,7 +51,7 @@ REVISION("$Rev$");
 #include "view.h"
 
 // Color for captions like 'Health:', 'Str:', etc.
-#define HUD_CAPTION_COLOR Options.status_caption_colour
+#define HUD_CAPTION_COLOUR Options.status_caption_colour
 
 // Colour for values, which come after captions.
 static const short HUD_VALUE_COLOUR = LIGHTGREY;
@@ -312,6 +312,13 @@ static void _print_stats_hp(int x, int y)
 
     // Calculate colour
     short hp_colour = HUD_VALUE_COLOUR;
+
+    const bool boosted = you.duration[DUR_DIVINE_VIGOUR]
+                             || you.duration[DUR_BERSERKER];
+
+    if (boosted)
+        hp_colour = LIGHTBLUE;
+    else
     {
         const int hp_percent =
             (you.hp * 100) / (max_max_hp ? max_max_hp : you.hp);
@@ -324,14 +331,17 @@ static void _print_stats_hp(int x, int y)
     // 01234567890123456789
     // Health: xxx/yyy (zzz)
     cgotoxy(x, y, GOTO_STAT);
-    textcolor(HUD_CAPTION_COLOR);
+    textcolor(HUD_CAPTION_COLOUR);
     cprintf(max_max_hp != you.hp_max ? "HP: " : "Health: ");
     textcolor(hp_colour);
     cprintf( "%d", you.hp );
-    textcolor(HUD_VALUE_COLOUR);
+    if (!boosted)
+        textcolor(HUD_VALUE_COLOUR);
     cprintf( "/%d", you.hp_max );
     if (max_max_hp != you.hp_max)
         cprintf( " (%d)", max_max_hp );
+    if (boosted)
+        textcolor(HUD_VALUE_COLOUR);
 
     int col = wherex() - crawl_view.hudp.x;
     for (int i = 18-col; i > 0; i--)
@@ -614,12 +624,6 @@ static void _get_status_lights(std::vector<status_light>& out)
     if (you.duration[DUR_PRAYER])
         out.push_back(status_light(WHITE, "Pray"));  // no end of effect warning
 
-    if (you.duration[DUR_REPEL_UNDEAD])
-    {
-        int colour = _dur_colour( LIGHTGREY, dur_expiring(DUR_REPEL_UNDEAD) );
-        out.push_back(status_light(colour, "Holy"));
-    }
-
     if (you.duration[DUR_TELEPORT])
         out.push_back(status_light(LIGHTBLUE, "Tele"));
 
@@ -855,7 +859,7 @@ void print_stats(void)
         yhack = 1;
         cgotoxy(1+6, 8, GOTO_STAT);
         textcolor(HUD_VALUE_COLOUR);
-        cprintf("%d", you.gold);
+        cprintf("%-6d", you.gold);
     }
 
     if (you.redraw_experience)
@@ -954,7 +958,7 @@ void print_stats_level()
     if (Options.show_gold_turns)
         ypos++;
     cgotoxy(19, ypos, GOTO_STAT);
-    textcolor(HUD_CAPTION_COLOR);
+    textcolor(HUD_CAPTION_COLOUR);
     cprintf("Place: ");
 
     textcolor(HUD_VALUE_COLOUR);
@@ -1019,7 +1023,7 @@ void redraw_skill(const std::string &your_name, const std::string &class_name)
 
 void draw_border(void)
 {
-    textcolor( HUD_CAPTION_COLOR );
+    textcolor(HUD_CAPTION_COLOUR);
     clrscr();
     redraw_skill( you.your_name, player_title() );
 
@@ -1156,10 +1160,7 @@ std::string mpr_monster_list(bool past)
     if (describe.size() == 1)
         msg += describe[0];
     else
-    {
-        msg += comma_separated_line(describe.begin(), describe.end(),
-                                    ", and ", ", ");
-    }
+        msg += comma_separated_line(describe.begin(), describe.end());
     msg += ".";
 
     return (msg);
@@ -1483,10 +1484,12 @@ static void _print_next_monster_desc(const std::vector<monster_pane_info>& mons,
             // Print an "icon" representing damage level.
             const monsters *mon = mons[start].m_mon;
             std::string damage_desc;
+
             mon_dam_level_type damage_level;
-            if (!monster_descriptor(mon->type, MDSC_NOMSG_WOUNDS))
-                mons_get_damage_level(mon, damage_desc, damage_level);
-            else
+            mons_get_damage_level(mon, damage_desc, damage_level);
+
+            // If no messages about wounds, don't display damage level either.
+            if (monster_descriptor(mon->type, MDSC_NOMSG_WOUNDS))
                 damage_level = MDAM_OKAY;
 
             int dam_color;
@@ -1506,7 +1509,10 @@ static void _print_next_monster_desc(const std::vector<monster_pane_info>& mons,
             cprintf(" ");
             textbackground(dam_color);
             textcolor(dam_color);
-            // Temporary, to diagnose 1933260
+            // FIXME: On Windows, printing a blank space here
+            // doesn't give us the correct colours. So use and
+            // underscore instead. Is this a bug with our interface
+            // or with Windows?
             cprintf("_");
             textbackground(BLACK);
             textcolor(LIGHTGREY);
@@ -1864,12 +1870,31 @@ static std::vector<formatted_string> _get_overview_stats()
     // 4 columns
     column_composer cols1(4, 18, 28, 40);
 
+    const bool boosted = you.duration[DUR_DIVINE_VIGOUR]
+                             || you.duration[DUR_BERSERKER];
+
     if (!player_rotted())
-        snprintf(buf, sizeof buf, "HP %3d/%d", you.hp, you.hp_max);
+    {
+        if (boosted)
+        {
+            snprintf(buf, sizeof buf, "HP <lightblue>%3d/%d</lightblue>",
+                     you.hp, you.hp_max);
+        }
+        else
+            snprintf(buf, sizeof buf, "HP %3d/%d", you.hp, you.hp_max);
+    }
     else
     {
-        snprintf(buf, sizeof buf, "HP %3d/%d (%d)",
-                 you.hp, you.hp_max, get_real_hp(true, true) );
+        if (boosted)
+        {
+            snprintf(buf, sizeof buf, "HP <lightblue>%3d/%d (%d)</lightblue>",
+                     you.hp, you.hp_max, get_real_hp(true, true));
+        }
+        else
+        {
+            snprintf(buf, sizeof buf, "HP %3d/%d (%d)",
+                     you.hp, you.hp_max, get_real_hp(true, true));
+        }
     }
     cols1.add_formatted(0, buf, false);
 
@@ -1999,7 +2024,8 @@ static std::vector<formatted_string> _get_overview_resistances(
     int saplevel = player_mutation_level(MUT_SAPROVOROUS);
     const char* pregourmand;
     const char* postgourmand;
-    if ( wearing_amulet(AMU_THE_GOURMAND, calc_unid) )
+
+    if (wearing_amulet(AMU_THE_GOURMAND, calc_unid))
     {
         pregourmand = "Gourmand  : ";
         postgourmand = itosym1(1);
@@ -2074,7 +2100,13 @@ char _get_overview_screen_results()
     // Set flags, and don't use easy exit.
     overview.set_flags(MF_SINGLESELECT | MF_ALWAYS_SHOW_MORE | MF_NOWRAP, false);
     overview.set_more( formatted_string::parse_string(
-                       "<cyan>[ + : Page down.   - : Page up.   Esc exits.]"));
+#ifdef USE_TILE
+                        "<cyan>[ +/L-click : Page down.   - : Page up."
+                        "           Esc/R-click exits.]"));
+#else
+                        "<cyan>[ + : Page down.   - : Page up."
+                        "                           Esc exits.]"));
+#endif
     overview.set_tag("resists");
 
     overview.add_text(_overview_screen_title());
@@ -2192,11 +2224,9 @@ std::string _status_mut_abilities()
     if (you.duration[DUR_BREATH_WEAPON])
         status.push_back("short of breath");
 
-    if (you.duration[DUR_REPEL_UNDEAD])
-    {
-        status.push_back(_get_expiration_string(DUR_REPEL_UNDEAD,
-                                                "repel undead"));
-    }
+    // TODO: Differentiate between mermaids and sirens!
+    if (you.duration[DUR_MESMERISED])
+        status.push_back("mesmerised");
 
     if (you.duration[DUR_LIQUID_FLAMES])
         status.push_back("liquid flames");
@@ -2219,7 +2249,8 @@ std::string _status_mut_abilities()
         status.push_back("praying");
 
     if (you.disease && !you.duration[DUR_REGENERATION]
-        || you.species == SP_VAMPIRE && you.hunger_state == HS_STARVING)
+        || you.species == SP_VAMPIRE && you.hunger_state == HS_STARVING
+        || player_mutation_level(MUT_SLOW_HEALING) == 3)
     {
         status.push_back("non-regenerating");
     }
@@ -2445,12 +2476,6 @@ std::string _status_mut_abilities()
         case TRAN_LICH:
             text += "\nYou are in lich-form.";
             break;
-        case TRAN_SERPENT_OF_HELL:
-            text += "\nYou are a huge demonic serpent.";
-            break;
-        case TRAN_AIR:
-            text += "\nYou are a cloud of diffuse gas.";
-            break;
         case TRAN_PIG:
             text += "\nYou are a filthy swine.";
             break;
@@ -2591,7 +2616,7 @@ std::string _status_mut_abilities()
         mutations.push_back("water walking");
 
     std::string current;
-    for (unsigned i = 0; i < NUM_MUTATIONS; i++)
+    for (unsigned i = 0; i < NUM_MUTATIONS; ++i)
     {
         int level = player_mutation_level((mutation_type) i);
         if (!level)
@@ -2639,6 +2664,9 @@ std::string _status_mut_abilities()
                 snprintf(info, INFO_SIZE, "saprovore %d", level);
                 current = info;
                 break;
+            case MUT_GOURMAND:
+                current = "gourmand";
+                break;
             case MUT_CARNIVOROUS:
                 snprintf(info, INFO_SIZE, "carnivore %d", level);
                 current = info;
@@ -2660,6 +2688,10 @@ std::string _status_mut_abilities()
                 break;
             case MUT_REGENERATION:
                 snprintf(info, INFO_SIZE, "regeneration %d", level);
+                current = info;
+                break;
+            case MUT_SLOW_HEALING:
+                snprintf(info, INFO_SIZE, "slow healing %d", level);
                 current = info;
                 break;
             case MUT_FAST_METABOLISM:
@@ -2739,8 +2771,7 @@ std::string _status_mut_abilities()
                 current = info;
                 break;
             case MUT_CLARITY:
-                snprintf(info, INFO_SIZE, "clarity %d", level);
-                current = info;
+                current = "clarity";
                 break;
             case MUT_BERSERK:
                 snprintf(info, INFO_SIZE, "berserk %d", level);
@@ -2801,9 +2832,6 @@ std::string _status_mut_abilities()
             case MUT_CONTROL_DEMONS:
                 current = "control demons";
                 break;
-            case MUT_PANDEMONIUM:
-                current = "portal to Pandemonium";
-                break;
             case MUT_DEATH_STRENGTH:
                 current = "draw strength from death and destruction";
                 break;
@@ -2847,14 +2875,6 @@ std::string _status_mut_abilities()
                 break;
             case MUT_BIG_WINGS:
                 current = "large and strong wings";
-                break;
-            case MUT_BLUE_MARKS:
-                snprintf(info, INFO_SIZE, "blue evil mark %d", level);
-                current = info;
-                break;
-            case MUT_GREEN_MARKS:
-                snprintf(info, INFO_SIZE, "green evil mark %d", level);
-                current = info;
                 break;
 
             // scales etc. -> calculate sum of AC bonus

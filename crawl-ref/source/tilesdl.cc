@@ -6,6 +6,7 @@ REVISION("$Rev$");
 #include "items.h"
 #include "itemprop.h"
 #include "files.h"
+#include "message.h"
 #include "mon-util.h"
 #include "player.h"
 #include "randart.h"
@@ -207,7 +208,7 @@ bool TilesFramework::initialise()
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0)
     {
         printf("Failed to initialise SDL: %s\n", SDL_GetError());
-        return false;
+        return (false);
     }
 
     {
@@ -228,7 +229,7 @@ bool TilesFramework::initialise()
     if (!icon)
     {
         printf("Failed to load icon: %s\n", SDL_GetError());
-        return false;
+        return (false);
     }
     SDL_WM_SetIcon(icon, NULL);
 
@@ -251,7 +252,7 @@ bool TilesFramework::initialise()
 
     bool too_small = (m_screen_width < 1024 || m_screen_height < 800);
     if (Options.tile_full_screen == SCREENMODE_FULL
-        || (Options.tile_full_screen == SCREENMODE_AUTO && too_small))
+        || too_small && Options.tile_full_screen == SCREENMODE_AUTO)
     {
         flags |= SDL_FULLSCREEN;
     }
@@ -277,44 +278,44 @@ bool TilesFramework::initialise()
     if (!m_context)
     {
         printf("Failed to set video mode: %s\n", SDL_GetError());
-        return false;
+        return (false);
     }
 
     if (!m_image.load_textures())
-        return false;
+        return (false);
 
     calculate_default_options();
 
-    int crt_font = load_font(Options.tile_font_crt_file.c_str(),
-                             Options.tile_font_crt_size, true, true);
-    int msg_font = load_font(Options.tile_font_msg_file.c_str(),
-                             Options.tile_font_msg_size, true, false);
+    int crt_font  = load_font(Options.tile_font_crt_file.c_str(),
+                              Options.tile_font_crt_size, true, true);
+    int msg_font  = load_font(Options.tile_font_msg_file.c_str(),
+                              Options.tile_font_msg_size, true, false);
     int stat_font = load_font(Options.tile_font_stat_file.c_str(),
                               Options.tile_font_stat_size, true, false);
-    m_tip_font = load_font(Options.tile_font_tip_file.c_str(),
-                           Options.tile_font_tip_size, true, false);
-    int lbl_font = load_font(Options.tile_font_lbl_file.c_str(),
-                             Options.tile_font_lbl_size, true, true);
+    m_tip_font    = load_font(Options.tile_font_tip_file.c_str(),
+                              Options.tile_font_tip_size, true, false);
+    int lbl_font  = load_font(Options.tile_font_lbl_file.c_str(),
+                              Options.tile_font_lbl_size, true, true);
 
     if (crt_font == -1 || msg_font == -1 || stat_font == -1
         || m_tip_font == -1 || lbl_font == -1)
     {
-        return false;
+        return (false);
     }
 
     m_region_tile = new DungeonRegion(&m_image, m_fonts[lbl_font].font,
                                       TILE_X, TILE_Y);
     m_region_map  = new MapRegion(Options.tile_map_pixels);
-    m_region_inv = new InventoryRegion(&m_image, m_fonts[lbl_font].font,
-                                            TILE_X, TILE_Y);
+    m_region_inv  = new InventoryRegion(&m_image, m_fonts[lbl_font].font,
+                                        TILE_X, TILE_Y);
 
     m_region_msg  = new MessageRegion(m_fonts[msg_font].font);
     m_region_stat = new StatRegion(m_fonts[stat_font].font);
     m_region_crt  = new CRTRegion(m_fonts[crt_font].font);
     m_region_menu = new MenuRegion(&m_image, m_fonts[crt_font].font);
 
-    m_layers[LAYER_NORMAL].m_regions.push_back(m_region_tile);
     m_layers[LAYER_NORMAL].m_regions.push_back(m_region_map);
+    m_layers[LAYER_NORMAL].m_regions.push_back(m_region_tile);
     m_layers[LAYER_NORMAL].m_regions.push_back(m_region_inv);
     m_layers[LAYER_NORMAL].m_regions.push_back(m_region_msg);
     m_layers[LAYER_NORMAL].m_regions.push_back(m_region_stat);
@@ -328,7 +329,7 @@ bool TilesFramework::initialise()
 
     resize();
 
-    return true;
+    return (true);
 }
 
 int TilesFramework::load_font(const char *font_file, int font_size,
@@ -406,10 +407,10 @@ void TilesFramework::load_dungeon(const coord_def &cen)
             }
             else if (!crawl_view.in_grid_los(gc) || !env.show(ep))
             {
-                fg = env.tile_bk_fg[gc.x][gc.y];
-                bg = env.tile_bk_bg[gc.x][gc.y];
+                fg = env.tile_bk_fg(gc);
+                bg = env.tile_bk_bg(gc);
                 if (!fg && !bg)
-                    tileidx_unseen(fg, bg, get_envmap_char(gc.x, gc.y), gc);
+                    tileidx_unseen(fg, bg, get_envmap_char(gc), gc);
                 bg |=  tile_unseen_flag(gc);
             }
             else
@@ -418,7 +419,7 @@ void TilesFramework::load_dungeon(const coord_def &cen)
                 bg = env.tile_bg[ep.x-1][ep.y-1];
             }
 
-            if (gc.x == cen.x && gc.y == cen.y)
+            if (gc == cen)
                 bg |= TILE_FLAG_CURSOR1;
 
             tb[count++] = fg;
@@ -591,8 +592,6 @@ static int _translate_keysym(SDL_keysym &keysym)
 
 int TilesFramework::handle_mouse(MouseEvent &event)
 {
-    m_region_tile->place_cursor(CURSOR_MOUSE, Region::NO_CURSOR);
-
     // Note: the mouse event goes to all regions in the active layer because
     // we want to be able to start some GUI event (e.g. far viewing) and
     // stop if it moves to another region.
@@ -612,10 +611,12 @@ int TilesFramework::handle_mouse(MouseEvent &event)
 
     // Handle "more" mode globally here, rather than duplicate across regions.
     if (mouse_control::current_mode() == MOUSE_MODE_MORE
-        && event.button == MouseEvent::LEFT
         && event.event == MouseEvent::PRESS)
     {
-        return CK_MOUSE_CLICK;
+        if (event.button == MouseEvent::LEFT)
+            return CK_MOUSE_CLICK;
+        else if (event.button == MouseEvent::RIGHT)
+            return CK_MOUSE_CMD;
     }
 
     // TODO enne - in what cases should the buttons be returned?
@@ -643,23 +644,23 @@ int TilesFramework::handle_mouse(MouseEvent &event)
 }
 
 static void _translate_event(const SDL_MouseMotionEvent &sdl_event,
-    MouseEvent &tile_event)
+                             MouseEvent &tile_event)
 {
-    tile_event.held = MouseEvent::NONE;
-    tile_event.event = MouseEvent::MOVE;
+    tile_event.held   = MouseEvent::NONE;
+    tile_event.event  = MouseEvent::MOVE;
     tile_event.button = MouseEvent::NONE;
-    tile_event.px = sdl_event.x;
-    tile_event.py = sdl_event.y;
+    tile_event.px     = sdl_event.x;
+    tile_event.py     = sdl_event.y;
 
     // TODO enne - do we want the relative motion?
 }
 
 static void _translate_event(const SDL_MouseButtonEvent &sdl_event,
-    MouseEvent &tile_event)
+                             MouseEvent &tile_event)
 {
-    tile_event.held = MouseEvent::NONE;
+    tile_event.held  = MouseEvent::NONE;
     tile_event.event = (sdl_event.type == SDL_MOUSEBUTTONDOWN) ?
-                       MouseEvent::PRESS : MouseEvent::RELEASE;
+                            MouseEvent::PRESS : MouseEvent::RELEASE;
     switch (sdl_event.button)
     {
     case SDL_BUTTON_LEFT:
@@ -678,7 +679,7 @@ static void _translate_event(const SDL_MouseButtonEvent &sdl_event,
         tile_event.button = MouseEvent::SCROLL_DOWN;
         break;
     default:
-        ASSERT(!"Unhandled button");
+        // Unhandled button.
         tile_event.button = MouseEvent::NONE;
         break;
     }
@@ -697,9 +698,30 @@ static unsigned int _timer_callback(unsigned int ticks)
     return res;
 }
 
+// Convenience struct for holding mouse location on screen.
+struct cursor_loc
+{
+    cursor_loc() { reset(); }
+    void reset() { reg = NULL; cx = cy = -1; }
+    bool operator==(const cursor_loc &rhs) const
+    {
+        return (rhs.reg == reg
+                && rhs.cx == cx
+                && rhs.cy == cy
+                && reg);
+    }
+
+    Region *reg;
+    int cx, cy;
+};
+
+
 int TilesFramework::getch_ck()
 {
+    flush_prev_message();
     SDL_Event event;
+    cursor_loc cur_loc;
+    cursor_loc tip_loc;
 
     int key = 0;
 
@@ -724,13 +746,33 @@ int TilesFramework::getch_ck()
             ticks = SDL_GetTicks();
 
             if (event.type != SDL_USEREVENT)
+            {
                 tiles.clear_text_tags(TAG_CELL_DESC);
+                m_region_msg->alt_text().clear();
+            }
+
+            // TODO enne - need to find a better time to decide when
+            // to generate a tip or some way to say "yes, but unchanged".
+            if (ticks > m_last_tick_moved)
+            {
+                m_region_msg->alt_text().clear();
+                for (unsigned int i = 0;
+                    i < m_layers[m_active_layer].m_regions.size(); i++)
+                {
+                    Region *reg = m_layers[m_active_layer].m_regions[i];
+                    if (!reg->inside(m_mouse.x, m_mouse.y))
+                        continue;
+                    if (reg->update_alt_text(m_region_msg->alt_text()))
+                        break;
+                }
+            }
 
             switch (event.type)
             {
             case SDL_KEYDOWN:
                 m_key_mod |= _get_modifiers(event.key.keysym);
                 key = _translate_keysym(event.key.keysym);
+                m_region_tile->place_cursor(CURSOR_MOUSE, Region::NO_CURSOR);
 
                 // If you hit a key, disable tooltips until the mouse
                 // is moved again.
@@ -758,6 +800,19 @@ int TilesFramework::getch_ck()
                     mouse_event.held = m_buttons_held;
                     mouse_event.mod = m_key_mod;
                     key = handle_mouse(mouse_event);
+
+                    // find mouse location
+                    for (unsigned int i = 0;
+                        i < m_layers[m_active_layer].m_regions.size(); i++)
+                    {
+                        Region *reg = m_layers[m_active_layer].m_regions[i];
+                        if (reg->mouse_pos(m_mouse.x, m_mouse.y,
+                                           cur_loc.cx, cur_loc.cy))
+                        {
+                            cur_loc.reg = reg;
+                            break;
+                        }
+                    }
                 }
                 break;
 
@@ -797,11 +852,13 @@ int TilesFramework::getch_ck()
             }
         }
 
-        bool show_tooltip = ((ticks - m_last_tick_moved
-                                > (unsigned int)Options.tile_tooltip_ms)
-                                && ticks > m_last_tick_moved);
+        bool timeout = ((ticks - m_last_tick_moved
+                         > (unsigned int)Options.tile_tooltip_ms)
+                         && ticks > m_last_tick_moved);
+        if (timeout)
+            tip_loc = cur_loc;
 
-        if (show_tooltip)
+        if (tip_loc == cur_loc)
         {
             tiles.clear_text_tags(TAG_CELL_DESC);
             if (m_tooltip.empty())
@@ -820,6 +877,7 @@ int TilesFramework::getch_ck()
         else
         {
             m_tooltip.clear();
+            tip_loc.reset();
         }
 
         if (ticks - last_redraw_tick > ticks_per_redraw)
@@ -919,17 +977,21 @@ void TilesFramework::do_layout()
     if (message_overlay)
     {
         m_region_msg->resize_to_fit(m_region_tile->ex, m_region_msg->ey);
-        crawl_view.msgsz.x = m_region_msg->mx;
-        crawl_view.msgsz.y = m_region_msg->my;
+        m_region_msg->ex = m_region_tile->ex;
     }
     else
     {
-        m_region_msg->resize_to_fit(m_region_msg->wx,
-                                    m_windowsz.y - m_region_msg->sx);
+        m_region_msg->resize_to_fit(m_region_tile->wx,
+                                    m_windowsz.y - m_region_msg->sy);
         int msg_y = std::min(Options.msg_max_height, (int)m_region_msg->my);
         m_region_msg->resize(m_region_msg->mx, msg_y);
+
+        m_region_msg->ex = m_region_tile->ex;
+        m_region_msg->ey = m_windowsz.y;
     }
     m_region_msg->set_overlay(message_overlay);
+    crawl_view.msgsz.x = m_region_msg->mx;
+    crawl_view.msgsz.y = m_region_msg->my;
 
     // Shrink view width if stat window can't fit...
     int stat_col;
@@ -970,7 +1032,7 @@ void TilesFramework::do_layout()
     }
 
     // If show_gold_turns isn't turned on, try turning it on if there's room.
-    if (!Options.show_gold_turns) 
+    if (!Options.show_gold_turns)
     {
         if (layout_statcol(message_overlay, true))
             Options.show_gold_turns = true;
@@ -1067,9 +1129,15 @@ int TilesFramework::get_number_of_lines()
 
 int TilesFramework::get_number_of_cols()
 {
-    // TODO enne - do we need to differentiate the number of columns
-    // in the message window and the number of columns on the CRT?
-    return m_region_crt->mx;
+    switch (m_active_layer)
+    {
+    default:
+        return 0;
+    case LAYER_NORMAL:
+        return m_region_msg->mx;
+    case LAYER_CRT:
+        return m_region_crt->mx;
+    }
 }
 
 void TilesFramework::cgotoxy(int x, int y, int region)
@@ -1115,9 +1183,9 @@ void TilesFramework::redraw()
     {
         const coord_def min_pos(0, 0);
         FTFont *font = m_fonts[m_tip_font].font;
+
         font->render_string(m_mouse.x, m_mouse.y - 2, m_tooltip.c_str(),
-                            min_pos, m_windowsz, WHITE, false, 150,
-                            BLUE, 5);
+                            min_pos, m_windowsz, WHITE, false, 220, BLUE, 5);
     }
 
     SDL_GL_SwapBuffers();
@@ -1228,8 +1296,8 @@ static void _fill_item_info(InventoryTile &desc, const item_def &item)
             case SPMSL_FLAME:
                 desc.special = TILE_BRAND_FLAME;
                 break;
-            case SPMSL_ICE:
-                desc.special = TILE_BRAND_ICE;
+            case SPMSL_FROST:
+                desc.special = TILE_BRAND_FROST;
                 break;
             case SPMSL_POISONED:
                 desc.special = TILE_BRAND_POISONED;
@@ -1273,6 +1341,9 @@ void TilesFramework::update_inventory()
     int max_pack_row = (ENDOFPACK-1) / mx + 1;
     int max_pack_items = max_pack_row * mx;
 
+    bool inv_shown[ENDOFPACK];
+    memset(inv_shown, 0, sizeof(inv_shown));
+
     int num_ground = 0;
     for (int i = igrd(you.pos()); i != NON_ITEM; i = mitm[i].link)
         num_ground++;
@@ -1282,15 +1353,23 @@ void TilesFramework::update_inventory()
     max_pack_items = std::min(max_pack_items, mx * my - min_ground);
     max_pack_items = std::min(ENDOFPACK, max_pack_items);
 
-    for (unsigned int c = 0; c < strlen(Options.tile_show_items); c++)
+    const size_t show_types_len = strlen(Options.tile_show_items);
+    // Special case: show any type if (c == show_types_len).
+    for (unsigned int c = 0; c <= show_types_len; c++)
     {
         if ((int)inv.size() >= max_pack_items)
             break;
 
-        const char *find = strchr(obj_syms, Options.tile_show_items[c]);
-        if (!find)
-            continue;
-        object_class_type type = (object_class_type)(find - obj_syms);
+        bool show_any = (c == show_types_len);
+
+        object_class_type type = OBJ_UNASSIGNED;
+        if (!show_any)
+        {
+            const char *find = strchr(obj_syms, Options.tile_show_items[c]);
+            if (!find)
+                continue;
+            type = (object_class_type)(find - obj_syms);
+        }
 
         // First, normal inventory
         for (int i = 0; i < ENDOFPACK; i++)
@@ -1298,11 +1377,13 @@ void TilesFramework::update_inventory()
             if ((int)inv.size() >= max_pack_items)
                 break;
 
-            if (!is_valid_item(you.inv[i]) || you.inv[i].quantity == 0)
+            if (inv_shown[i]
+                || !is_valid_item(you.inv[i])
+                || you.inv[i].quantity == 0
+                || (!show_any && you.inv[i].base_type != type))
+            {
                 continue;
-
-            if (you.inv[i].base_type != type)
-                continue;
+            }
 
             InventoryTile desc;
             _fill_item_info(desc, you.inv[i]);
@@ -1319,6 +1400,7 @@ void TilesFramework::update_inventory()
                 }
             }
 
+            inv_shown[i] = true;
             inv.push_back(desc);
         }
     }
@@ -1371,27 +1453,36 @@ void TilesFramework::update_inventory()
     }
 
     // Then, as many ground items as we can fit.
-    for (unsigned int c = 0; c < strlen(Options.tile_show_items); c++)
+    bool ground_shown[MAX_ITEMS];
+    memset(ground_shown, 0, sizeof(ground_shown));
+    for (unsigned int c = 0; c <= show_types_len; c++)
     {
         if ((int)inv.size() >= mx * my)
             break;
 
-        const char *find = strchr(obj_syms, Options.tile_show_items[c]);
-        if (!find)
-            continue;
-        object_class_type type = (object_class_type)(find - obj_syms);
+        bool show_any = (c == show_types_len);
+
+        object_class_type type = OBJ_UNASSIGNED;
+        if (!show_any)
+        {
+            const char *find = strchr(obj_syms, Options.tile_show_items[c]);
+            if (!find)
+                continue;
+            type = (object_class_type)(find - obj_syms);
+        }
 
         for (int i = igrd(you.pos()); i != NON_ITEM; i = mitm[i].link)
         {
             if ((int)inv.size() >= mx * my)
                 break;
 
-            if (mitm[i].base_type != type)
+            if (ground_shown[i] || !show_any && mitm[i].base_type != type)
                 continue;
 
             InventoryTile desc;
             _fill_item_info(desc, mitm[i]);
             desc.idx = i;
+            ground_shown[i] = true;
 
             inv.push_back(desc);
         }
@@ -1421,6 +1512,24 @@ void TilesFramework::add_text_tag(text_tag_type type, const std::string &tag,
                                   const coord_def &gc)
 {
     m_region_tile->add_text_tag(type, tag, gc);
+}
+
+void TilesFramework::add_text_tag(text_tag_type type, const monsters* mon)
+{
+    // HACK.  Names cover up pan demons in a weird way.
+    if (mon->type == MONS_PANDEMONIUM_DEMON)
+        return;
+
+    const coord_def &gc = mon->pos();
+
+    if (mon->type == MONS_PLAYER_GHOST)
+    {
+        // Beautification hack.  "Foo's ghost" is a little bit
+        // verbose as a tag.  "Foo" on its own should be sufficient.
+        tiles.add_text_tag(TAG_NAMED_MONSTER, mon->mname, gc);
+    }
+    else
+        tiles.add_text_tag(TAG_NAMED_MONSTER, mon->name(DESC_PLAIN), gc);
 }
 
 bool TilesFramework::initialise_items()

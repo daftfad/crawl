@@ -230,7 +230,7 @@ end
 
 ----------------------------------------------------------
 
-util.Timer = { }
+util.Timer = { CLASS = "Timer" }
 util.Timer.__index = util.Timer
 
 function util.Timer:new(pars)
@@ -250,4 +250,49 @@ function util.Timer:mark(what)
   local now = crawl.millis()
   crawl.mpr(what .. ": " .. (now - last) .. " ms")
   self.last = now
+end
+
+-- Turn contents of a table into a human readable string
+function table_to_string(table, depth)
+  depth = depth or 0
+
+  local indent = string.rep(" ", depth * 4)
+
+  if type(table) ~= "table" then
+    return indent .. "['" .. type(table) .. "', not a table]"
+  end
+
+  local str = ""
+
+  local meta = getmetatable(table)
+
+  if meta and meta.CLASS then
+    str = str .. indent .. "CLASS: "
+    if type (meta.CLASS) == "string" then
+      str = str .. meta.CLASS .. "\n"
+    else
+      str = str .. "[type " .. type(meta.CLASS) .. "]\n"
+    end
+  end
+
+  for key, value in pairs(table) do
+    local typ = type(key)
+    if typ == "string" or typ == "number" then
+      str = str .. indent .. key .. ": "
+    else
+      str = str .. indent .. "[type " .. typ .. "]: "
+    end
+
+    typ = type(value)
+    if typ == "table" then
+      str = str .. "\n" .. table_to_string(value, depth + 1)
+    elseif typ == "number" or typ == "string" or typ == "boolen" then
+      str = str .. value
+    else
+      str = str .. "[type " .. typ .. "]"
+    end
+    str = str .. "\n"
+  end
+
+  return str
 end

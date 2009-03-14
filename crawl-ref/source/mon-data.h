@@ -84,10 +84,10 @@
    corpse_thingy
    - err, bad name. Describes effects of eating corpses.
      CE_NOCORPSE,        leaves no corpse (mass == 0)
-     CE_CLEAN,           can be healthily eaten by non-Ghoul characters
+     CE_CLEAN,           can be healthily eaten by non-Ghouls
      CE_CONTAMINATED,    occasionally causes sickness
      CE_POISONOUS,       hazardous to characters without poison resistance
-     CE_HCL,             causes rotting in non-Ghoul characters
+     CE_HCL,             causes rotting in non-Ghouls
      CE_MUTAGEN_RANDOM,  mutagenic
      CE_MUTAGEN_GOOD,  // may be worth implementing {dlb}
      CE_MUTAGEN_BAD,   // may be worth implementing {dlb}
@@ -125,21 +125,21 @@
      MONUSE_WEAPONS_ARMOUR,
      MONUSE_MAGIC_ITEMS
 
-    From MONUSE_STARTING_EQUIPMENT on, monsters are capable of handling items.
-    Contrary to what one might expect MONUSE_WEAPONS_ARMOUR also means a
-    monster is capable of using wands and will also pick them up, something
-    that those with MONUSE_STARTING_EQUIPMENT won't do.
-    MONUSE_MAGIC_ITEMS is currently never used anywhere.
+    From MONUSE_STARTING_EQUIPMENT on, monsters are capable of handling
+    items.  Contrary to what one might expect, MONUSE_WEAPONS_ARMOUR
+    also means a monster is capable of using wands and will also pick
+    them up, something that those with MONUSE_STARTING_EQUIPMENT won't
+    do.  MONUSE_MAGIC_ITEMS is currently never used anywhere.
 
    size:
-     SIZE_TINY,              // rat/bat
-     SIZE_LITTLE,            // spriggan
-     SIZE_SMALL,             // halfling/kobold/gnome
-     SIZE_MEDIUM,            // human/elf/dwarf
-     SIZE_LARGE,             // troll/ogre/centaur/naga
-     SIZE_BIG,               // large quadrupeds
-     SIZE_GIANT,             // giant
-     SIZE_HUGE,              // dragon
+     SIZE_TINY,              // rats/bats
+     SIZE_LITTLE,            // spriggans
+     SIZE_SMALL,             // halflings/kobolds
+     SIZE_MEDIUM,            // humans/elves/dwarves
+     SIZE_LARGE,             // trolls/ogres
+     SIZE_BIG,               // large quadrupeds/centaurs/nagas
+     SIZE_GIANT,             // giants
+     SIZE_HUGE,              // dragons
 
  */
 
@@ -1033,7 +1033,7 @@ static monsterentry mondata[] = {
     M_EVIL,
     MR_RES_POISON | MR_RES_COLD,
     500, 12, MONS_GHOUL, MONS_GHOUL, MH_UNDEAD, -5,
-    { {AT_CLAW, AF_ROT, 9}, AT_NO_ATK, AT_NO_ATK, AT_NO_ATK },
+    { {AT_HIT, AF_PLAIN, 4}, {AT_CLAW, AF_ROT, 9}, AT_NO_ATK, AT_NO_ATK },
     { 4, 3, 5, 0 },
     4, 10, MST_NO_SPELLS, CE_HCL, Z_NOZOMBIE, S_SILENT, I_NORMAL,
     HT_LAND, 10, DEFAULT_ENERGY, MONUSE_WEAPONS_ARMOUR, SIZE_MEDIUM
@@ -1148,7 +1148,7 @@ static monsterentry mondata[] = {
     MONS_PHANTOM, 'p', BLUE, "phantom",
     M_EVIL | M_SPECIAL_ABILITY,
     MR_RES_POISON | mrd(MR_RES_COLD, 2),
-    0, 5, MONS_PHANTOM, MONS_PHANTOM, MH_UNDEAD, -4,
+    0, 5, MONS_PLAYER_GHOST, MONS_PHANTOM, MH_UNDEAD, -4,
     { {AT_HIT, AF_BLINK, 10}, AT_NO_ATK, AT_NO_ATK, AT_NO_ATK },
     { 7, 3, 5, 0 },
     3, 13, MST_NO_SPELLS, CE_NOCORPSE, Z_NOZOMBIE, S_SILENT, I_NORMAL,
@@ -1158,8 +1158,8 @@ static monsterentry mondata[] = {
 {
     MONS_HUNGRY_GHOST, 'p', GREEN, "hungry ghost",
     M_SENSE_INVIS | M_FLIES | M_EVIL | M_INSUBSTANTIAL | M_SPEAKS,
-    MR_RES_POISON | mrd(MR_RES_COLD, 2),
-    0, 10, MONS_PHANTOM, MONS_HUNGRY_GHOST, MH_UNDEAD, -4,
+    MR_RES_POISON | mrd(MR_RES_COLD, 2) | MR_RES_STICKY_FLAME,
+    0, 10, MONS_PLAYER_GHOST, MONS_HUNGRY_GHOST, MH_UNDEAD, -4,
     { {AT_HIT, AF_HUNGER, 5}, AT_NO_ATK, AT_NO_ATK, AT_NO_ATK },
     { 7, 3, 5, 0 },
     0, 17, MST_NO_SPELLS, CE_NOCORPSE, Z_NOZOMBIE, S_SILENT, I_NORMAL,
@@ -1170,7 +1170,7 @@ static monsterentry mondata[] = {
     MONS_FLAYED_GHOST, 'p', RED, "flayed ghost",
     M_FLIES | M_EVIL | M_SPEAKS,
     MR_RES_POISON,
-    0, 10, MONS_PHANTOM, MONS_FLAYED_GHOST, MH_UNDEAD, -4,
+    0, 10, MONS_PLAYER_GHOST, MONS_FLAYED_GHOST, MH_UNDEAD, -4,
     { {AT_HIT, AF_PLAIN, 30}, AT_NO_ATK, AT_NO_ATK, AT_NO_ATK },
     { 11, 3, 5, 0 },
     0, 14, MST_NO_SPELLS, CE_NOCORPSE, Z_NOZOMBIE, S_SILENT, I_NORMAL,
@@ -1182,8 +1182,8 @@ static monsterentry mondata[] = {
     MONS_PLAYER_GHOST, 'p', WHITE, "player ghost",
     M_FIGHTER | M_SPEAKS | M_SPELLCASTER | M_ACTUAL_SPELLS | M_FLIES
         | M_EVIL | M_UNIQUE | M_INSUBSTANTIAL,
-    MR_RES_POISON,
-    0, 15, MONS_PHANTOM, MONS_PLAYER_GHOST, MH_UNDEAD, -5,
+    MR_RES_POISON | MR_RES_STICKY_FLAME,
+    0, 15, MONS_PLAYER_GHOST, MONS_PLAYER_GHOST, MH_UNDEAD, -5,
     { {AT_HIT, AF_PLAIN, 5}, AT_NO_ATK, AT_NO_ATK, AT_NO_ATK },
     { 4, 2, 3, 0 },
     1, 2, MST_GHOST, CE_NOCORPSE, Z_NOZOMBIE, S_SHOUT, I_HIGH,
@@ -1193,7 +1193,8 @@ static monsterentry mondata[] = {
 {
     MONS_INSUBSTANTIAL_WISP, 'p', LIGHTGREY, "insubstantial wisp",
     M_LEVITATE | M_SPECIAL_ABILITY | M_INSUBSTANTIAL,
-    mrd(MR_RES_ELEC | MR_RES_POISON | MR_RES_FIRE | MR_RES_COLD, 2),
+    mrd(MR_RES_ELEC | MR_RES_POISON | MR_RES_FIRE | MR_RES_COLD, 2)
+      | MR_RES_STICKY_FLAME,
     0, 17, MONS_INSUBSTANTIAL_WISP, MONS_INSUBSTANTIAL_WISP, MH_NONLIVING, MAG_IMMUNE,
     { {AT_HIT, AF_BLINK, 12}, AT_NO_ATK, AT_NO_ATK, AT_NO_ATK },
     { 6, 1, 2, 0 },
@@ -1363,7 +1364,8 @@ static monsterentry mondata[] = {
 {
     MONS_FIRE_VORTEX, 'v', RED, "fire vortex",
     M_LEVITATE | M_CONFUSED | M_INSUBSTANTIAL | M_GLOWS,
-    MR_RES_POISON | mrd(MR_RES_FIRE, 3) | MR_VUL_COLD | MR_RES_ELEC,
+    MR_RES_POISON | mrd(MR_RES_FIRE, 3) | MR_VUL_COLD | MR_RES_ELEC
+      | MR_RES_STICKY_FLAME,
     0, 5, MONS_FIRE_VORTEX, MONS_FIRE_VORTEX, MH_NONLIVING, MAG_IMMUNE,
     { {AT_HIT, AF_FIRE, 30}, AT_NO_ATK, AT_NO_ATK, AT_NO_ATK },
     { 3, 3, 5, 0 },
@@ -1374,7 +1376,8 @@ static monsterentry mondata[] = {
 {
     MONS_SPATIAL_VORTEX, 'v', BLACK, "spatial vortex",
     M_LEVITATE | M_CONFUSED | M_INSUBSTANTIAL | M_GLOWS,
-    MR_RES_POISON | MR_RES_FIRE | MR_RES_COLD | MR_RES_ELEC,
+    MR_RES_POISON | MR_RES_FIRE | MR_RES_COLD | MR_RES_ELEC
+      | MR_RES_STICKY_FLAME,
     0, 5, MONS_FIRE_VORTEX, MONS_SPATIAL_VORTEX, MH_NONLIVING, MAG_IMMUNE,
     { {AT_HIT, AF_DISTORT, 30}, AT_NO_ATK, AT_NO_ATK, AT_NO_ATK },
     { 6, 6, 6, 0 },
@@ -1386,7 +1389,7 @@ static monsterentry mondata[] = {
 {
     MONS_AIR_ELEMENTAL, 'v', LIGHTGREY, "air elemental",
     M_LEVITATE | M_SEE_INVIS | M_FLIES | M_INSUBSTANTIAL | M_GLOWS,
-    mrd(MR_RES_ELEC, 3) | MR_RES_POISON,
+    mrd(MR_RES_ELEC, 3) | MR_RES_POISON | MR_RES_STICKY_FLAME,
     0, 5, MONS_EARTH_ELEMENTAL, MONS_AIR_ELEMENTAL, MH_NONLIVING, MAG_IMMUNE,
     { {AT_HIT, AF_PLAIN, 15}, AT_NO_ATK, AT_NO_ATK, AT_NO_ATK },
     { 6, 3, 5, 0 },
@@ -1408,7 +1411,8 @@ static monsterentry mondata[] = {
 {
     MONS_FIRE_ELEMENTAL, '#', YELLOW, "fire elemental",
     M_FLIES | M_INSUBSTANTIAL | M_GLOWS,
-    MR_RES_POISON | MR_RES_HELLFIRE | MR_VUL_COLD | MR_RES_ELEC,
+    MR_RES_POISON | MR_RES_HELLFIRE | MR_VUL_COLD | MR_RES_ELEC
+      | MR_RES_STICKY_FLAME,
     0, 10, MONS_EARTH_ELEMENTAL, MONS_FIRE_ELEMENTAL, MH_NONLIVING, MAG_IMMUNE,
     { {AT_HIT, AF_FIRE, 5}, AT_NO_ATK, AT_NO_ATK, AT_NO_ATK },
     { 6, 3, 5, 0 },
@@ -1466,7 +1470,7 @@ static monsterentry mondata[] = {
     M_NO_SKELETON | M_SPELLCASTER | M_EVIL,
     MR_NO_FLAGS,
     150, 10, MONS_WORM, MONS_BRAIN_WORM, MH_NATURAL, -3,
-    { AT_NO_ATK, AT_NO_ATK, AT_NO_ATK, AT_NO_ATK },
+    { {AT_BITE, AF_PLAIN, 6}, AT_NO_ATK, AT_NO_ATK, AT_NO_ATK },
     { 5, 3, 3, 0 },
     1, 5, MST_BRAIN_WORM, CE_POISONOUS, Z_SMALL, S_SILENT, I_INSECT,
     HT_LAND, 10, DEFAULT_ENERGY, MONUSE_NOTHING, SIZE_SMALL
@@ -1514,7 +1518,7 @@ static monsterentry mondata[] = {
     { {AT_HIT, AF_PLAIN, 23}, AT_NO_ATK, AT_NO_ATK, AT_NO_ATK },
     { 6, 2, 5, 0 },
     0, 0, MST_NO_SPELLS, CE_NOCORPSE, Z_NOZOMBIE, S_SILENT, I_PLANT,
-    HT_LAND, 0, DEFAULT_ENERGY, MONUSE_NOTHING, SIZE_LARGE
+    HT_LAND, 10, DEFAULT_ENERGY, MONUSE_NOTHING, SIZE_LARGE
 },
 
 // flying insects ('y')
@@ -1595,11 +1599,11 @@ static monsterentry mondata[] = {
     { AT_NO_ATK, AT_NO_ATK, AT_NO_ATK, AT_NO_ATK },
     { 0, 0, 0, 0 },
     0, 0, MST_NO_SPELLS, CE_NOCORPSE, Z_NOZOMBIE, S_SILENT, I_PLANT,
-    HT_LAND, 0, DEFAULT_ENERGY, MONUSE_NOTHING, SIZE_SMALL
+    HT_LAND, 5, DEFAULT_ENERGY, MONUSE_NOTHING, SIZE_SMALL
 },
 
 {
-    MONS_SIMULACRUM_SMALL, 'z', EC_ICE, "small simulacrum",
+    MONS_SIMULACRUM_SMALL, 'z', ETC_ICE, "small simulacrum",
     M_EVIL | M_NO_REGEN,
     MR_RES_POISON | MR_VUL_FIRE | mrd(MR_RES_COLD, 3),
     0, 6, MONS_SIMULACRUM_SMALL, MONS_SIMULACRUM_SMALL, MH_UNDEAD, -1,
@@ -1611,7 +1615,7 @@ static monsterentry mondata[] = {
 
 {
     MONS_SKELETAL_WARRIOR, 'z', CYAN, "skeletal warrior",
-    M_FIGHTER | M_SPELLCASTER | M_ACTUAL_SPELLS | M_EVIL,
+    M_FIGHTER | M_SPELLCASTER | M_EVIL,
     MR_RES_POISON | MR_RES_COLD,
     0, 10, MONS_SKELETAL_WARRIOR, MONS_SKELETAL_WARRIOR, MH_UNDEAD, -7,
     { {AT_HIT, AF_PLAIN, 25}, AT_NO_ATK, AT_NO_ATK, AT_NO_ATK },
@@ -1632,7 +1636,7 @@ static monsterentry mondata[] = {
 },
 
 {
-    MONS_FLAMING_CORPSE, 'z', LIGHTRED, "flaming corpse",
+    MONS_FLAMING_CORPSE, 'z', RED, "flaming corpse",
     M_SENSE_INVIS | M_EVIL | M_GLOWS,
     MR_RES_POISON | mrd(MR_RES_FIRE, 3) | MR_RES_STICKY_FLAME,
     0, 17, MONS_FLAMING_CORPSE, MONS_FLAMING_CORPSE, MH_UNDEAD, -4,
@@ -2030,8 +2034,8 @@ static monsterentry mondata[] = {
 {
     MONS_GIANT_SPORE, 'G', GREEN, "giant spore",
     M_LEVITATE | M_INSUBSTANTIAL,
-    MR_RES_POISON | MR_RES_ASPHYX,
-    0, 10, MONS_PLANT, MONS_GIANT_SPORE, MH_NATURAL, -3,
+    MR_RES_POISON | MR_RES_ASPHYX | MR_RES_STICKY_FLAME,
+    0, 10, MONS_PLANT, MONS_GIANT_SPORE, MH_PLANT, -3,
     { {AT_HIT, AF_PLAIN, 1}, AT_NO_ATK, AT_NO_ATK, AT_NO_ATK },
     { 1, 0, 0, 1 },
     0, 10, MST_NO_SPELLS, CE_NOCORPSE, Z_NOZOMBIE, S_SILENT, I_PLANT,
@@ -2045,7 +2049,7 @@ static monsterentry mondata[] = {
     400, 10, MONS_GIANT_EYEBALL, MONS_GIANT_EYEBALL, MH_NATURAL, -3,
     { AT_NO_ATK, AT_NO_ATK, AT_NO_ATK, AT_NO_ATK },
     { 3, 3, 5, 0 },
-    0, 1, MST_NO_SPELLS, CE_CLEAN, Z_SMALL, S_SILENT, I_PLANT,
+    0, 1, MST_NO_SPELLS, CE_CLEAN, Z_NOZOMBIE, S_SILENT, I_PLANT,
     HT_LAND, 3, DEFAULT_ENERGY, MONUSE_NOTHING, SIZE_MEDIUM
 },
 
@@ -2161,7 +2165,7 @@ static monsterentry mondata[] = {
     MR_RES_POISON,
     1000, 12, MONS_HARPY, MONS_HARPY, MH_NATURAL, -3,
     { {AT_CLAW, AF_PLAIN, 10}, {AT_CLAW, AF_STEAL_FOOD, 8},
-      AT_NO_ATK, AT_NO_ATK },
+       AT_NO_ATK, AT_NO_ATK },
     { 7, 3, 5, 0 },
     2, 10, MST_NO_SPELLS, CE_CONTAMINATED, Z_BIG, S_SCREECH, I_NORMAL,
     HT_LAND, 25, DEFAULT_ENERGY, MONUSE_NOTHING, SIZE_MEDIUM
@@ -2206,7 +2210,7 @@ static monsterentry mondata[] = {
     MONS_SLIME_CREATURE, 'J', GREEN, "slime creature",
     M_NO_FLAGS,
     MR_RES_POISON,
-    0, 5, MONS_SLIME_CREATURE, MONS_SLIME_CREATURE, MH_NATURAL, -3,
+    0, 5, MONS_JELLY, MONS_SLIME_CREATURE, MH_NATURAL, -3,
     { {AT_HIT, AF_PLAIN, 22}, AT_NO_ATK, AT_NO_ATK, AT_NO_ATK },
     { 11, 3, 5, 0 },
     1, 4, MST_NO_SPELLS, CE_NOCORPSE, Z_NOZOMBIE, S_SILENT, I_PLANT,
@@ -2228,7 +2232,7 @@ static monsterentry mondata[] = {
     MONS_GIANT_AMOEBA, 'J', BLUE, "giant amoeba",
     M_NO_SKELETON | M_SENSE_INVIS,
     MR_RES_POISON,
-    1000, 10, MONS_GIANT_AMOEBA, MONS_GIANT_AMOEBA, MH_NATURAL, -3,
+    1000, 10, MONS_JELLY, MONS_GIANT_AMOEBA, MH_NATURAL, -3,
     { {AT_HIT, AF_PLAIN, 25}, AT_NO_ATK, AT_NO_ATK, AT_NO_ATK },
     { 12, 3, 5, 0 },
     0, 4, MST_NO_SPELLS, CE_POISONOUS, Z_NOZOMBIE, S_SILENT, I_PLANT,
@@ -2391,7 +2395,7 @@ static monsterentry mondata[] = {
     750, 10, MONS_NAGA, MONS_NAGA, MH_NATURAL, -6,
     { {AT_HIT, AF_PLAIN, 17}, AT_NO_ATK, AT_NO_ATK, AT_NO_ATK },
     { 5, 3, 5, 0 },
-    6, 10, MST_NAGA, CE_POISONOUS, Z_SMALL, S_SHOUT, I_NORMAL,
+    6, 10, MST_NAGA, CE_POISONOUS, Z_BIG, S_SHOUT, I_NORMAL,
     HT_LAND, 8, ACTION_ENERGY(8), MONUSE_WEAPONS_ARMOUR, SIZE_BIG
 },
 
@@ -2402,7 +2406,7 @@ static monsterentry mondata[] = {
     350, 10, MONS_NAGA, MONS_GUARDIAN_NAGA, MH_NATURAL, -6,
     { {AT_HIT, AF_PLAIN, 26}, AT_NO_ATK, AT_NO_ATK, AT_NO_ATK },
     { 8, 3, 5, 0 },
-    6, 14, MST_GUARDIAN_NAGA, CE_MUTAGEN_RANDOM, Z_SMALL, S_SHOUT, I_HIGH,
+    6, 14, MST_GUARDIAN_NAGA, CE_MUTAGEN_RANDOM, Z_BIG, S_SHOUT, I_HIGH,
     HT_LAND, 15, DEFAULT_ENERGY, MONUSE_OPEN_DOORS, SIZE_BIG
 },
 
@@ -2718,7 +2722,8 @@ static monsterentry mondata[] = {
     M_SPELLCASTER | M_SEE_INVIS | M_EVIL | M_SPEAKS | M_BLOOD_SCENT,
     MR_RES_POISON | MR_RES_COLD,
     0, 11, MONS_VAMPIRE, MONS_VAMPIRE, MH_UNDEAD, -6,
-    { {AT_BITE, AF_VAMPIRIC, 22}, AT_NO_ATK, AT_NO_ATK, AT_NO_ATK },
+    { {AT_HIT, AF_PLAIN, 7}, {AT_BITE, AF_VAMPIRIC, 15}, AT_NO_ATK,
+       AT_NO_ATK },
     { 6, 3, 5, 0 },
     10, 10, MST_VAMPIRE, CE_NOCORPSE, Z_NOZOMBIE, S_SILENT, I_NORMAL,
     HT_LAND, 10, DEFAULT_ENERGY, MONUSE_WEAPONS_ARMOUR, SIZE_MEDIUM
@@ -2743,7 +2748,8 @@ static monsterentry mondata[] = {
         | M_BLOOD_SCENT,
     MR_RES_POISON | MR_RES_COLD,
     0, 15, MONS_VAMPIRE, MONS_VAMPIRE, MH_UNDEAD, -6,
-    { {AT_BITE, AF_VAMPIRIC, 22}, AT_NO_ATK, AT_NO_ATK, AT_NO_ATK },
+    { {AT_HIT, AF_PLAIN, 7}, {AT_BITE, AF_VAMPIRIC, 15}, AT_NO_ATK,
+       AT_NO_ATK },
     { 8, 3, 4, 0 },
     10, 10, MST_VAMPIRE_MAGE, CE_NOCORPSE, Z_NOZOMBIE, S_SILENT, I_HIGH,
     HT_LAND, 10, DEFAULT_ENERGY, MONUSE_WEAPONS_ARMOUR, SIZE_MEDIUM
@@ -2775,7 +2781,7 @@ static monsterentry mondata[] = {
 {
     MONS_SHADOW_WRAITH, 'W', BLUE, "shadow wraith",
     M_LEVITATE | M_SEE_INVIS | M_INVIS | M_EVIL | M_INSUBSTANTIAL,
-    MR_RES_POISON,
+    MR_RES_POISON | MR_RES_STICKY_FLAME,
     0, 15, MONS_WRAITH, MONS_SHADOW_WRAITH, MH_UNDEAD, -8,
     { {AT_HIT, AF_DRAIN_XP, 20}, AT_NO_ATK, AT_NO_ATK, AT_NO_ATK },
     { 10, 3, 5, 0 },
@@ -2826,7 +2832,7 @@ static monsterentry mondata[] = {
     { {AT_HIT, AF_PLAIN, 40}, AT_NO_ATK, AT_NO_ATK, AT_NO_ATK },
     { 11, 2, 5, 0 },
     0, 0, MST_NO_SPELLS, CE_NOCORPSE, Z_NOZOMBIE, S_SILENT, I_PLANT,
-    HT_LAND, 0, DEFAULT_ENERGY, MONUSE_NOTHING, SIZE_BIG
+    HT_LAND, 10, DEFAULT_ENERGY, MONUSE_NOTHING, SIZE_BIG
 },
 
 {
@@ -2907,11 +2913,11 @@ static monsterentry mondata[] = {
     { AT_NO_ATK, AT_NO_ATK, AT_NO_ATK, AT_NO_ATK },
     { 0, 0, 0, 0 },
     0, 0, MST_NO_SPELLS, CE_NOCORPSE, Z_NOZOMBIE, S_SILENT, I_PLANT,
-    HT_LAND, 0, DEFAULT_ENERGY, MONUSE_NOTHING, SIZE_LARGE
+    HT_LAND, 5, DEFAULT_ENERGY, MONUSE_NOTHING, SIZE_LARGE
 },
 
 {
-    MONS_SIMULACRUM_LARGE, 'Z', EC_ICE, "large simulacrum",
+    MONS_SIMULACRUM_LARGE, 'Z', ETC_ICE, "large simulacrum",
     M_EVIL | M_NO_REGEN,
     MR_RES_POISON | MR_VUL_FIRE | mrd(MR_RES_COLD, 3),
     0, 6, MONS_SIMULACRUM_SMALL, MONS_SIMULACRUM_LARGE, MH_UNDEAD, -1,
@@ -3030,7 +3036,7 @@ static monsterentry mondata[] = {
     M_NO_FLAGS,
     MR_RES_POISON | MR_RES_FIRE | MR_RES_COLD | MR_RES_ELEC,
     0, 10, MONS_WORM, MONS_ROCK_WORM, MH_NATURAL, -3,
-    { {AT_BITE, AF_PLAIN, 20}, AT_NO_ATK, AT_NO_ATK, AT_NO_ATK },
+    { {AT_BITE, AF_PLAIN, 22}, AT_NO_ATK, AT_NO_ATK, AT_NO_ATK },
     { 5, 5, 5, 0 },
     3, 12, MST_NO_SPELLS, CE_NOCORPSE, Z_NOZOMBIE, S_SILENT, I_PLANT,
     HT_ROCK, 12, DEFAULT_ENERGY, MONUSE_NOTHING, SIZE_LARGE
@@ -3340,13 +3346,13 @@ static monsterentry mondata[] = {
     { {AT_BITE, AF_PLAIN, 28}, {AT_CLAW, AF_PLAIN, 20}, AT_NO_ATK, AT_NO_ATK },
     { 7, 9, 6, 0 },
     0, 0, MST_NO_SPELLS, CE_NOCORPSE, Z_NOZOMBIE, S_RANDOM, I_NORMAL,
-    HT_LAND, 0, DEFAULT_ENERGY, MONUSE_OPEN_DOORS, SIZE_LARGE
+    HT_LAND, 10, DEFAULT_ENERGY, MONUSE_OPEN_DOORS, SIZE_LARGE
 },
 
 {
     MONS_SMOKE_DEMON, '4', LIGHTGREY, "smoke demon",
     M_SPELLCASTER | M_FLIES | M_EVIL | M_INSUBSTANTIAL,
-    MR_RES_POISON | mrd(MR_RES_FIRE, 2),
+    MR_RES_POISON | mrd(MR_RES_FIRE, 2) | MR_RES_STICKY_FLAME,
     0, 12, MONS_SMOKE_DEMON, MONS_SMOKE_DEMON, MH_DEMONIC, -6,
     { {AT_HIT, AF_PLAIN, 8}, {AT_HIT, AF_PLAIN, 5}, {AT_HIT, AF_PLAIN, 5},
        AT_NO_ATK },
@@ -3357,7 +3363,7 @@ static monsterentry mondata[] = {
 
 // middle demons ('3')
 {
-    MONS_HELLION, '3', EC_FIRE, "hellion",
+    MONS_HELLION, '3', ETC_FIRE, "hellion",
     M_SPELLCASTER | M_EVIL | M_GLOWS,
     MR_RES_POISON | MR_RES_HELLFIRE | MR_VUL_COLD,
     0, 11, MONS_HELLION, MONS_HELLION, MH_DEMONIC, -7,
@@ -3468,9 +3474,9 @@ static monsterentry mondata[] = {
 },
 
 {
-    MONS_CHAOS_SPAWN, '3', EC_RANDOM, "chaos spawn",
+    MONS_CHAOS_SPAWN, '3', ETC_RANDOM, "chaos spawn",
     M_SEE_INVIS | M_EVIL | M_INSUBSTANTIAL,
-    MR_NO_FLAGS,
+    MR_RES_STICKY_FLAME,
     0, 12, MONS_CHAOS_SPAWN, MONS_CHAOS_SPAWN, MH_DEMONIC, -7,
     { {AT_RANDOM, AF_CHAOS, 21}, AT_NO_ATK, AT_NO_ATK, AT_NO_ATK },
     { 6, 3, 5, 0 },
@@ -3809,7 +3815,8 @@ static monsterentry mondata[] = {
     MONS_BALL_LIGHTNING, '*', LIGHTCYAN, "ball lightning",
     M_FLIES | M_CONFUSED | M_SPELLCASTER | M_SPECIAL_ABILITY
         | M_INSUBSTANTIAL,
-    mrd(MR_RES_ELEC | MR_RES_POISON | MR_RES_FIRE | MR_RES_COLD, 3),
+    mrd(MR_RES_ELEC | MR_RES_POISON | MR_RES_FIRE | MR_RES_COLD, 3)
+        | MR_RES_STICKY_FLAME,
     0, 20, MONS_BALL_LIGHTNING, MONS_BALL_LIGHTNING, MH_NONLIVING, MAG_IMMUNE,
     { {AT_HIT, AF_PLAIN, 5}, AT_NO_ATK, AT_NO_ATK, AT_NO_ATK },
     { 12, 0, 0, 1 },
@@ -3821,7 +3828,7 @@ static monsterentry mondata[] = {
     MONS_ORB_OF_FIRE, '*', RED, "orb of fire",
     M_SPELLCASTER | M_FLIES | M_SEE_INVIS | M_INSUBSTANTIAL | M_GLOWS,
     mrd(MR_RES_FIRE | MR_RES_HELLFIRE | MR_RES_POISON, 3) | MR_RES_COLD
-        | MR_RES_ELEC,
+        | MR_RES_ELEC | MR_RES_STICKY_FLAME,
     0, 10, MONS_ORB_OF_FIRE, MONS_ORB_OF_FIRE, MH_NONLIVING, MAG_IMMUNE,
     { AT_NO_ATK, AT_NO_ATK, AT_NO_ATK, AT_NO_ATK },
     { 30, 0, 0, 150 },
@@ -3834,7 +3841,7 @@ static monsterentry mondata[] = {
     MONS_VAPOUR, '#', LIGHTGREY, "vapour",
     M_SPELLCASTER | M_LEVITATE | M_SEE_INVIS | M_INVIS | M_CONFUSED
         | M_INSUBSTANTIAL,
-    mrd(MR_RES_ELEC, 3) | MR_RES_POISON,
+    mrd(MR_RES_ELEC, 3) | MR_RES_POISON | MR_RES_STICKY_FLAME,
     0, 21, MONS_VAPOUR, MONS_VAPOUR, MH_NONLIVING, MAG_IMMUNE,
     { AT_NO_ATK, AT_NO_ATK, AT_NO_ATK, AT_NO_ATK },
     { 12, 2, 3, 0 },
@@ -3845,7 +3852,7 @@ static monsterentry mondata[] = {
 {
     MONS_SHADOW, ' ', BLACK, "shadow",
     M_SEE_INVIS | M_EVIL | M_INSUBSTANTIAL | M_GLOWS,
-    MR_RES_POISON | mrd(MR_RES_COLD, 3),
+    MR_RES_POISON | mrd(MR_RES_COLD, 3) | MR_RES_STICKY_FLAME,
     0, 10, MONS_WRAITH, MONS_SHADOW, MH_UNDEAD, -5,
     { {AT_HIT, AF_DRAIN_STR, 5}, AT_NO_ATK, AT_NO_ATK, AT_NO_ATK },
     { 3, 3, 5, 0 },
@@ -4078,6 +4085,7 @@ static monsterentry mondata[] = {
 },
 
 {
+    // Gets a random spellbook between MST_WIZARD_I and MST_WIZARD_V.
     MONS_EROLCHA, 'O', LIGHTBLUE, "Erolcha",
     M_UNIQUE | M_SPELLCASTER | M_ACTUAL_SPELLS | M_SEE_INVIS | M_WARM_BLOOD
         | M_EVIL | M_SPEAKS,

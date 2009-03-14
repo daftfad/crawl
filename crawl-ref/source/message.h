@@ -22,8 +22,9 @@
  *              misc - player - spell - spl-book - spells1 - spells2 -
  *              spells3
  * *********************************************************************** */
-void mesclr( bool force = false );
+void mesclr(bool force = false);
 
+void flush_prev_message();
 
 // last updated 12may2000 {dlb}
 /* ***********************************************************************
@@ -47,7 +48,7 @@ void formatted_message_history(const std::string &st,
 // mpr() an arbitrarily long list of strings
 void mpr_comma_separated_list(const std::string prefix,
                               const std::vector<std::string> list,
-                              const std::string &andc = " and ",
+                              const std::string &andc = ", and ",
                               const std::string &comma = ", ",
                               const msg_channel_type channel = MSGCH_PLAIN,
                               const int param = 0);
@@ -127,5 +128,6 @@ namespace msg
 
 std::ostream& operator<<(std::ostream& os, const msg::setparam& sp);
 
+void set_msg_dump_file(FILE* file);
 
 #endif

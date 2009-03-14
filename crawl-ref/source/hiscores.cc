@@ -432,8 +432,7 @@ static const char *kill_method_names[] =
 
 const char *kill_method_name(kill_method_type kmt)
 {
-    ASSERT(NUM_KILLBY ==
-           (int) sizeof(kill_method_names) / sizeof(*kill_method_names));
+    ASSERT(NUM_KILLBY == ARRAYSZ(kill_method_names));
 
     if (kmt == NUM_KILLBY)
         return ("");
@@ -443,8 +442,7 @@ const char *kill_method_name(kill_method_type kmt)
 
 kill_method_type str_to_kill_method(const std::string &s)
 {
-    ASSERT(NUM_KILLBY ==
-           (int) sizeof(kill_method_names) / sizeof(*kill_method_names));
+    ASSERT(NUM_KILLBY == ARRAYSZ(kill_method_names));
 
     for (int i = 0; i < NUM_KILLBY; ++i)
     {
@@ -726,7 +724,7 @@ std::string scorefile_entry::make_oneline(const std::string &ml) const
             trim_string(s);
         }
     }
-    return comma_separated_line(lines.begin(), lines.end(), " ", " ");
+    return (comma_separated_line(lines.begin(), lines.end(), " ", " "));
 }
 
 std::string scorefile_entry::long_kill_message() const
@@ -763,9 +761,9 @@ void scorefile_entry::init_death_cause(int dam, int dsrc,
 
     // for death by monster
     if ((death_type == KILLED_BY_MONSTER
-            || death_type == KILLED_BY_BEAM
-            || death_type == KILLED_BY_SPORE
-            || death_type == KILLED_BY_REFLECTION)
+         || death_type == KILLED_BY_BEAM
+         || death_type == KILLED_BY_SPORE
+         || death_type == KILLED_BY_REFLECTION)
         && !invalid_monster_index(death_source)
         && menv[death_source].type != -1)
     {
@@ -825,7 +823,7 @@ void scorefile_entry::init_death_cause(int dam, int dsrc,
     else
     {
         mon_num = 0;
-        death_source_name[0] = 0;
+        death_source_name.clear();
     }
 
     if (death_type == KILLED_BY_WEAKNESS
@@ -842,19 +840,19 @@ void scorefile_entry::reset()
     // simple init
     version.clear();
     points               = -1;
-    name[0]              = 0;
+    name.clear();
     uid                  = 0;
     race                 = 0;
     cls                  = 0;
     lvl                  = 0;
-    race_class_name[0]   = 0;
+    race_class_name.clear();
     best_skill           = 0;
     best_skill_lvl       = 0;
     death_type           = KILLED_BY_SOMETHING;
     death_source         = NON_MONSTER;
     mon_num              = 0;
-    death_source_name[0] = 0;
-    auxkilldata[0]       = 0;
+    death_source_name.clear();
+    auxkilldata.clear();
     dlvl                 = 0;
     level_type           = LEVEL_DUNGEON;
     branch               = BRANCH_MAIN_DUNGEON;
@@ -1018,7 +1016,7 @@ void scorefile_entry::init()
     race = you.species;
     cls  = you.char_class;
 
-    race_class_name[0] = 0;
+    race_class_name.clear();
 
     lvl            = you.experience_level;
     best_skill     = ::best_skill( SK_FIGHTING, NUM_SKILLS - 1, 99 );
@@ -1026,7 +1024,7 @@ void scorefile_entry::init()
 
     final_hp         = you.hp;
     final_max_hp     = you.hp_max;
-    final_max_max_hp = you.hp_max + player_rotted();
+    final_max_max_hp = get_real_hp(true, true);
 
     str   = std::max(you.strength - stat_modifier(STAT_STRENGTH), 1);
     intel = std::max(you.intel - stat_modifier(STAT_INTELLIGENCE), 1);
@@ -1425,7 +1423,7 @@ std::string scorefile_entry::death_description(death_desc_verbosity verbosity)
         }
 
         // put the damage on the weapon line if there is one
-        if (auxkilldata[0] == 0)
+        if (auxkilldata.empty())
             needs_damage = true;
         break;
 
@@ -1434,7 +1432,7 @@ std::string scorefile_entry::death_description(death_desc_verbosity verbosity)
         break;
 
     case KILLED_BY_CLOUD:
-        if (auxkilldata[0] == 0)
+        if (auxkilldata.empty())
             desc += terse? "cloud" : "Engulfed by a cloud";
         else
         {
@@ -1711,8 +1709,6 @@ std::string scorefile_entry::death_description(death_desc_verbosity verbosity)
         desc += terse? "petrified" : "Turned to stone";
         break;
 
-    /* case 26 */
-
     case KILLED_BY_SOMETHING:
         if (!auxkilldata.empty())
             desc += auxkilldata;
@@ -1779,7 +1775,6 @@ std::string scorefile_entry::death_description(death_desc_verbosity verbosity)
     default:
         break;
     }
-
 
     if (oneline && desc.length() > 2)
         desc[1] = tolower(desc[1]);
@@ -1850,7 +1845,7 @@ std::string scorefile_entry::death_description(death_desc_verbosity verbosity)
         {
             desc += _hiscore_newline_string();
 
-            if (death_type == KILLED_BY_MONSTER && auxkilldata[0])
+            if (death_type == KILLED_BY_MONSTER && !auxkilldata.empty())
             {
                 if (!semiverbose)
                 {

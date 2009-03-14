@@ -74,22 +74,11 @@ enum potion_description_qualifier_type
 };
 
 bool is_vowel( const char chr );
-
-/* ***********************************************************************
- * called from: debug - describe - dungeon - fight - files - item_use -
- *              monstuff - mstuff2 - players - spells0
- * *********************************************************************** */
 int property( const item_def &item, int prop_type );
 
-/* ***********************************************************************
- * called from: describe
- * *********************************************************************** */
 const char* racial_description_string(const item_def& item, bool terse = false);
 
-/* ***********************************************************************
- * called from: acr
- * *********************************************************************** */
-void check_item_knowledge();
+bool check_item_knowledge(bool quiet);
 
 std::string quant_name( const item_def &item, int quant,
                         description_level_type des, bool terse = false );
@@ -125,27 +114,19 @@ void set_ident_type( item_def &item, item_type_id_state_type setting,
 void set_ident_type( object_class_type basetype, int subtype,
                      item_type_id_state_type setting, bool force = false);
 
-/* ***********************************************************************
- * called from: command - itemname - invent.h
- * *********************************************************************** */
-const std::string menu_colour_item_prefix(const item_def &item,
-                                          bool temp = true);
-const std::string filtering_item_prefix(const item_def &item,
-                                        bool temp = true);
-const std::string get_menu_colour_prefix_tags(item_def &item,
-                                              description_level_type desc);
-const std::string get_message_colour_tags(item_def &item,
-                                          description_level_type desc,
-                                          msg_channel_type channel = MSGCH_PLAIN);
+std::string menu_colour_item_prefix(const item_def &item, bool temp = true);
+std::string filtering_item_prefix(const item_def &item, bool temp = true);
+std::string get_menu_colour_prefix_tags(const item_def &item,
+                                        description_level_type desc);
+std::string get_message_colour_tags(const item_def &item,
+                                    description_level_type desc,
+                                    msg_channel_type channel = MSGCH_PLAIN);
 
 void            init_item_name_cache();
 item_types_pair item_types_by_name(std::string name);
 
 std::vector<std::string> item_name_list_for_glyph(unsigned glyph);
 
-/* ***********************************************************************
- * called from: newgame
- * *********************************************************************** */
 const char* wand_type_name(int wandtype);
 
 bool        is_named_corpse(const item_def &corpse);

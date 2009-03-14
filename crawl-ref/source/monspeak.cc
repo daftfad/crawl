@@ -366,7 +366,7 @@ static bool _polyd_can_speak(const monsters* monster)
 }
 
 // Returns true if something is said.
-bool mons_speaks(const monsters *monster)
+bool mons_speaks(monsters *monster)
 {
     ASSERT(!invalid_monster_class(monster->type));
 
@@ -387,7 +387,7 @@ bool mons_speaks(const monsters *monster)
        // should stay silent, but only if the player can see them, so as
        // to not have to deal with cases of speaking monsters which the
        // player can't see.
-       if (unseen && !confused);
+       if (unseen && !confused)
            return (false);
 
         // Silenced monsters only "speak" 1/3 as often as non-silenced,
@@ -441,10 +441,10 @@ bool mons_speaks(const monsters *monster)
         prefixes.push_back("confused");
 
     const actor*    foe   = (!crawl_state.arena && mons_wont_attack(monster)
-                             && invalid_monster_index(monster->foe)) ?
-                            &you : monster->get_foe();
+                                && invalid_monster_index(monster->foe)) ?
+                                    &you : monster->get_foe();
     const monsters* m_foe = (foe && foe->atype() == ACT_MONSTER) ?
-                            dynamic_cast<const monsters*>(foe) : NULL;
+                                dynamic_cast<const monsters*>(foe) : NULL;
 
     // animals only look at the current player form, smart monsters at the
     // actual player genus
@@ -489,17 +489,17 @@ bool mons_speaks(const monsters *monster)
     }
 
 #ifdef DEBUG_MONSPEAK
-{
-    std::string prefix = "";
-    const int size = prefixes.size();
-    for (int i = 0; i < size; i++)
     {
-        prefix += prefixes[i];
-        prefix += " ";
+        std::string prefix;
+        const int size = prefixes.size();
+        for (int i = 0; i < size; i++)
+        {
+            prefix += prefixes[i];
+            prefix += " ";
+        }
+        mprf(MSGCH_DIAGNOSTICS, "monster speech lookup for %s: prefix = %s",
+             monster->name(DESC_PLAIN).c_str(), prefix.c_str());
     }
-    mprf(MSGCH_DIAGNOSTICS, "monster speech lookup for %s: prefix = %s",
-         monster->name(DESC_PLAIN).c_str(), prefix.c_str());
-}
 #endif
 
     const bool no_foe      = foe == NULL;
@@ -516,7 +516,7 @@ bool mons_speaks(const monsters *monster)
 
     std::string msg;
 
-    // First, try its exact name
+    // First, try its exact name.
     if (monster->type == MONS_PLAYER_GHOST)
     {
         // Player ghosts are treated differently.
@@ -524,8 +524,8 @@ bool mons_speaks(const monsters *monster)
     }
     else if (monster->type == MONS_PANDEMONIUM_DEMON)
     {
-        // Pandemonium demons have randomly generated names,
-        // so use "pandemonium lord" instead.
+        // Pandemonium demons have randomly generated names, so use
+        // "pandemonium lord" instead.
         msg = _get_speak_string(prefixes, "pandemonium lord", monster,
                                 no_player, no_foe, no_foe_name, no_god,
                                 unseen);
@@ -533,14 +533,18 @@ bool mons_speaks(const monsters *monster)
     else
     {
         if (!monster->mname.empty() && _polyd_can_speak(monster))
+        {
             msg = _get_speak_string(prefixes, monster->name(DESC_PLAIN),
                                     monster, no_player, no_foe, no_foe_name,
                                     no_god, unseen);
+        }
 
         if (msg.empty())
+        {
             msg = _get_speak_string(prefixes, monster->base_name(DESC_PLAIN),
                                     monster, no_player, no_foe, no_foe_name,
                                     no_god, unseen);
+        }
     }
 
     // The exact name brought no results, try monster genus.
@@ -566,7 +570,7 @@ bool mons_speaks(const monsters *monster)
     }
 
     // Now that we're not dealing with a specific monster name, include
-    // whether or not it can move in the prefix
+    // whether or not it can move in the prefix.
     if (mons_is_stationary(monster))
         prefixes.insert(prefixes.begin(), "stationary");
 
@@ -636,9 +640,11 @@ bool mons_speaks(const monsters *monster)
     }
 
     if (msg.empty() || msg == "__NEXT")
+    {
         msg = _get_speak_string(prefixes, get_mon_shape_str(shape), monster,
                                 no_player, no_foe, no_foe_name, no_god,
                                 unseen);
+    }
 
     if (msg == "__NONE")
     {
@@ -649,13 +655,12 @@ bool mons_speaks(const monsters *monster)
     }
 
     // If we failed to get a message with a winged or tailed humanoid,
-    // or a naga or centaur, try moving closer to plain humanoid
+    // or a naga or centaur, try moving closer to plain humanoid.
     if ((msg.empty() || msg == "__NEXT") && shape > MON_SHAPE_HUMANOID
         && shape <= MON_SHAPE_NAGA)
     {
-        // If a humanoid monster has both wings and a tail, try
-        // removing one and then the other to see if we get any
-        // results.
+        // If a humanoid monster has both wings and a tail, try removing
+        // one and then the other to see if we get any results.
         if (shape == MON_SHAPE_HUMANOID_WINGED_TAILED)
         {
             shape = MON_SHAPE_HUMANOID_TAILED;
@@ -663,7 +668,7 @@ bool mons_speaks(const monsters *monster)
                                     monster, no_player, no_foe, no_foe_name,
                                     no_god, unseen);
 
-            // Only be silent if both tailed and winged return __NONE
+            // Only be silent if both tailed and winged return __NONE.
             if (msg.empty() || msg == "__NONE" || msg == "__NEXT")
             {
                 shape = MON_SHAPE_HUMANOID_WINGED;
@@ -721,37 +726,34 @@ bool mons_speaks(const monsters *monster)
             msg = replace_all(msg, "__YOU_RESIST", "__NOTHING_HAPPENS");
     }
 
-    mons_speaks_msg(monster, msg, MSGCH_TALK, silence);
-    return (true);
-}                               // end mons_speaks = end of routine
+    return (mons_speaks_msg(monster, msg, MSGCH_TALK, silence));
+}
 
-void mons_speaks_msg(const monsters *monster, const std::string &msg,
+bool mons_speaks_msg(monsters *monster, const std::string &msg,
                      const msg_channel_type def_chan, const bool silence)
 {
     if (!mons_near(monster))
-        return;
+        return (false);
 
-    // Make sure the "comes into view" type messages are displayed before
-    // the monster speaks.
-    if (player_monster_visible(monster) && !(monster->flags & MF_WAS_IN_VIEW))
-        fire_monster_alerts();
+    mon_acting mact(monster);
 
     // We have a speech string, now parse and act on it.
-    std::string _msg = do_mon_str_replacements(msg, monster);
+    const std::string _msg = do_mon_str_replacements(msg, monster);
+    const std::vector<std::string> lines = split_string("\n", _msg);
 
-    std::vector<std::string> lines = split_string("\n", _msg);
+    bool noticed = false;       // Any messages actually printed?
 
-    for (int i = 0, size = lines.size(); i < size; i++)
+    for (int i = 0, size = lines.size(); i < size; ++i)
     {
         std::string line = lines[i];
 
         // This function is a little bit of a problem for the message
         // channels since some of the messages it generates are "fake"
-        // warning to scare the player.  In order to accomidate this
+        // warning to scare the player.  In order to accomodate this
         // intent, we're falsely categorizing various things in the
         // function as spells and danger warning... everything else
         // just goes into the talk channel -- bwr
-        // [jpeg] Added MSGCH_TALK_VISUAL for silent "chatter"
+        // [jpeg] Added MSGCH_TALK_VISUAL for silent "chatter".
         msg_channel_type msg_type = def_chan;
 
         std::string param = "";
@@ -777,7 +779,8 @@ void mons_speaks_msg(const monsters *monster, const std::string &msg,
                 msg_type = mons_friendly(monster) ? MSGCH_FRIEND_SPELL
                                                   : MSGCH_MONSTER_SPELL;
             }
-            else if (param == "ENCHANT" && !silence || param == "VISUAL ENCHANT")
+            else if (param == "ENCHANT" && !silence
+                     || param == "VISUAL ENCHANT")
             {
                 msg_type = mons_friendly(monster) ? MSGCH_FRIEND_ENCHANT
                                                   : MSGCH_MONSTER_ENCHANT;
@@ -791,23 +794,24 @@ void mons_speaks_msg(const monsters *monster, const std::string &msg,
                 line = line.substr(pos + 1);
         }
 
-        // except for VISUAL none of the above influence these
-        if (line == "__YOU_RESIST" && (!silence || param == "VISUAL"))
-        {
-            canned_msg( MSG_YOU_RESIST );
-            continue;
-        }
-        else if (line == "__NOTHING_HAPPENS" && (!silence || param == "VISUAL"))
-        {
-            canned_msg( MSG_NOTHING_HAPPENS );
-            continue;
-        }
-        else if (line == "__MORE" && (!silence || param == "VISUAL"))
-        {
-            more();
-            continue;
-        }
+        const bool old_noticed = noticed;
+        noticed = true;         // Only one case is different.
 
-        mpr(line.c_str(), msg_type);
+        // Except for VISUAL, none of the above influence these.
+        if (line == "__YOU_RESIST" && (!silence || param == "VISUAL"))
+            canned_msg( MSG_YOU_RESIST );
+        else if (line == "__NOTHING_HAPPENS" && (!silence || param == "VISUAL"))
+            canned_msg( MSG_NOTHING_HAPPENS );
+        else if (line == "__MORE" && (!silence || param == "VISUAL"))
+            more();
+        else if (msg_type == MSGCH_TALK_VISUAL && !you.can_see(monster))
+            noticed = old_noticed;
+        else
+        {
+            if (you.can_see(monster))
+                seen_monster(monster);
+            mpr(line.c_str(), msg_type);
+        }
     }
+    return (noticed);
 }

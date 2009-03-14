@@ -120,6 +120,7 @@ static char _find_square( const coord_def& where,
 static int  _targeting_cmd_to_compass( command_type command );
 static void _describe_oos_square(const coord_def& where);
 static void _extend_move_to_edge(dist &moves);
+static std::string _get_monster_desc(const monsters *mon);
 
 void direction_choose_compass( dist& moves, targeting_behaviour *beh)
 {
@@ -218,18 +219,12 @@ static int _targeting_cmd_to_feature( command_type command )
 {
     switch ( command )
     {
-    case CMD_TARGET_FIND_TRAP:
-        return '^';
-    case CMD_TARGET_FIND_PORTAL:
-        return '\\';
-    case CMD_TARGET_FIND_ALTAR:
-        return  '_';
-    case CMD_TARGET_FIND_UPSTAIR:
-        return '<';
-    case CMD_TARGET_FIND_DOWNSTAIR:
-        return '>';
-    default:
-        return 0;
+    case CMD_TARGET_FIND_TRAP:      return '^';
+    case CMD_TARGET_FIND_PORTAL:    return '\\';
+    case CMD_TARGET_FIND_ALTAR:     return  '_';
+    case CMD_TARGET_FIND_UPSTAIR:   return '<';
+    case CMD_TARGET_FIND_DOWNSTAIR: return '>';
+    default:                        return 0;
     }
 }
 
@@ -269,13 +264,11 @@ static void draw_ray_glyph(const coord_def &pos, int colour,
 #ifdef USE_TILE
     tile_place_ray(pos, in_range);
 #else
-    int mid = mgrd(pos);
-    if (mid != NON_MONSTER)
+    if (const monsters *mons = monster_at(pos))
     {
-        const monsters *mons = &menv[mid];
         if (mons->alive() && player_monster_visible(mons))
         {
-            glych  = get_screen_glyph(pos.x, pos.y);
+            glych  = get_screen_glyph(pos);
             colour = mcol;
         }
     }
@@ -325,7 +318,7 @@ static void _direction_again(dist& moves, targeting_type restricts,
     moves.isEndpoint    = false;
     moves.choseRay      = false;
 
-    if (you.prev_targ == MHITNOT && you.prev_grd_targ == coord_def(0, 0))
+    if (you.prev_targ == MHITNOT && you.prev_grd_targ.origin())
     {
         moves.isCancel = true;
         crawl_state.cancel_cmd_repeat();
@@ -421,13 +414,10 @@ static void _direction_again(dist& moves, targeting_type restricts,
     {
         const monsters *montarget = &menv[you.prev_targ];
 
-        if (!mons_near(montarget)
-            || !player_monster_visible( montarget ))
+        if (!you.can_see(montarget))
         {
             moves.isCancel = true;
-
             crawl_state.cancel_cmd_all("Your target is gone.");
-
             return;
         }
         else if (!_is_target_in_range(montarget->pos(), range))
@@ -450,35 +440,62 @@ static void _direction_again(dist& moves, targeting_type restricts,
     moves.isTarget = true;
 }
 
+class view_desc_proc
+{
+public:
+    int width() { return crawl_view.msgsz.x; }
+    int height() { return crawl_view.msgsz.y; }
+    void print(const std::string &str) { cprintf("%s", str.c_str()); }
+    void nextline() { cgotoxy(1, wherey() + 1); }
+};
+
 static void _describe_monster(const monsters *mon);
 
 // Lists all the monsters and items currently in view by the player.
 // TODO: Allow sorting of items lists.
 void full_describe_view()
 {
-    const coord_def start = view2grid(coord_def(1,1));
-    const coord_def end = start + crawl_view.viewsz - coord_def(1,1);
-
     std::vector<const monsters*> list_mons;
     std::vector<item_def> list_items;
 
-    // Iterate over viewport and grab all items known (or thought)
-    // to be in the stashes in view.
-    for (rectangle_iterator ri(start, end); ri; ++ri)
+    // Grab all items known (or thought) to be in the stashes in view.
+    for (radius_iterator ri(you.pos(), LOS_RADIUS); ri; ++ri)
     {
-        if (!in_bounds(*ri) || !see_grid(*ri))
-            continue;
+        const monsters *mon = monster_at(*ri);
+        const bool unknown_mimic = (mon && mons_is_unknown_mimic(mon));
+
+        if (unknown_mimic)      // It'll be on top.
+        {
+            item_def item;
+            get_mimic_item(mon, item);
+            list_items.push_back(item);
+        }
 
         const int oid = igrd(*ri);
-
         if (oid == NON_ITEM)
             continue;
 
-        std::vector<item_def> items = item_list_in_stash(*ri);
-        if (items.empty())
-            continue;
+        if (StashTracker::is_level_untrackable())
+        {
+            // On levels with no stashtracker, you can still see the top
+            // item.
+            if (!unknown_mimic)
+                list_items.push_back(mitm[oid]);
+        }
+        else
+        {
+            const std::vector<item_def> items = item_list_in_stash(*ri);
 
-        list_items.insert(list_items.end(), items.begin(), items.end());
+#ifdef DEBUG_DIAGNOSTICS
+            if (items.empty())
+            {
+                mprf(MSGCH_ERROR, "No items found in stash, but top item is %s",
+                     mitm[oid].name(DESC_PLAIN).c_str());
+                more();
+            }
+#endif
+            list_items.insert(list_items.end(), items.begin(), items.end());
+        }
     }
 
     // Get monsters via the monster_pane_info, sorted by difficulty.
@@ -494,20 +511,19 @@ void full_describe_view()
         mprf("Neither monsters nor items are visible.");
         return;
     }
-/*
-    InvMenu desc_menu(MF_SINGLESELECT | MF_ANYPRINTABLE |
-                      MF_ALLOW_FORMATTING,
-                      "description", false);
-*/
+
     InvMenu desc_menu(MF_SINGLESELECT | MF_ANYPRINTABLE |
                       /*MF_ALWAYS_SHOW_MORE |*/ MF_ALLOW_FORMATTING);
 
     desc_menu.set_highlighter(NULL);
+    // FIXME: Need different title for the opposite toggle:
+    // "Visible Monsters/Items (select for more detail, '!' to examine):"
     desc_menu.set_title(
-        new MenuEntry("Visible Monsters/Items (select for more detail):",
+        new MenuEntry("Visible Monsters/Items (select for more detail, '!' to view/travel):",
                       MEL_TITLE));
 
     desc_menu.set_tag("description");
+    desc_menu.allow_toggle = true;
 
     int menu_index = -1;
     // Build menu entries for monsters.
@@ -527,27 +543,31 @@ void full_describe_view()
             if (colour == BLACK)
                 colour = LIGHTGREY;
 
-            std::string prefix = "(<";
-            prefix += colour_to_str(colour);
-            prefix += ">";
-            prefix += stringize_glyph(mons_char( list_mons[i]->type) );
-            prefix += "</";
-            prefix += colour_to_str(colour);
-            prefix += ">) ";
-
+            std::string prefix = "";
+#ifndef USE_TILE
+            const std::string col_string = colour_to_str(colour);
+            prefix = "(<" + col_string + ">"
+                     + stringize_glyph(mons_char( list_mons[i]->type) )
+                     + "</" + col_string + ">) ";
+#endif
             // Get damage level.
-            std::string wound_str;
-            mon_dam_level_type dam_level;
-            mons_get_damage_level(list_mons[i], wound_str, dam_level);
+            std::string damage_desc;
+
+            mon_dam_level_type damage_level;
+            mons_get_damage_level(list_mons[i], damage_desc, damage_level);
+
+            // If no messages about wounds, don't display damage level either.
+            if (monster_descriptor(list_mons[i]->type, MDSC_NOMSG_WOUNDS))
+                damage_level = MDAM_OKAY;
 
             std::vector<formatted_string> fss;
-            std::string str = get_monster_desc(list_mons[i], true, DESC_CAP_A,
-                                               true);
+            std::string str = get_monster_equipment_desc(list_mons[i], true,
+                                                         DESC_CAP_A, true);
             if (player_mesmerised_by(list_mons[i]))
                 str += ", keeping you mesmerised";
 
-            if (dam_level != MDAM_OKAY)
-                str += ", " + wound_str;
+            if (damage_level != MDAM_OKAY)
+                str += ", " + damage_desc;
 
             // Wraparound if the description is longer than allowed.
             linebreak_string2(str, get_number_of_cols() - 8);
@@ -584,7 +604,6 @@ void full_describe_view()
             const item_def &item = list_items[i];
 
             InvEntry *me = new InvEntry(item);
-
 #ifndef USE_TILE
             // Show glyphs only for ASCII.
             me->set_show_glyph(true);
@@ -592,9 +611,16 @@ void full_describe_view()
             me->tag = "i";
             me->hotkeys[0] = letter;
             me->quantity = 2; // Hack to make items selectable.
+
             desc_menu.add_entry(me);
         }
     }
+
+    // Select an item to read its full description, or a monster to read its
+    // e'x'amine description. Toggle with '!' to travel to an item's position
+    // or read a monster's database entry.
+    // (Maybe that should be reversed in the case of monsters.)
+    // For ASCII, the 'x' information may include short database descriptions.
 
     // Menu loop
     while (true)
@@ -605,7 +631,6 @@ void full_describe_view()
         if (sel.empty())
             break;
 
-        // Possibility to select a menu item to get full description
         // HACK: quantity == 1: monsters, quantity == 2: items
         const int quant = sel[0]->quantity;
         if (quant == 1)
@@ -621,17 +646,41 @@ void full_describe_view()
             tiles.clear_text_tags(TAG_TUTORIAL);
             tiles.add_text_tag(TAG_TUTORIAL, desc, gc);
 #endif
-            mesclr();
-            _describe_monster( m );
 
-            if (getch() == 0)
-                getch();
+            if (desc_menu.menu_action == InvMenu::ACT_EXAMINE)
+            {
+                describe_info inf;
+                get_square_desc(m->pos(), inf, true);
+#ifndef USE_TILE
+                // Hmpf. This was supposed to work for both ASCII *and* Tiles!
+                view_desc_proc proc;
+                process_description<view_desc_proc>(proc, inf);
+#else
+                mesclr();
+                _describe_monster(m);
+#endif
+                if (getch() == 0)
+                    getch();
+            }
+            else // ACT_EXECUTE, here used to view database entry
+            {
+                describe_monsters(*m);
+                redraw_screen();
+                mesclr(true);
+            }
         }
         else if (quant == 2)
         {
             // Get selected item.
             item_def* i = (item_def*)(sel[0]->data);
-            describe_item( *i );
+            if (desc_menu.menu_action == InvMenu::ACT_EXAMINE)
+                describe_item( *i );
+            else // ACT_EXECUTE -> travel to item
+            {
+                const coord_def c = i->pos;
+                start_travel( c );
+                break;
+            }
         }
     }
 
@@ -642,6 +691,9 @@ void full_describe_view()
         InvEntry *me = new InvEntry(list_items[0]);
         me->set_show_glyph(false);
     }
+#else
+    tiles.place_cursor(CURSOR_TUTORIAL, Region::NO_CURSOR);
+    tiles.clear_text_tags(TAG_TUTORIAL);
 #endif
 }
 
@@ -679,11 +731,11 @@ static void _fill_monster_list(bool full_info)
 
     // Get the unique entries.
     mlist.clear();
-    int start = 0, end = 1;
-    while (start < (int) temp.size())
+    unsigned int start = 0, end = 1;
+    while (start < temp.size())
     {
         mlist.push_back(temp[start]);
-        for (end = start + 1; end < (int) temp.size(); ++end)
+        for (end = start + 1; end < temp.size(); ++end)
         {
             if (monster_pane_info::less_than(temp[start], temp[end],
                                              full_info))
@@ -712,18 +764,29 @@ static int _mlist_letter_to_index(char idx)
 }
 #endif
 
-class range_view_annotator
+crawl_exit_hook::crawl_exit_hook()
 {
-public:
-    range_view_annotator(int range) {
-        do_anything = (range >= 0);
-        if (range < 0)
-            return;
+    crawl_state.exit_hooks.push_back(this);
+}
 
+crawl_exit_hook::~crawl_exit_hook()
+{
+    crawl_state.exit_hooks.erase(std::remove(crawl_state.exit_hooks.begin(),
+                                             crawl_state.exit_hooks.end(),
+                                             this),
+                                 crawl_state.exit_hooks.end());
+}
+
+range_view_annotator::range_view_annotator(int range)
+{
+    do_anything = (range >= 0);
+
+    if (do_anything)
+    {
         // Save and replace grid colours. -1 means unchanged.
         orig_colours.init(-1);
         const coord_def offset(ENV_SHOW_OFFSET, ENV_SHOW_OFFSET);
-        for ( radius_iterator ri(you.pos(), LOS_RADIUS); ri; ++ri )
+        for (radius_iterator ri(you.pos(), LOS_RADIUS); ri; ++ri)
         {
             if (grid_distance(you.pos(), *ri) > range)
             {
@@ -743,46 +806,43 @@ public:
                 menv[i].colour = DARKGREY;
             }
             else
-            {
                 orig_mon_colours[i] = -1;
-            }
         }
 
         // Repaint.
         viewwindow(true, false);
     }
+}
 
-    ~range_view_annotator() {
+range_view_annotator::~range_view_annotator()
+{
+    restore_state();
+    viewwindow(true, false);
+}
 
-        if (!do_anything)
-            return;
+void range_view_annotator::restore_state()
+{
+    if (!do_anything)
+        return;
 
-        // Restore grid colours.
-        coord_def c;
-        const coord_def offset(ENV_SHOW_OFFSET, ENV_SHOW_OFFSET);
-        for ( c.x = 0; c.x < ENV_SHOW_DIAMETER; ++c.x )
+    // Restore grid colours.
+    coord_def c;
+    const coord_def offset(ENV_SHOW_OFFSET, ENV_SHOW_OFFSET);
+    for (c.x = 0; c.x < ENV_SHOW_DIAMETER; ++c.x)
+        for (c.y = 0; c.y < ENV_SHOW_DIAMETER; ++c.y)
         {
-            for ( c.y = 0; c.y < ENV_SHOW_DIAMETER; ++c.y )
-            {
-                const int old_colour = orig_colours(c);
-                if ( old_colour != -1 )
-                    env.grid_colours(you.pos() + c - offset) = old_colour;
-            }
+            const int old_colour = orig_colours(c);
+            if (old_colour != -1)
+                env.grid_colours(you.pos() + c - offset) = old_colour;
         }
 
-        // Restore monster colours.
-        for (int i = 0; i < MAX_MONSTERS; ++i)
-            if (orig_mon_colours[i] != -1)
-                menv[i].colour = orig_mon_colours[i];
+    // Restore monster colours.
+    for (int i = 0; i < MAX_MONSTERS; ++i)
+        if (orig_mon_colours[i] != -1)
+            menv[i].colour = orig_mon_colours[i];
 
-        // Repaint.
-        viewwindow(true, false);
-    }
-private:
-    bool do_anything;
-    FixedArray<int, ENV_SHOW_DIAMETER, ENV_SHOW_DIAMETER> orig_colours;
-    int orig_mon_colours[MAX_MONSTERS];
-};
+    do_anything = false;
+}
 
 bool _dist_ok(const dist& moves, int range, targ_mode_type mode,
               bool may_target_self, bool cancel_at_self)
@@ -916,7 +976,7 @@ void direction(dist& moves, targeting_type restricts,
         if (you.prev_targ != MHITNOT && you.prev_targ != MHITYOU)
         {
             const monsters *montarget = &menv[you.prev_targ];
-            if (mons_near(montarget) && player_monster_visible(montarget)
+            if (you.can_see(montarget)
                 && !mons_friendly(montarget) // not made friendly since then
                 && _is_target_in_range(montarget->pos(), range))
             {
@@ -1039,7 +1099,7 @@ void direction(dist& moves, targeting_type restricts,
         if (skip_iter)
             old_target.x += 500; // hmmm...hack
 
-        int i, mid;
+        int i;
 
 #ifndef USE_TILE
         if (key_command >= CMD_TARGET_CYCLE_MLIST
@@ -1208,8 +1268,7 @@ void direction(dist& moves, targeting_type restricts,
             {
                 const monsters *montarget = &menv[you.prev_targ];
 
-                if (!mons_near(montarget)
-                    || !player_monster_visible( montarget ))
+                if (!you.can_see(montarget))
                 {
                     mpr("You can't see that creature any more.",
                         MSGCH_EXAMINE_FILTER);
@@ -1251,11 +1310,11 @@ void direction(dist& moves, targeting_type restricts,
             }
             // intentional fall-through
         case CMD_TARGET_SELECT: // finalize current choice
-            if (!moves.isEndpoint
-                && mgrd(moves.target) != NON_MONSTER
-                && _mon_submerged_in_water(&menv[mgrd(moves.target)]))
+            if (!moves.isEndpoint)
             {
-                moves.isEndpoint = true;
+                const monsters* m = monster_at(moves.target);
+                if (m && _mon_submerged_in_water(m))
+                    moves.isEndpoint = true;
             }
             moves.isValid  = true;
             moves.isTarget = true;
@@ -1264,10 +1323,8 @@ void direction(dist& moves, targeting_type restricts,
             you.prev_grd_targ.reset();
 
             // Maybe we should except just_looking here?
-            mid = mgrd(moves.target);
-
-            if (mid != NON_MONSTER)
-                you.prev_targ = mid;
+            if (const monsters* m = monster_at(moves.target))
+                you.prev_targ = m->mindex();
             else if (moves.target == you.pos())
                 you.prev_targ = MHITYOU;
             else
@@ -1325,32 +1382,36 @@ void direction(dist& moves, targeting_type restricts,
             if (!you.wizard || !in_bounds(moves.target))
                 break;
 
-            mid = mgrd(moves.target);
-            if (mid == NON_MONSTER) // can put in terrain description here
-                break;
-
             {
-                monsters &m = menv[mid];
-                switch (m.attitude)
+                monsters* m = monster_at(moves.target);
+
+                if (m == NULL)
+                    break;
+
+                mon_attitude_type att = m->attitude;
+
+                // During arena mode, skip directly from friendly to hostile.
+                if (crawl_state.arena_suspended && att == ATT_FRIENDLY)
+                    att = ATT_NEUTRAL;
+
+                switch (att)
                 {
-                 case ATT_FRIENDLY:
-                     m.attitude = ATT_GOOD_NEUTRAL;
-                     m.flags &= ~MF_CREATED_FRIENDLY;
-                     m.flags |= MF_WAS_NEUTRAL;
-                     break;
-                 case ATT_GOOD_NEUTRAL:
-                     m.attitude = ATT_NEUTRAL;
-                     break;
-                 case ATT_NEUTRAL:
-                     m.attitude = ATT_HOSTILE;
-                     m.flags &= ~MF_WAS_NEUTRAL;
-                     break;
-                 case ATT_HOSTILE:
-                     m.attitude = ATT_FRIENDLY;
-                     m.flags |= MF_CREATED_FRIENDLY;
-                     break;
-                 default:
-                     break;
+                case ATT_FRIENDLY:
+                    m->attitude = ATT_GOOD_NEUTRAL;
+                    m->flags &= ~MF_CREATED_FRIENDLY;
+                    m->flags |= MF_WAS_NEUTRAL;
+                    break;
+                case ATT_GOOD_NEUTRAL:
+                    m->attitude = ATT_NEUTRAL;
+                    break;
+                case ATT_NEUTRAL:
+                    m->attitude = ATT_HOSTILE;
+                    m->flags &= ~MF_WAS_NEUTRAL;
+                    break;
+                case ATT_HOSTILE:
+                    m->attitude = ATT_FRIENDLY;
+                    m->flags |= MF_CREATED_FRIENDLY;
+                    break;
                 }
 
                 // To update visual branding of friendlies.  Only
@@ -1363,32 +1424,22 @@ void direction(dist& moves, targeting_type restricts,
         case CMD_TARGET_WIZARD_BLESS_MONSTER:
             if (!you.wizard || !in_bounds(moves.target))
                 break;
-            mid = mgrd(moves.target);
-            if (mid == NON_MONSTER) // can put in terrain description here
-                break;
-
-            wizard_apply_monster_blessing(&menv[mid]);
+            if (monsters* m = monster_at(moves.target))
+                wizard_apply_monster_blessing(m);
             break;
 
         case CMD_TARGET_WIZARD_MAKE_SHOUT:
-            // Maybe we can skip this check...but it can't hurt
             if (!you.wizard || !in_bounds(moves.target))
                 break;
-            mid = mgrd(moves.target);
-            if (mid == NON_MONSTER) // can put in terrain description here
-                break;
-
-            debug_make_monster_shout(&menv[mid]);
+            if (monsters* m = monster_at(moves.target))
+                debug_make_monster_shout(m);
             break;
 
         case CMD_TARGET_WIZARD_GIVE_ITEM:
             if (!you.wizard || !in_bounds(moves.target))
                 break;
-            mid = mgrd(moves.target);
-            if (mid == NON_MONSTER) // can put in terrain description here
-                break;
-
-            wizard_give_monster_item(&menv[mid]);
+            if (monsters* m = monster_at(moves.target))
+                wizard_give_monster_item(m);
             break;
 
         case CMD_TARGET_WIZARD_MOVE:
@@ -1404,11 +1455,9 @@ void direction(dist& moves, targeting_type restricts,
         case CMD_TARGET_WIZARD_PATHFIND:
             if (!you.wizard || !in_bounds(moves.target))
                 break;
-            mid = mgrd(moves.target);
-            if (mid == NON_MONSTER)
-                break;
 
-            debug_pathfind(mid);
+            if (monsters* m = monster_at(moves.target))
+                debug_pathfind(m->mindex());
             break;
 
         case CMD_TARGET_WIZARD_GAIN_LEVEL:
@@ -1417,31 +1466,24 @@ void direction(dist& moves, targeting_type restricts,
         case CMD_TARGET_WIZARD_MISCAST:
             if (!you.wizard || !in_bounds(moves.target))
                 break;
-            mid = mgrd(moves.target);
-            if (mid == NON_MONSTER && you.pos() != moves.target)
-                break;
-
-            debug_miscast(mid);
+            if (you.pos() == moves.target)
+                debug_miscast(NON_MONSTER);
+            if (monsters* m = monster_at(moves.target))
+                debug_miscast(m->mindex());
             break;
 
         case CMD_TARGET_WIZARD_MAKE_SUMMONED:
             if (!you.wizard || !in_bounds(moves.target))
                 break;
-            mid = mgrd(moves.target);
-            if (mid == NON_MONSTER) // can put in terrain description here
-                break;
-
-            wizard_make_monster_summoned(&menv[mid]);
+            if (monsters* m = monster_at(moves.target))
+                wizard_make_monster_summoned(m);
             break;
 
         case CMD_TARGET_WIZARD_POLYMORPH:
             if (!you.wizard || !in_bounds(moves.target))
                 break;
-            mid = mgrd(moves.target);
-            if (mid == NON_MONSTER) // can put in terrain description here
-                break;
-
-            wizard_polymorph_monster(&menv[mid]);
+            if (monsters* m = monster_at(moves.target))
+                wizard_polymorph_monster(m);
             break;
 
 #endif
@@ -1468,6 +1510,7 @@ void direction(dist& moves, targeting_type restricts,
             break;
         }
 
+        flush_prev_message();
         if (loop_done == true)
         {
             // Confirm that the loop is really done. If it is,
@@ -1522,6 +1565,7 @@ void direction(dist& moves, targeting_type restricts,
             bool in_range = (range < 0
                              || grid_distance(moves.target,you.pos()) <= range);
             terse_describe_square(moves.target, in_range);
+            flush_prev_message();
         }
 
 #ifdef USE_TILE
@@ -1605,9 +1649,9 @@ std::string get_terse_square_desc(const coord_def &gc)
         else
             desc = unseen_desc;
     }
-    else if (mgrd(gc) != NON_MONSTER && you.can_see(&menv[mgrd(gc)]))
+    else if (monster_at(gc) && you.can_see(monster_at(gc)))
     {
-        const monsters &mons = menv[mgrd(gc)];
+        const monsters& mons = *monster_at(gc);
 
         if (mons_is_mimic(mons.type) && !(mons.flags & MF_KNOWN_MIMIC))
         {
@@ -1634,19 +1678,63 @@ void terse_describe_square(const coord_def &c, bool in_range)
         _describe_cell(c, in_range);
 }
 
-void full_describe_square(const coord_def &c)
+void get_square_desc(const coord_def &c, describe_info &inf,
+                     bool examine_mons)
 {
+    // NOTE: Keep this function in sync with full_describe_square.
+
     // Don't give out information for things outside LOS
-    if (!see_grid(c.x, c.y))
+    if (!see_grid(c))
         return;
 
-    const int mid = mgrd(c);
+    const monsters* mons = monster_at(c);
     const int oid = igrd(c);
 
-    if (mid != NON_MONSTER && player_monster_visible(&menv[mid]))
+    if (mons && player_monster_visible(mons))
     {
         // First priority: monsters.
-        describe_monsters(menv[mid]);
+        if (examine_mons && !mons_is_unknown_mimic(mons))
+        {
+            // If examine_mons is true (currently only for the Tiles
+            // mouse-over information), set monster's
+            // equipment/woundedness/enchantment description as title.
+            std::string desc   = get_monster_equipment_desc(mons) + ".\n";
+            std::string wounds = get_wounds_description(mons);
+            if (!wounds.empty())
+                desc += mons->pronoun(PRONOUN_CAP) + wounds + "\n";
+            desc += _get_monster_desc(mons);
+
+            inf.title = desc;
+        }
+        get_monster_db_desc(*mons, inf);
+    }
+    else if (oid != NON_ITEM)
+    {
+        // Second priority: objects.
+        get_item_desc(mitm[oid], inf);
+    }
+    else
+    {
+        // Third priority: features.
+        get_feature_desc(c, inf);
+    }
+}
+
+void full_describe_square(const coord_def &c)
+{
+    // NOTE: Keep this function in sync with get_square_desc.
+
+    // Don't give out information for things outside LOS
+    if (!see_grid(c))
+        return;
+
+    const monsters* mons = monster_at(c);
+    const int oid = igrd(c);
+
+    if (mons && player_monster_visible(mons))
+    {
+        // First priority: monsters.
+        describe_monsters(*mons);
     }
     else if (oid != NON_ITEM)
     {
@@ -1656,7 +1744,7 @@ void full_describe_square(const coord_def &c)
     else
     {
         // Third priority: features.
-        describe_feature_wide(c.x, c.y);
+        describe_feature_wide(c);
     }
 
     redraw_screen();
@@ -1728,7 +1816,7 @@ bool in_los(const coord_def& pos)
     return (in_vlos(grid2view(pos)));
 }
 
-static bool _mons_is_valid_target(monsters *mon, int mode, int range)
+static bool _mons_is_valid_target(const monsters *mon, int mode, int range)
 {
     // Unknown mimics don't count as monsters, either.
     if (mons_is_mimic(mon->type)
@@ -1756,18 +1844,18 @@ static bool _mons_is_valid_target(monsters *mon, int mode, int range)
 static bool _find_mlist( const coord_def& where, int idx, bool need_path,
                          int range = -1)
 {
-    if ((int) mlist.size() <= idx)
+    if (static_cast<int>(mlist.size()) <= idx)
         return (false);
 
     if (!_is_target_in_range(where, range) || !in_los(where))
         return (false);
 
-    const int targ_mon = mgrd(where);
-    if (targ_mon == NON_MONSTER)
+    const monsters* mon = monster_at(where);
+    if (mon == NULL)
         return (false);
 
     int real_idx = 0;
-    for (unsigned int i = 0; i < mlist.size()-1; i++)
+    for (unsigned int i = 0; i+1 < mlist.size(); i++)
     {
         if (real_idx == idx)
         {
@@ -1781,8 +1869,6 @@ static bool _find_mlist( const coord_def& where, int idx, bool need_path,
 
         real_idx++;
    }
-
-    monsters *mon  = &menv[targ_mon];
 
     if (!_mons_is_valid_target(mon, TARG_ANY, range))
         return (false);
@@ -1824,17 +1910,15 @@ static bool _find_monster( const coord_def& where, int mode, bool need_path,
     if (!_is_target_in_range(where, range))
         return (false);
 
-    const int targ_mon = mgrd(where);
+    const monsters* mon = monster_at(where);
 
     // No monster or outside LOS.
-    if (targ_mon == NON_MONSTER || !in_los(where))
+    if (mon == NULL || !in_los(where))
         return (false);
 
     // Monster in LOS but only via glass walls, so no direct path.
     if (need_path && !see_grid_no_trans(where))
         return (false);
-
-    monsters *mon = &menv[targ_mon];
 
     if (!_mons_is_valid_target(mon, mode, range))
         return (false);
@@ -1844,15 +1928,15 @@ static bool _find_monster( const coord_def& where, int mode, bool need_path,
         return (true);
 
     if (mode == TARG_FRIEND)
-        return (mons_friendly(&menv[targ_mon] ));
+        return (mons_friendly(mon));
 
     ASSERT(mode == TARG_ENEMY);
-    if (mons_friendly(&menv[targ_mon]))
+    if (mons_friendly(mon))
         return (false);
 
     // Don't target zero xp monsters, unless target_zero_exp is set.
     return (Options.target_zero_exp
-            || !mons_class_flag( menv[targ_mon].type, M_NO_EXP_GAIN ));
+            || !mons_class_flag(mon->type, M_NO_EXP_GAIN));
 }
 
 static bool _find_feature( const coord_def& where, int mode,
@@ -1870,11 +1954,11 @@ static bool _find_object(const coord_def& where, int mode,
 {
     // First, check for mimics.
     bool is_mimic = false;
-    const int mons = mgrd(where);
-    if (mons != NON_MONSTER
-        && player_monster_visible( &(menv[mons]) )
-        && mons_is_mimic(menv[mons].type)
-        && !(menv[mons].flags & MF_KNOWN_MIMIC))
+    const monsters* m = monster_at(where);
+    if (m
+        && player_monster_visible(m)
+        && mons_is_mimic(m->type)
+        && !(m->flags & MF_KNOWN_MIMIC))
     {
         is_mimic = true;
     }
@@ -2243,11 +2327,12 @@ std::vector<dungeon_feature_type> features_by_desc(const base_pattern &pattern)
 
 void describe_floor()
 {
-    const int grid = grd(you.pos());
+    dungeon_feature_type grid = grd(you.pos());
 
     std::string prefix = "There is ";
     std::string feat;
     std::string suffix = " here.";
+
     switch (grid)
     {
     case DNGN_FLOOR:
@@ -2270,12 +2355,9 @@ void describe_floor()
     msg_channel_type channel = MSGCH_EXAMINE;
 
     // Water is not terribly important if you don't mind it.
-    if ((grd(you.pos()) == DNGN_DEEP_WATER
-            || grd(you.pos()) == DNGN_SHALLOW_WATER)
-        && player_likes_water())
-    {
+    if (grid_is_water(grid) && player_likes_water())
         channel = MSGCH_EXAMINE_FILTER;
-    }
+
     mpr((prefix + feat + suffix).c_str(), channel);
     if (grid == DNGN_ENTER_LABYRINTH && you.is_undead != US_UNDEAD)
         mpr("Beware, for starvation awaits!", MSGCH_EXAMINE);
@@ -2726,45 +2808,34 @@ static std::string _describe_mons_enchantment(const monsters &mons,
         return "";
     }
 
+    if (ench.ench == ENCH_HASTE && mons.has_ench(ENCH_SLOW))
+        return "";
+
+    if (ench.ench == ENCH_SLOW && mons.has_ench(ENCH_HASTE))
+        return "";
+
     if (ench.ench == ENCH_PETRIFIED && mons.has_ench(ENCH_PETRIFYING))
         return "";
 
     switch (ench.ench)
     {
-    case ENCH_POISON:
-        return "poisoned";
-    case ENCH_SICK:
-        return "sick";
-    case ENCH_ROT:
-        return "rotting away"; //jmf: "covered in sores"?
-    case ENCH_BACKLIGHT:
-        return "softly glowing";
-    case ENCH_SLOW:
-        return "moving slowly";
-    case ENCH_BERSERK:
-        return "berserk";
-    case ENCH_BATTLE_FRENZY:
-        return "consumed by blood-lust";
-    case ENCH_HASTE:
-        return "moving very quickly";
-    case ENCH_CONFUSION:
-        return "bewildered and confused";
-    case ENCH_INVIS:
-        return "slightly transparent";
-    case ENCH_CHARM:
-        return "in your thrall";
-    case ENCH_STICKY_FLAME:
-        return "covered in liquid flames";
-    case ENCH_HELD:
-        return "entangled in a net";
-    case ENCH_PETRIFIED:
-        return "petrified";
-    case ENCH_PETRIFYING:
-        return "slowly petrifying";
-    case ENCH_LOWERED_MR:
-        return "susceptible to magic";
-    default:
-        return "";
+    case ENCH_POISON:        return "poisoned";
+    case ENCH_SICK:          return "sick";
+    case ENCH_ROT:           return "rotting away"; //jmf: "covered in sores"?
+    case ENCH_BACKLIGHT:     return "softly glowing";
+    case ENCH_SLOW:          return "moving slowly";
+    case ENCH_BERSERK:       return "berserk";
+    case ENCH_BATTLE_FRENZY: return "consumed by blood-lust";
+    case ENCH_HASTE:         return "moving very quickly";
+    case ENCH_CONFUSION:     return "bewildered and confused";
+    case ENCH_INVIS:         return "slightly transparent";
+    case ENCH_CHARM:         return "in your thrall";
+    case ENCH_STICKY_FLAME:  return "covered in liquid flames";
+    case ENCH_HELD:          return "entangled in a net";
+    case ENCH_PETRIFIED:     return "petrified";
+    case ENCH_PETRIFYING:    return "slowly petrifying";
+    case ENCH_LOWERED_MR:    return "susceptible to magic";
+    default:                 return "";
     }
 }
 
@@ -2858,62 +2929,48 @@ std::string _mon_enchantments_string(const monsters* mon)
         return "";
 }
 
-static void _describe_monster(const monsters *mon)
+// Returns the description string for a given monster, including attitude
+// and enchantments but not equipment or wounds.
+static std::string _get_monster_desc(const monsters *mon)
 {
-    // First print type and equipment.
-    const int numcols = get_number_of_cols();
-    std::string text = get_monster_desc(mon) + ".";
-    print_formatted_paragraph(text, numcols);
+    std::string text    = "";
+    std::string pronoun = mon->pronoun(PRONOUN_CAP);
 
     if (player_mesmerised_by(mon))
-        mpr("You are mesmerised by her song.", MSGCH_EXAMINE);
-
-    print_wounds(mon);
+        text += "You are mesmerised by her song.\n";
 
     if (!mons_is_mimic(mon->type) && mons_behaviour_perceptible(mon))
     {
         if (mons_is_sleeping(mon))
         {
-            mprf(MSGCH_EXAMINE, "%s appears to be %s.",
-                 mon->pronoun(PRONOUN_CAP).c_str(),
-                 mons_is_confused(mon) ? "sleepwalking" : "resting");
+            text += pronoun + " appears to be "
+                    + (mons_is_confused(mon) ? "sleepwalking" : "resting")
+                    + ".\n";
         }
         // Applies to both friendlies and hostiles
         else if (mons_is_fleeing(mon))
-        {
-            mprf(MSGCH_EXAMINE, "%s is retreating.",
-                 mon->pronoun(PRONOUN_CAP).c_str());
-        }
+            text += pronoun + " is retreating.\n";
         // hostile with target != you
         else if (!mons_friendly(mon) && !mons_neutral(mon)
-            && mon->foe != MHITYOU)
+                 && mon->foe != MHITYOU && !crawl_state.arena_suspended)
         {
             // special case: batty monsters get set to BEH_WANDER as
             // part of their special behaviour.
             if (!mons_is_batty(mon))
-            {
-                mprf(MSGCH_EXAMINE, "%s doesn't appear to have noticed you.",
-                     mon->pronoun(PRONOUN_CAP).c_str());
-            }
+                text += pronoun + " doesn't appear to have noticed you.\n";
         }
     }
 
     if (mon->attitude == ATT_FRIENDLY)
-    {
-        mprf(MSGCH_EXAMINE, "%s is friendly.",
-             mon->pronoun(PRONOUN_CAP).c_str());
-    }
+        text += pronoun + " is friendly.\n";
     else if (mons_neutral(mon)) // don't differentiate between permanent or not
-    {
-        mprf(MSGCH_EXAMINE, "%s is indifferent to you.",
-             mon->pronoun(PRONOUN_CAP).c_str());
-    }
+        text += pronoun + " is indifferent to you.\n";
+
+    if (mons_is_summoned(mon))
+        text += pronoun + " has been summoned.\n";
 
     if (mon->haloed())
-    {
-        mprf(MSGCH_EXAMINE, "%s is illuminated by a divine halo.",
-             mon->pronoun(PRONOUN_CAP).c_str());
-    }
+        text += pronoun + " is illuminated by a divine halo.\n";
 
     // Give an indication of monsters being capable of seeing/sensing
     // invisible creatures.
@@ -2921,48 +2978,61 @@ static void _describe_monster(const monsters *mon)
         && !mons_is_confused(mon)
         && (mons_see_invis(mon) || mons_sense_invis(mon)))
     {
-        if (you.invisible() && mon->foe == MHITYOU && !mons_is_fleeing(mon))
+        const actor* foe = mon->get_foe();
+        if (foe && foe->invisible() && !mons_is_fleeing(mon))
         {
-            if (mons_see_invis(mon))
+            if (!you.can_see(foe))
+                text += pronoun + " is looking at something unseen.\n";
+            else if (mons_see_invis(mon))
             {
-                mprf(MSGCH_EXAMINE, "%s is watching you carefully.",
-                     mon->pronoun(PRONOUN_CAP).c_str());
+                text += pronoun + " is watching "
+                        + foe->name(DESC_NOCAP_THE)
+                        + ".\n";
             }
             else
             {
-                mprf(MSGCH_EXAMINE, "%s is looking in your general direction.",
-                     mon->pronoun(PRONOUN_CAP).c_str());
+                text += pronoun + " is looking in ";
+                std::string name = foe->atype() == ACT_PLAYER
+                                  ? "your" : (foe->name(DESC_NOCAP_THE) + "'s");
+                text += name + "general direction.\n";
             }
         }
-        else if (mon->foe == MHITNOT || mons_is_fleeing(mon))
-        {
-            mprf(MSGCH_EXAMINE, "%s seems to be peering into the shadows.",
-                 mon->pronoun(PRONOUN_CAP).c_str());
-        }
+        else if (!foe || mons_is_fleeing(mon))
+            text += pronoun + " seems to be peering into the shadows.\n";
     }
 
     if (mons_enslaved_body_and_soul(mon))
     {
-        mprf(MSGCH_EXAMINE, "%s soul is ripe for the taking.",
-             mon->pronoun(PRONOUN_CAP_POSSESSIVE).c_str());
+        text += mon->pronoun(PRONOUN_CAP_POSSESSIVE)
+                + " soul is ripe for the taking.\n";
     }
     else if (mons_enslaved_soul(mon))
-    {
-        mprf(MSGCH_EXAMINE, "%s is a disembodied soul.",
-             mon->pronoun(PRONOUN_CAP).c_str());
-    }
+        text += pronoun + " is a disembodied soul.\n";
 
-    text = _mon_enchantments_string(mon);
+    text += _mon_enchantments_string(mon);
+    return text;
+}
+
+static void _describe_monster(const monsters *mon)
+{
+    // First print type and equipment.
+    std::string text = get_monster_equipment_desc(mon) + ".";
+    print_formatted_paragraph(text);
+
+    print_wounds(mon);
+
+    // Print the rest of the description.
+    text = _get_monster_desc(mon);
     if (!text.empty())
-        print_formatted_paragraph(text, numcols);
+        print_formatted_paragraph(text, MSGCH_EXAMINE);
 }
 
 // This method is called in two cases:
 // a) Monsters coming into view: "An ogre comes into view. It is wielding ..."
-// b) Monster description via 'x': "An ogre, wielding a club and wearing ..."
-std::string get_monster_desc(const monsters *mon, bool full_desc,
-                             description_level_type mondtype,
-                             bool print_attitude)
+// b) Monster description via 'x': "An ogre, wielding a club, and wearing ..."
+std::string get_monster_equipment_desc(const monsters *mon, bool full_desc,
+                                       description_level_type mondtype,
+                                       bool print_attitude)
 {
     std::string desc = "";
     if (mondtype != DESC_NONE)
@@ -3074,10 +3144,8 @@ static void _describe_cell(const coord_def& where, bool in_range)
     if (where == you.pos() && !crawl_state.arena_suspended)
         mpr("You.", MSGCH_EXAMINE_FILTER);
 
-    if (mgrd(where) != NON_MONSTER)
+    if (const monsters* mon = monster_at(where))
     {
-        const monsters* mon = &menv[mgrd(where)];
-
         if (_mon_submerged_in_water(mon))
         {
             mpr("There is a strange disturbance in the water here.",
@@ -3101,7 +3169,7 @@ static void _describe_cell(const coord_def& where, bool in_range)
         }
         else
         {
-            if ( !in_range )
+            if (!in_range)
             {
                 mprf(MSGCH_EXAMINE_FILTER, "%s is out of range.",
                      mon->pronoun(PRONOUN_CAP).c_str());
@@ -3120,7 +3188,7 @@ static void _describe_cell(const coord_def& where, bool in_range)
 #else
             msg = "(Press <w>v</w> for more information.)";
 #endif
-            print_formatted_paragraph(msg, get_number_of_cols());
+            print_formatted_paragraph(msg);
         }
     }
 
@@ -3147,7 +3215,7 @@ static void _describe_cell(const coord_def& where, bool in_range)
 
     if (targ_item != NON_ITEM)
     {
-        // If a mimic is on this square, we pretend it's the first item -- bwr
+        // If a mimic is on this square, we pretend it's the first item - bwr
         if (mimic_item)
             mpr("There is something else lying underneath.", MSGCH_FLOOR_ITEMS);
         else
@@ -3200,7 +3268,7 @@ static void _describe_cell(const coord_def& where, bool in_range)
 #else
         feature_desc += " (Press <w>v</w> for more information.)";
 #endif
-        print_formatted_paragraph(feature_desc, get_number_of_cols());
+        print_formatted_paragraph(feature_desc);
     }
     else
     {
@@ -3226,11 +3294,11 @@ static void _describe_cell(const coord_def& where, bool in_range)
         msg_channel_type channel = MSGCH_EXAMINE;
         if (feat == DNGN_FLOOR
             || feat == DNGN_FLOOR_SPECIAL
-            || feat == DNGN_SHALLOW_WATER
-            || feat == DNGN_DEEP_WATER)
+            || grid_is_water(feat))
         {
             channel = MSGCH_EXAMINE_FILTER;
         }
+
         mpr(feature_desc.c_str(), channel);
     }
 #endif

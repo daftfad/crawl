@@ -104,18 +104,24 @@ void init_spell_descs(void)
             end(1, false, "spell #%d, id %d has no name", i, data.id);
 
         if (data.level < 1 || data.level > 9)
+        {
             end(1, false, "spell '%s' has invalid level %d",
                 data.title, data.level);
+        }
 
         if (data.min_range > data.max_range)
+        {
             end(1, false, "spell '%s' has min_range larger than max_range",
                 data.title);
+        }
 
         if (data.flags & SPFLAG_TARGETING_MASK)
         {
             if (data.min_range <= -1 || data.max_range <= 0)
+            {
                 end(1, false, "targeted/directed spell '%s' has invalid range",
                     data.title);
+            }
         }
 #endif
 
@@ -312,14 +318,14 @@ int spell_hunger(spell_type which_spell)
 
     int hunger;
 
-    if ( level < 10 && level > 0 )
+    if (level < 10 && level > 0)
         hunger = basehunger[level-1];
     else
         hunger = (basehunger[0] * level * level) / 4;
 
     hunger -= you.intel * you.skills[SK_SPELLCASTING];
 
-    if ( hunger < 0 )
+    if (hunger < 0)
         hunger = 0;
 
     return hunger;
@@ -467,25 +473,27 @@ const char *spell_title(spell_type spell)
 
 // Apply a function-pointer to all visible squares
 // Returns summation of return values from passed in function.
-int apply_area_visible( cell_func cf, int power, bool pass_through_trans)
+int apply_area_visible(cell_func cf, int power,
+                       bool pass_through_trans, actor *agent)
 {
     int rv = 0;
 
     for (radius_iterator ri(you.pos(), LOS_RADIUS); ri; ++ri)
-        if ( pass_through_trans || see_grid_no_trans(*ri) )
-            rv += cf(*ri, power, 0);
+        if (pass_through_trans || see_grid_no_trans(*ri))
+            rv += cf(*ri, power, 0, agent);
 
     return (rv);
 }
 
 // Applies the effect to all nine squares around/including the target.
 // Returns summation of return values from passed in function.
-int apply_area_square( cell_func cf, const coord_def& where, int power )
+int apply_area_square(cell_func cf, const coord_def& where, int power,
+                      actor *agent)
 {
     int rv = 0;
 
     for (adjacent_iterator ai(where, false); ai; ++ai)
-        rv += cf(*ai, power, 0);
+        rv += cf(*ai, power, 0, agent);
 
     return (rv);
 }
@@ -493,20 +501,22 @@ int apply_area_square( cell_func cf, const coord_def& where, int power )
 
 // Applies the effect to the eight squares beside the target.
 // Returns summation of return values from passed in function.
-int apply_area_around_square( cell_func cf, const coord_def& where, int power)
+int apply_area_around_square(cell_func cf, const coord_def& where, int power,
+                             actor *agent)
 {
     int rv = 0;
 
     for (adjacent_iterator ai(where, true); ai; ++ai)
-        rv += cf(*ai, power, 0);
+        rv += cf(*ai, power, 0, agent);
 
     return (rv);
 }
 
-// Effect up to max_targs monsters around a point, chosen randomly
-// Return varies with the function called;  return values will be added up.
-int apply_random_around_square( cell_func cf, const coord_def& where,
-                                bool exclude_center, int power, int max_targs )
+// Affect up to max_targs monsters around a point, chosen randomly.
+// Return varies with the function called; return values will be added up.
+int apply_random_around_square(cell_func cf, const coord_def& where,
+                               bool exclude_center, int power, int max_targs,
+                               actor *agent)
 {
     int rv = 0;
 
@@ -514,10 +524,10 @@ int apply_random_around_square( cell_func cf, const coord_def& where,
         return 0;
 
     if (max_targs >= 9 && !exclude_center)
-        return (apply_area_square( cf, where, power ));
+        return (apply_area_square(cf, where, power, agent));
 
     if (max_targs >= 8 && exclude_center)
-        return (apply_area_around_square( cf, where, power ));
+        return (apply_area_around_square(cf, where, power, agent));
 
     coord_def targs[8];
 
@@ -525,7 +535,7 @@ int apply_random_around_square( cell_func cf, const coord_def& where,
 
     for (adjacent_iterator ai(where, exclude_center); ai; ++ai)
     {
-        if (mgrd(*ai) == NON_MONSTER && *ai != you.pos())
+        if (monster_at(*ai) == NULL && *ai != you.pos())
             continue;
 
         // Found target
@@ -600,11 +610,11 @@ int apply_random_around_square( cell_func cf, const coord_def& where,
         // slot -- but we don't care about them).
         if (count <= max_targs)
         {
-            targs[ count - 1 ] = *ai;
+            targs[count - 1] = *ai;
         }
         else if (x_chance_in_y(max_targs, count))
         {
-            const int pick = random2( max_targs );
+            const int pick = random2(max_targs);
             targs[ pick ] = *ai;
         }
     }
@@ -618,8 +628,8 @@ int apply_random_around_square( cell_func cf, const coord_def& where,
         // balance the called function. -- bwr
         for (int i = 0; i < targs_found; i++)
         {
-            ASSERT( !targs[i].origin() );
-            rv += cf( targs[i], power, 0 );
+            ASSERT(!targs[i].origin());
+            rv += cf(targs[i], power, 0, agent);
         }
     }
 
@@ -627,12 +637,12 @@ int apply_random_around_square( cell_func cf, const coord_def& where,
 }
 
 // Apply func to one square of player's choice beside the player.
-int apply_one_neighbouring_square(cell_func cf, int power)
+int apply_one_neighbouring_square(cell_func cf, int power, actor *agent)
 {
     dist bmove;
 
     mpr("Which direction? [ESC to cancel]", MSGCH_PROMPT);
-    direction( bmove, DIR_DIR, TARG_ENEMY );
+    direction(bmove, DIR_DIR, TARG_ENEMY);
 
     if (!bmove.isValid)
     {
@@ -640,7 +650,7 @@ int apply_one_neighbouring_square(cell_func cf, int power)
         return (-1);
     }
 
-    int rv = cf(you.pos() + bmove.delta, power, 1);
+    int rv = cf(you.pos() + bmove.delta, power, 1, agent);
 
     if (rv == 0)
         canned_msg(MSG_NOTHING_HAPPENS);
@@ -648,14 +658,15 @@ int apply_one_neighbouring_square(cell_func cf, int power)
     return (rv);
 }
 
-int apply_area_within_radius( cell_func cf, const coord_def& where,
-                              int pow, int radius, int ctype )
+int apply_area_within_radius(cell_func cf, const coord_def& where,
+                             int pow, int radius, int ctype,
+                             actor *agent)
 {
 
     int rv = 0;
 
-    for ( radius_iterator ri(where, radius, false, false); ri; ++ri )
-        rv += cf(*ri, pow, ctype);
+    for (radius_iterator ri(where, radius, false, false); ri; ++ri)
+        rv += cf(*ri, pow, ctype, agent);
 
     return (rv);
 }
@@ -736,6 +747,9 @@ bool spell_direction( dist &spelld, bolt &pbolt,
 {
     if (restrict != DIR_DIR)
         message_current_target();
+
+    if (range < 1)
+        range = (pbolt.range < 1) ? LOS_RADIUS : pbolt.range;
 
     direction( spelld, restrict, mode, range, false, needs_path,
                may_target_monster, may_target_self, prompt, NULL,
@@ -871,7 +885,7 @@ int spell_type2skill(unsigned int spelltype)
     case SPTYP_ENCHANTMENT:    return (SK_ENCHANTMENTS);
     case SPTYP_FIRE:           return (SK_FIRE_MAGIC);
     case SPTYP_ICE:            return (SK_ICE_MAGIC);
-    case SPTYP_TRANSMUTATION: return (SK_TRANSMUTATION);
+    case SPTYP_TRANSMUTATION:  return (SK_TRANSMUTATIONS);
     case SPTYP_NECROMANCY:     return (SK_NECROMANCY);
     case SPTYP_SUMMONING:      return (SK_SUMMONINGS);
     case SPTYP_DIVINATION:     return (SK_DIVINATIONS);
@@ -898,7 +912,7 @@ int spell_skill2type(unsigned int skill)
     case SK_ENCHANTMENTS:   return (SPTYP_ENCHANTMENT);
     case SK_FIRE_MAGIC:     return (SPTYP_FIRE);
     case SK_ICE_MAGIC:      return (SPTYP_ICE);
-    case SK_TRANSMUTATION: return (SPTYP_TRANSMUTATION);
+    case SK_TRANSMUTATIONS: return (SPTYP_TRANSMUTATION);
     case SK_NECROMANCY:     return (SPTYP_NECROMANCY);
     case SK_SUMMONINGS:     return (SPTYP_SUMMONING);
     case SK_DIVINATIONS:    return (SPTYP_DIVINATION);
@@ -968,7 +982,7 @@ static int _sandblast_range(int pow, bool real_cast)
     int res = 1;
 
     if (wielding_rocks() && (!real_cast || coinflip()))
-            res = 2;
+        res = 2;
 
     return (res);
 }

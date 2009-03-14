@@ -114,7 +114,7 @@ struct MenuEntry
         {
             char buf[300];
             snprintf(buf, sizeof buf,
-                    "%c - %s", hotkeys[0], text.c_str());
+                    " %c - %s", hotkeys[0], text.c_str());
             return std::string(buf);
         }
         return text;
@@ -144,10 +144,7 @@ struct MenuEntry
     }
 
 #ifdef USE_TILE
-    virtual bool get_tiles(std::vector<tile_def>& tileset) const
-    {
-        return (false);
-    }
+    virtual bool get_tiles(std::vector<tile_def>& tileset) const;
 #endif
 };
 
@@ -268,8 +265,8 @@ public:
     virtual bool is_set( int flag ) const;
     void set_tag(const std::string& t) { tag = t; }
 
-    bool draw_title_suffix( const std::string &s, bool titlefirst = true );
-    bool draw_title_suffix( const formatted_string &fs, bool titlefirst = true );
+    bool draw_title_suffix(const std::string &s, bool titlefirst = true);
+    bool draw_title_suffix(const formatted_string &fs, bool titlefirst = true);
     void update_title();
 
     // Sets a replacement for the --more-- string.
@@ -311,6 +308,9 @@ public:
     selitem_tfn      f_selitem;
     drawitem_tfn     f_drawitem;
     keyfilter_tfn    f_keyfilter;
+
+    bool allow_toggle;
+    enum action { ACT_EXECUTE, ACT_EXAMINE, ACT_NUM } menu_action;
 
 protected:
     MenuEntry *title;
@@ -507,8 +507,8 @@ protected:
 
 int linebreak_string( std::string& s, int wrapcol, int maxcol );
 int linebreak_string2( std::string& s, int maxcol );
-void print_formatted_paragraph( std::string &s, int maxcol,
-                                msg_channel_type channel = MSGCH_PLAIN);
+void print_formatted_paragraph(std::string &s,
+                               msg_channel_type channel = MSGCH_PLAIN);
 std::string get_linebreak_string(const std::string& s, int maxcol);
 
 #endif

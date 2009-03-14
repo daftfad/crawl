@@ -88,46 +88,33 @@ static void _create_monster_hide(int mons_class)
     if (o == NON_ITEM)
         return;
 
+    item_def& item = mitm[o];
+
     // These values are common to all: {dlb}
-    mitm[o].base_type = OBJ_ARMOUR;
-    mitm[o].quantity  = 1;
-    mitm[o].plus      = 0;
-    mitm[o].plus2     = 0;
-    mitm[o].special   = 0;
-    mitm[o].flags     = 0;
-    mitm[o].colour    = mons_class_colour(mons_class);
+    item.base_type = OBJ_ARMOUR;
+    item.quantity  = 1;
+    item.plus      = 0;
+    item.plus2     = 0;
+    item.special   = 0;
+    item.flags     = 0;
+    item.colour    = mons_class_colour(mons_class);
 
     // These values cannot be set by a reasonable formula: {dlb}
     switch (mons_class)
     {
-    case MONS_DRAGON:
-        mitm[o].sub_type = ARM_DRAGON_HIDE;
-        break;
-    case MONS_TROLL:
-        mitm[o].sub_type = ARM_TROLL_HIDE;
-        break;
-    case MONS_ICE_DRAGON:
-        mitm[o].sub_type = ARM_ICE_DRAGON_HIDE;
-        break;
-    case MONS_STEAM_DRAGON:
-        mitm[o].sub_type = ARM_STEAM_DRAGON_HIDE;
-        break;
-    case MONS_MOTTLED_DRAGON:
-        mitm[o].sub_type = ARM_MOTTLED_DRAGON_HIDE;
-        break;
-    case MONS_STORM_DRAGON:
-        mitm[o].sub_type = ARM_STORM_DRAGON_HIDE;
-        break;
-    case MONS_GOLDEN_DRAGON:
-        mitm[o].sub_type = ARM_GOLD_DRAGON_HIDE;
-        break;
-    case MONS_SWAMP_DRAGON:
-        mitm[o].sub_type = ARM_SWAMP_DRAGON_HIDE;
-        break;
+    case MONS_DRAGON:         item.sub_type = ARM_DRAGON_HIDE;         break;
+    case MONS_TROLL:          item.sub_type = ARM_TROLL_HIDE;          break;
+    case MONS_ICE_DRAGON:     item.sub_type = ARM_ICE_DRAGON_HIDE;     break;
+    case MONS_STEAM_DRAGON:   item.sub_type = ARM_STEAM_DRAGON_HIDE;   break;
+    case MONS_MOTTLED_DRAGON: item.sub_type = ARM_MOTTLED_DRAGON_HIDE; break;
+    case MONS_STORM_DRAGON:   item.sub_type = ARM_STORM_DRAGON_HIDE;   break;
+    case MONS_GOLDEN_DRAGON:  item.sub_type = ARM_GOLD_DRAGON_HIDE;    break;
+    case MONS_SWAMP_DRAGON:   item.sub_type = ARM_SWAMP_DRAGON_HIDE;   break;
+
     case MONS_SHEEP:
     case MONS_YAK:
     default:
-        mitm[o].sub_type = ARM_ANIMAL_SKIN;
+        item.sub_type = ARM_ANIMAL_SKIN;
         break;
     }
 
@@ -181,18 +168,17 @@ void turn_corpse_into_chunks(item_def &item)
 
 void turn_corpse_into_skeleton_and_chunks(item_def &item)
 {
-    if (mons_skeleton(item.plus))
-    {
-        int o = get_item_slot();
-        if (o != NON_ITEM)
-        {
-            item_def skel = item;
-            turn_corpse_into_skeleton(skel);
-            copy_item_to_grid(skel, you.pos());
-        }
-    }
+    item_def chunks = item;
 
-    turn_corpse_into_chunks(item);
+    if (mons_skeleton(item.plus))
+        turn_corpse_into_skeleton(item);
+
+    int o = get_item_slot();
+    if (o != NON_ITEM)
+    {
+        turn_corpse_into_chunks(chunks);
+        copy_item_to_grid(chunks, you.pos());
+    }
 }
 
 // Initialize blood potions with a vector of timers.
@@ -292,7 +278,8 @@ void maybe_coagulate_blood_potions_floor(int obj)
     }
 
     if (!rot_count && !coag_count)
-        return; // nothing to be done
+        // Nothing to be done.
+        return;
 
 #ifdef DEBUG_BLOOD_POTIONS
     mprf(MSGCH_DIAGNOSTICS, "in maybe_coagulate_blood_potions_FLOOR "
@@ -320,39 +307,37 @@ void maybe_coagulate_blood_potions_floor(int obj)
         // Now that coagulating is necessary, check square for
         // !coagulated blood.
         ASSERT(blood.pos.x >= 0 && blood.pos.y >= 0);
-        for (int o = igrd[blood.pos.x][blood.pos.y]; o != NON_ITEM;
-             o = mitm[o].link)
+        for (stack_iterator si(blood.pos); si; ++si)
         {
-            if (mitm[o].base_type == OBJ_POTIONS
-                && mitm[o].sub_type == POT_BLOOD_COAGULATED)
+            if (si->base_type == OBJ_POTIONS
+                && si->sub_type == POT_BLOOD_COAGULATED)
             {
                 // Merge with existing stack.
-                CrawlHashTable &props2 = mitm[o].props;
+                CrawlHashTable &props2 = si->props;
                 if (!props2.exists("timer"))
-                    init_stack_blood_potions(mitm[o], mitm[o].special);
+                    init_stack_blood_potions(*si, si->special);
 
                 ASSERT(props2.exists("timer"));
                 CrawlVector &timer2 = props2["timer"].get_vector();
-                ASSERT(timer2.size() == mitm[o].quantity);
+                ASSERT(timer2.size() == si->quantity);
 
                 // Update timer -> push(pop).
-                long val;
                 while (!age_timer.empty())
                 {
-                    val = age_timer[age_timer.size() - 1];
+                    const long val = age_timer.back();
                     age_timer.pop_back();
                     timer2.push_back(val);
                 }
                 _long_sort(timer2);
-                inc_mitm_item_quantity(o, coag_count);
-                ASSERT(timer2.size() == mitm[o].quantity);
+                inc_mitm_item_quantity(si.link(), coag_count);
+                ASSERT(timer2.size() == si->quantity);
                 dec_mitm_item_quantity(obj, rot_count + coag_count);
                 return;
             }
         }
     }
     // If we got here, nothing was found! (Or it's in a monster's
-    // inventory).
+    // inventory.)
 
     // Entire stack is gone, rotted or coagulated.
     // -> Change potions to coagulated type.
@@ -626,10 +611,11 @@ bool maybe_coagulate_blood_potions_inv(item_def &blood)
 
     // Else, create new stack in inventory.
     int freeslot = find_free_slot(blood);
-    if (freeslot >= 0 && freeslot < ENDOFPACK
-        && !is_valid_item(you.inv[freeslot]))
+    if (freeslot >= 0 && freeslot < ENDOFPACK)
     {
         item_def &item   = you.inv[freeslot];
+        item.clear();
+
         item.link        = freeslot;
         item.slot        = index_to_letter(item.link);
         item.base_type   = OBJ_POTIONS;
@@ -638,8 +624,7 @@ bool maybe_coagulate_blood_potions_inv(item_def &blood)
         item.plus        = 0;
         item.plus2       = 0;
         item.special     = 0;
-        item.flags       = 0;
-        item.inscription = "";
+        item.flags       = (ISFLAG_KNOW_TYPE & ISFLAG_BEEN_IN_INV);
         item.pos.set(-1, -1);
         item_colour(item);
 
@@ -721,7 +706,7 @@ bool maybe_coagulate_blood_potions_inv(item_def &blood)
     mitm[o].plus      = 0;
     mitm[o].plus2     = 0;
     mitm[o].special   = 0;
-    mitm[o].flags     = ~(ISFLAG_THROWN | ISFLAG_DROPPED);
+    mitm[o].flags     = (ISFLAG_KNOW_TYPE & ISFLAG_BEEN_IN_INV);
     item_colour(mitm[o]);
 
     CrawlHashTable &props_new = mitm[o].props;
@@ -916,18 +901,17 @@ void turn_corpse_into_blood_potions(item_def &item)
 
 void turn_corpse_into_skeleton_and_blood_potions(item_def &item)
 {
-    if (mons_skeleton(item.plus))
-    {
-        int o = get_item_slot();
-        if (o != NON_ITEM)
-        {
-            item_def skel = item;
-            turn_corpse_into_skeleton(skel);
-            copy_item_to_grid(skel, you.pos());
-        }
-    }
+    item_def blood_potions = item;
 
-    turn_corpse_into_blood_potions(item);
+    if (mons_skeleton(item.plus))
+        turn_corpse_into_skeleton(item);
+
+    int o = get_item_slot();
+    if (o != NON_ITEM)
+    {
+        turn_corpse_into_blood_potions(blood_potions);
+        copy_item_to_grid(blood_potions, you.pos());
+    }
 }
 
 // A variation of the mummy curse:
@@ -1004,7 +988,7 @@ void split_potions_into_decay( int obj, int amount, bool need_msg )
         item.special     = 0;
         item.flags       = 0;
         item.colour      = potion.colour;
-        item.inscription = "";
+        item.inscription.clear();
         item.pos.set(-1, -1);
 
         you.inv[obj].quantity -= amount;
@@ -1115,8 +1099,10 @@ void bleed_onto_floor(const coord_def& where, int montype,
                       int damage, bool spatter, bool smell_alert)
 {
     ASSERT(in_bounds(where));
+
     if (montype == -1 && !you.can_bleed())
         return;
+
     if (montype != -1)
     {
         monsters m;
@@ -1124,7 +1110,7 @@ void bleed_onto_floor(const coord_def& where, int montype,
         if (!m.can_bleed())
             return;
     }
-    
+
     _maybe_bloodify_square(where, damage, spatter, smell_alert);
 }
 
@@ -1168,20 +1154,20 @@ void generate_random_blood_spatter_on_level()
 
     int min_prob = 1;
     int max_prob = 4;
+
     if (max_cluster < 10)
         max_prob--;
     else if (max_cluster > 12)
         min_prob++;
 
-    for (int i = 0; i < max_cluster; i++)
+    for (int i = 0; i < max_cluster; ++i)
     {
-        coord_def c;
-        c.x = 10 + random2(GXM - 10);
-        c.y = 10 + random2(GYM - 10);
+        coord_def c = random_in_bounds();
         startprob = min_prob + random2(max_prob);
 
         if (allow_bleeding_on_square(c))
             env.map(c).property |= FPROP_BLOODY;
+
         _spatter_neighbours(c, startprob);
     }
 }
@@ -1319,6 +1305,10 @@ static void leaving_level_now()
     const std::string newtype =
         env.markers.property_at(you.pos(), MAT_ANY, "dst");
 
+    // Extension to use for bones files.
+    const std::string newext =
+        env.markers.property_at(you.pos(), MAT_ANY, "dstext");
+
     const std::string oldname = you.level_type_name;
     std::string newname =
         env.markers.property_at(you.pos(), MAT_ANY, "dstname");
@@ -1372,6 +1362,7 @@ static void leaving_level_now()
     {
         you.level_type_tag = newtype;
     }
+
     const std::string spaced_tag = replace_all(you.level_type_tag, "_", " ");
 
     if (!you.level_type_tag.empty() && you.level_type_name.empty())
@@ -1392,6 +1383,14 @@ static void leaving_level_now()
             you.level_type_name_abbrev = shorter.substr(0, MAX_NOTE_PLACE_LEN);
         }
     }
+
+    if (!newext.empty())
+        you.level_type_ext = newext;
+    else if (!you.level_type_tag.empty())
+        you.level_type_ext = lowercase_string(you.level_type_tag);
+
+    if (you.level_type_ext.length() > 3)
+        you.level_type_ext = you.level_type_ext.substr(0, 3);
 
     if (!neworigin.empty())
         you.level_type_origin = neworigin;
@@ -1477,6 +1476,8 @@ static int runes_in_pack()
 
 bool check_annotation_exclusion_warning()
 {
+    // Players might not realize the implications of teleport
+    // mutations in the labyrinth.
     if (grd(you.pos()) == DNGN_ENTER_LABYRINTH
         && player_mutation_level(MUT_TELEPORT))
     {
@@ -1698,21 +1699,20 @@ void up_stairs(dungeon_feature_type force_stair,
     if (!player_is_airborne()
         && you.confused()
         && old_level_type == LEVEL_DUNGEON
-        && stair_find >= DNGN_STONE_STAIRS_UP_I
-        && stair_find <= DNGN_STONE_STAIRS_UP_III
-        && random2(100) > you.dex)
+        && !grid_is_escape_hatch(stair_find)
+        && coinflip())
     {
-        mpr("In your confused state, you trip and fall back down the stairs.");
+        const char* fall_where = "down the stairs";
+        if (!grid_is_staircase(stair_find))
+            fall_where = "through the gate";
 
-        ouch(roll_dice(3 + you.burden_state, 5), NON_MONSTER,
-             KILLED_BY_FALLING_DOWN_STAIRS);
-
+        mprf("In your confused state, you trip and fall back %s.", fall_where);
+        ouch(1, NON_MONSTER, KILLED_BY_FALLING_DOWN_STAIRS);
         you.turn_is_over = true;
         return;
     }
 
-    if (you.burden_state == BS_OVERLOADED
-        && !grid_is_escape_hatch(stair_find))
+    if (you.burden_state == BS_OVERLOADED && !grid_is_escape_hatch(stair_find))
     {
         mpr("You are carrying too much to climb upwards.");
         you.turn_is_over = true;
@@ -1734,6 +1734,10 @@ void up_stairs(dungeon_feature_type force_stair,
     // Bail if any markers veto the move.
     if (_marker_vetoes_level_change())
         return;
+
+    // Magical level changes (don't exist yet in this direction)
+    // need this.
+    clear_trapping_net();
 
     // Checks are done, the character is committed to moving between levels.
     leaving_level_now();
@@ -1779,20 +1783,11 @@ void up_stairs(dungeon_feature_type force_stair,
     {
         switch (old_level_id.branch)
         {
-        case BRANCH_COCYTUS:
-            stair_find = DNGN_ENTER_COCYTUS;
-            break;
-        case BRANCH_DIS:
-            stair_find = DNGN_ENTER_DIS;
-            break;
-        case BRANCH_GEHENNA:
-            stair_find = DNGN_ENTER_GEHENNA;
-            break;
-        case BRANCH_TARTARUS:
-            stair_find = DNGN_ENTER_TARTARUS;
-            break;
-        default:
-            break;
+        case BRANCH_COCYTUS:  stair_find = DNGN_ENTER_COCYTUS;  break;
+        case BRANCH_DIS:      stair_find = DNGN_ENTER_DIS;      break;
+        case BRANCH_GEHENNA:  stair_find = DNGN_ENTER_GEHENNA;  break;
+        case BRANCH_TARTARUS: stair_find = DNGN_ENTER_TARTARUS; break;
+        default: break;
         }
     }
 
@@ -2083,8 +2078,7 @@ void down_stairs( int old_level, dungeon_feature_type force_stair,
             find_trap(you.pos())->destroy();
             return;
         }
-        shaft_level = absdungeon_depth(shaft_dest.branch,
-                                       shaft_dest.depth);
+        shaft_level = absdungeon_depth(shaft_dest.branch, shaft_dest.depth);
 
         if (you.flight_mode() != FL_FLY || force_stair)
             mpr("You fall through a shaft!");
@@ -2099,7 +2093,7 @@ void down_stairs( int old_level, dungeon_feature_type force_stair,
             switch (NUMBER_OF_RUNES_NEEDED)
             {
             case 1:
-                mpr("You need one more Rune to enter this place.");
+                mpr("You need a Rune to enter this place.");
                 break;
 
             default:
@@ -2117,6 +2111,10 @@ void down_stairs( int old_level, dungeon_feature_type force_stair,
     const level_id destination_override(_stair_destination_override());
 
     // All checks are done, the player is on the move now.
+
+    // Magical level changes (Portal, Banishment) need this.
+    clear_trapping_net();
+
     // Fire level-leaving trigger.
     leaving_level_now();
 
@@ -2193,20 +2191,16 @@ void down_stairs( int old_level, dungeon_feature_type force_stair,
         && you.confused()
         && !grid_is_escape_hatch(stair_find)
         && force_stair != DNGN_ENTER_ABYSS
-        && random2(100) > you.dex)
+        && coinflip())
     {
-        std::string fall_where = "down the stairs";
-
+        const char* fall_where = "down the stairs";
         if (!grid_is_staircase(stair_find))
             fall_where = "through the gate";
 
-        mprf("In your confused state, you trip and fall %s.",
-             fall_where.c_str());
-
-        // Nastier than when climbing stairs, but you'll aways get to
-        // your destination. -- bwr
-        ouch(roll_dice(6 + you.burden_state, 10), NON_MONSTER,
-             KILLED_BY_FALLING_DOWN_STAIRS);
+        mprf("In your confused state, you trip and fall %s.", fall_where);
+        // Note that this only does damage; it doesn't cancel the level
+        // transition.
+        ouch(1, NON_MONSTER, KILLED_BY_FALLING_DOWN_STAIRS);
     }
 
     dungeon_feature_type stair_taken = stair_find;
@@ -2553,8 +2547,6 @@ bool go_berserk(bool intentional)
 // assumed that this is the case.
 static bool _mons_has_path_to_player(const monsters *mon)
 {
-    int m = monster_index(mon);
-
     // Don't consider sleeping monsters safe, in case the player would
     // rather retreat and try another path for maximum stabbing chances.
     if (mons_is_sleeping(mon))
@@ -2575,11 +2567,11 @@ static bool _mons_has_path_to_player(const monsters *mon)
     if (range > 0)
         mp.set_range(range);
 
-    if (mp.init_pathfind(&menv[m], you.pos(), true, false, true))
+    if (mp.init_pathfind(mon, you.pos(), true, false, true))
         return (true);
 
     // Now we know the monster cannot possibly reach the player.
-    menv[m].travel_target = MTRAV_KNOWN_UNREACHABLE;
+    mon->travel_target = MTRAV_KNOWN_UNREACHABLE;
 
     return (false);
 }
@@ -2688,20 +2680,18 @@ std::vector<monsters*> get_nearby_monsters(bool want_move,
     // Sweep every visible square within range.
     for (radius_iterator ri(you.pos(), range); ri; ++ri)
     {
-        const unsigned short targ_monst = env.mgrid(*ri);
-        if (targ_monst != NON_MONSTER)
+        if (monsters* mon = monster_at(*ri))
         {
-            monsters *mon = &menv[targ_monst];
             if (mon->alive()
                 && (!require_visible || player_monster_visible(mon))
                 && !mons_is_submerged(mon)
-                && (!mons_is_mimic(mon->type) || mons_is_known_mimic(mon))
+                && !mons_is_unknown_mimic(mon)
                 && (!dangerous_only || !mons_is_safe(mon, want_move,
                                                      consider_user_options)))
             {
                 mons.push_back(mon);
                 if (just_check) // stop once you find one
-                    return mons;
+                    break;
             }
         }
     }
@@ -2927,23 +2917,12 @@ coord_def pick_adjacent_free_square(const coord_def& p)
 {
     int num_ok = 0;
     coord_def result(-1, -1);
-    for ( int ux = p.x-1; ux <= p.x+1; ++ux )
-    {
-        for ( int uy = p.y-1; uy <= p.y+1; ++uy )
-        {
-            if ( ux == p.x && uy == p.y )
-                continue;
 
-            if ( in_bounds(ux, uy)
-                 && grd[ux][uy] == DNGN_FLOOR
-                 && mgrd[ux][uy] == NON_MONSTER )
-            {
-                ++num_ok;
-                if ( one_chance_in(num_ok) )
-                    result.set(ux, uy);
-            }
-        }
-    }
+    for (adjacent_iterator ai(p); ai; ++ai)
+        if (grd(*ai) == DNGN_FLOOR && monster_at(*ai) == NULL)
+            if (one_chance_in(++num_ok))
+                result = *ai;
+
     return result;
 }
 
@@ -2997,16 +2976,12 @@ std::string your_hand(bool plural)
     case TRAN_PIG:
         result = "front leg";
         break;
-    case TRAN_SERPENT_OF_HELL:
     case TRAN_DRAGON:
     case TRAN_BAT:
         result = "foreclaw";
         break;
     case TRAN_BLADE_HANDS:
         result = "scythe-like blade";
-        break;
-    case TRAN_AIR:
-        result = "misty tendril";
         break;
     }
 
@@ -3107,11 +3082,9 @@ bool is_dragonkind(const actor *act)
     }
 
     if (act->atype() == ACT_PLAYER)
-    {
-        return (you.attribute[ATTR_TRANSFORMATION] == TRAN_DRAGON
-                || you.attribute[ATTR_TRANSFORMATION] == TRAN_SERPENT_OF_HELL);
-    }
-    // else the actor is a monster
+        return (you.attribute[ATTR_TRANSFORMATION] == TRAN_DRAGON);
+
+    // Else the actor is a monster.
     const monsters* mon = dynamic_cast<const monsters*>(act);
 
     if (mon->type == MONS_SERPENT_OF_HELL)

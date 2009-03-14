@@ -21,6 +21,7 @@ REVISION("$Rev$");
 #include "mapmark.h"
 #include "message.h"
 #include "misc.h"
+#include "mon-util.h"
 #include "monplace.h"
 #include "mtransit.h"
 #include "player.h"
@@ -81,6 +82,11 @@ static bool _place_feature_near( const coord_def &centre,
 // Public for abyss generation.
 void generate_abyss()
 {
+    extern std::string dgn_Build_Method;
+
+    dgn_Build_Method += " abyss";
+    dgn_Layout_Type   = "abyss";
+
 #ifdef DEBUG_ABYSS
     mprf(MSGCH_DIAGNOSTICS,
          "generate_abyss(); turn_on_level: %d", env.turns_on_level);
@@ -391,6 +397,7 @@ static void _abyss_lose_monster(monsters &mons)
     if (mons.needs_transit())
         mons.set_transit( level_id(LEVEL_ABYSS) );
 
+    mons.destroy_inventory();
     mons.reset();
 }
 
@@ -461,11 +468,11 @@ void area_shift(void)
 #endif
         lose_item_stack( *ri );
 
-        if (mgrd(*ri) != NON_MONSTER)
-            _abyss_lose_monster( menv[ mgrd(*ri) ] );
+        if (monsters* m = monster_at(*ri))
+            _abyss_lose_monster(*m);
     }
 
-    // Shift all monsters & items to new area.
+    // Shift all monsters and items to new area.
     for (radius_iterator ri(you.pos(), 10, true, false); ri; ++ri)
     {
         const coord_def newpos = abyss_center + *ri - you.pos();
@@ -482,10 +489,10 @@ void area_shift(void)
                  ri->x, ri->y, newpos.x, newpos.y);
         }
 #endif
-        move_item_stack_to_grid( *ri, newpos );
+        move_item_stack_to_grid(*ri, newpos);
 
         // Move monster.
-        if ( mgrd(*ri) != NON_MONSTER )
+        if (mgrd(*ri) != NON_MONSTER)
         {
             menv[mgrd(*ri)].moveto(newpos);
             mgrd(newpos) = mgrd(*ri);
@@ -506,7 +513,7 @@ void area_shift(void)
             delete_cloud( i );
     }
 
-    you.moveto(abyss_center);
+    you.shiftto(abyss_center);
 
     _generate_area(coord_def(MAPGEN_BORDER, MAPGEN_BORDER),
                    coord_def(GXM - MAPGEN_BORDER, GYM - MAPGEN_BORDER), true);
@@ -676,7 +683,7 @@ static bool _spawn_corrupted_servant_near(const coord_def &pos)
     {
         const coord_def p( pos.x + random2avg(4, 3) + random2(3),
                            pos.y + random2avg(4, 3) + random2(3) );
-        if (!in_bounds(p) || p == you.pos() || mgrd(p) != NON_MONSTER
+        if (!in_bounds(p) || actor_at(p)
             || !grid_compatible(DNGN_FLOOR, grd(p)))
         {
             continue;
@@ -907,16 +914,12 @@ static void _corrupt_choose_colours()
 {
     int colour = BLACK;
     do
-    {
         colour = random_uncommon_colour();
-    }
     while (colour == env.rock_colour || colour == LIGHTGREY || colour == WHITE);
     env.rock_colour = colour;
 
     do
-    {
         colour = random_uncommon_colour();
-    }
     while (colour == env.floor_colour || colour == LIGHTGREY
            || colour == WHITE);
     env.floor_colour = colour;
@@ -929,7 +932,7 @@ bool lugonu_corrupt_level(int power)
 
     mprf(MSGCH_GOD, "Lugonu's Hand of Corruption reaches out!");
 
-    you.flash_colour = EC_MUTAGENIC;
+    you.flash_colour = ETC_MUTAGENIC;
     viewwindow(true, false);
 
     _initialise_level_corrupt_seeds(power);
@@ -950,7 +953,7 @@ bool lugonu_corrupt_level(int power)
     _corrupt_level_features(*abyssal);
     run_corruption_effects(300);
 
-    you.flash_colour = EC_MUTAGENIC;
+    you.flash_colour = ETC_MUTAGENIC;
     viewwindow(true, false);
     // Allow extra time for the flash to linger.
     delay(1000);

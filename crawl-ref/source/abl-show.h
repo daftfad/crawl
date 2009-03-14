@@ -66,19 +66,18 @@ const struct ability_def & get_ability_def( ability_type abil );
 const char* ability_name(ability_type ability);
 const std::string make_cost_description(ability_type ability);
 std::vector<const char*> get_ability_names();
-int choose_ability_menu(const std::vector<talent>& talents,
-                        bool describe = false);
+int choose_ability_menu(const std::vector<talent>& talents);
 
 // last updated 12may2000 {dlb}
 /* ***********************************************************************
  * called from: acr
  * *********************************************************************** */
 bool activate_ability();
-std::vector<talent> your_talents( bool check_confused );
+std::vector<talent> your_talents(bool check_confused);
 
-std::string print_abilities( void );
+std::string print_abilities(void);
 
-void set_god_ability_slots( void );
+void set_god_ability_slots(void);
 
 
 #endif

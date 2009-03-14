@@ -52,7 +52,8 @@ static bool _god_fits_artefact(const god_type which_god, const item_def &item,
     bool type_bad = false;
     switch (which_god)
     {
-    case GOD_ELYVILON: // peaceful healer god, no weapons, no berserking
+    case GOD_ELYVILON:
+        // Peaceful healer god: no weapons, no berserking.
         if (item.base_type == OBJ_WEAPONS)
             type_bad = true;
 
@@ -60,12 +61,14 @@ static bool _god_fits_artefact(const god_type which_god, const item_def &item,
             type_bad = true;
         break;
 
-    case GOD_OKAWARU: // precision fighter
+    case GOD_OKAWARU:
+        // Precision fighter god: no inaccuracy.
         if (item.base_type == OBJ_JEWELLERY && item.sub_type == AMU_INACCURACY)
             type_bad = true;
         break;
 
     case GOD_ZIN:
+        // Lawful god: no increased hunger.
         if (item.base_type == OBJ_JEWELLERY && item.sub_type == RING_HUNGER)
             type_bad = true;
         break;
@@ -79,11 +82,10 @@ static bool _god_fits_artefact(const god_type which_god, const item_def &item,
         break;
 
     case GOD_TROG:
-        // Trog hates spell use.
+        // Anti-magic god: no spell use, no enhancing magic.
         if (item.base_type == OBJ_BOOKS)
             type_bad = true;
 
-        // hates anything enhancing magic
         if (item.base_type == OBJ_JEWELLERY && (item.sub_type == RING_WIZARDRY
             || item.sub_type == RING_FIRE || item.sub_type == RING_ICE
             || item.sub_type == RING_MAGICAL_POWER))
@@ -123,11 +125,13 @@ static bool _god_fits_artefact(const god_type which_god, const item_def &item,
     switch (which_god)
     {
     case GOD_BEOGH:
+        // Orc god: no orc slaying.
         if (brand == SPWPN_ORC_SLAYING)
-            return (false); // goes against orcish theme
+            return (false);
         break;
 
-    case GOD_ELYVILON: // peaceful healer god, no weapons, no berserking
+    case GOD_ELYVILON:
+        // Peaceful healer god: no berserking.
         if (randart_wpn_property(item, RAP_ANGRY)
             || randart_wpn_property(item, RAP_BERSERK))
         {
@@ -136,11 +140,13 @@ static bool _god_fits_artefact(const god_type which_god, const item_def &item,
         break;
 
     case GOD_ZIN:
+        // Lawful god: no mutagenics.
         if (randart_wpn_property(item, RAP_MUTAGENIC))
-            return (false); // goes against anti-mutagenic theme
+            return (false);
         break;
 
-    case GOD_SHINING_ONE: // holiness, honourable combat
+    case GOD_SHINING_ONE:
+        // Crusader god: holiness, honourable combat.
         if (item.base_type == OBJ_WEAPONS && brand != SPWPN_HOLY_WRATH)
             return (false);
 
@@ -151,7 +157,8 @@ static bool _god_fits_artefact(const god_type which_god, const item_def &item,
         }
         break;
 
-    case GOD_LUGONU: // corruption
+    case GOD_LUGONU:
+        // Abyss god: corruption.
         if (item.base_type == OBJ_WEAPONS && brand != SPWPN_DISTORTION)
             return (false);
         break;
@@ -159,12 +166,14 @@ static bool _god_fits_artefact(const god_type which_god, const item_def &item,
     case GOD_SIF_MUNA:
     case GOD_KIKUBAAQUDGHA:
     case GOD_VEHUMET:
+        // The magic gods: no preventing spellcasting.
         if (randart_wpn_property(item, RAP_PREVENT_SPELLCASTING))
             return (false);
         break;
 
-    case GOD_TROG: // hates anything enhancing magic
-        if (brand == SPWPN_PAIN) // involves necromantic magic
+    case GOD_TROG:
+        // Anti-magic god: no spell use, no enhancing magic.
+        if (brand == SPWPN_PAIN) // Pain involves necromantic spell use.
             return (false);
 
         if (randart_wpn_property(item, RAP_MAGICAL_POWER))
@@ -666,7 +675,7 @@ void static _get_randart_properties(const item_def &item,
 
     proprt.init(0);
 
-    if (aclass == OBJ_WEAPONS)  // Only weapons get brands, of course
+    if (aclass == OBJ_WEAPONS) // only weapons get brands, of course
     {
         proprt[RAP_BRAND] = SPWPN_FLAMING + random2(15);        // brand
 
@@ -679,7 +688,13 @@ void static _get_randart_properties(const item_def &item,
         if (proprt[RAP_BRAND] == SPWPN_DRAGON_SLAYING
             && weapon_skill(item) != SK_POLEARMS)
         {
-            proprt[RAP_BRAND] = 0;      // missile wpns
+            proprt[RAP_BRAND] = SPWPN_NORMAL;
+        }
+
+        if (proprt[RAP_BRAND] == SPWPN_VENOM
+            && get_vorpal_type(item) == DVORP_CRUSHING)
+        {
+            proprt[RAP_BRAND] = SPWPN_NORMAL;
         }
 
         if (one_chance_in(6))
@@ -688,13 +703,13 @@ void static _get_randart_properties(const item_def &item,
         if (proprt[RAP_BRAND] == SPWPN_FLAME
             || proprt[RAP_BRAND] == SPWPN_FROST)
         {
-            proprt[RAP_BRAND] = 0;      // missile wpns
+            proprt[RAP_BRAND] = SPWPN_NORMAL;      // missile wpns
         }
 
         if (proprt[RAP_BRAND] == SPWPN_PROTECTION)
-            proprt[RAP_BRAND] = 0;      // no protection
+            proprt[RAP_BRAND] = SPWPN_NORMAL;      // no protection
 
-        // if this happens, things might get broken -- bwr
+        // if this happens, things might get broken - bwr
         if (proprt[RAP_BRAND] == SPWPN_SPEED && atype == WPN_QUICK_BLADE)
             proprt[RAP_BRAND] = SPWPN_NORMAL;
 
@@ -1003,7 +1018,7 @@ void static _get_randart_properties(const item_def &item,
     // go berserk
     if (!done_powers
         && one_chance_in(10)
-        && (aclass != OBJ_WEAPONS || is_range_weapon(item))
+        && (aclass != OBJ_WEAPONS || !is_range_weapon(item))
         && (aclass != OBJ_JEWELLERY || atype != AMU_RAGE))
     {
         proprt[RAP_BERSERK] = 1;
@@ -1107,7 +1122,7 @@ void static _get_randart_properties(const item_def &item,
         && (aclass != OBJ_ARMOUR
             || atype != ARM_BOOTS
             || get_equip_race(item) != ISFLAG_ELVEN)
-        && get_armour_ego_type( item ) != SPARM_STEALTH)
+        && get_armour_ego_type(item) != SPARM_STEALTH)
     {
         power_level++;
         proprt[RAP_STEALTH] = 10 + random2(70);
@@ -1817,6 +1832,18 @@ static const char* _get_fixedart_name(const item_def &item)
     return (item_type_known(item) ? "Unnamed Artefact" : "buggy fixedart");
 }
 
+int get_fixedart_num( const char *name )
+{
+    for (unsigned int i = 0; i < ARRAYSZ(fixedarts); ++i)
+    {
+        std::string art = fixedarts[i].name;
+        lowercase(art);
+        if (replace_all(art, " ", "_") == name)
+            return fixedarts[i].which;
+    }
+    return SPWPN_NORMAL;
+}
+
 // which == 0 (default) gives random fixed artefact.
 // Returns true if successful.
 bool make_item_fixed_artefact( item_def &item, bool in_abyss, int which )
@@ -2128,6 +2155,9 @@ bool make_item_randart( item_def &item )
     if (item.flags & ISFLAG_UNRANDART)
         return (false);
 
+    if (item_is_mundane(item))
+        return (false);
+
     ASSERT(!item.props.exists( KNOWN_PROPS_KEY ));
     ASSERT(!item.props.exists( RANDART_NAME_KEY ));
     ASSERT(!item.props.exists( RANDART_APPEAR_KEY ));
@@ -2196,7 +2226,7 @@ bool make_item_unrandart( item_def &item, int unrand_index )
     item.flags |= ISFLAG_UNRANDART;
     _init_randart_properties(item);
 
-    item.special = unrand->prpty[ RAP_BRAND ];
+    item.special = unrand->prpty[RAP_BRAND];
     if (item.special != 0)
     {
         do_curse_item( item );

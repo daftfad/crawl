@@ -16,17 +16,9 @@
 
 struct bolt;
 
-// last updated 24may2000 {dlb}
-/* ***********************************************************************
- * called from: spell
- * *********************************************************************** */
 bool cast_sure_blade(int power);
-
-// last updated 24may2000 {dlb}
-/* ***********************************************************************
- * called from: ability - spell
- * *********************************************************************** */
-int cast_healing(int pow, const coord_def& where = coord_def(0,0));
+int cast_healing(int pow, bool divine_ability = false,
+                 const coord_def& where = coord_def(0,0));
 
 void remove_divine_vigour();
 bool cast_divine_vigour();
@@ -53,7 +45,7 @@ void cast_chain_lightning(int pow);
 bool cast_revivification(int pow);
 void cast_berserk(void);
 void cast_ring_of_flames(int power);
-bool conjure_flame(int pow);
+bool conjure_flame(int pow, const coord_def& where);
 void extension(int pow);
 bool fireball(int pow, bolt &beam);
 bool stinking_cloud(int pow, bolt &beam);

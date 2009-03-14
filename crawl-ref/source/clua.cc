@@ -752,10 +752,6 @@ static const char *transform_name()
         return "dragon";
     case TRAN_LICH:
         return "lich";
-    case TRAN_SERPENT_OF_HELL:
-        return "serpent";
-    case TRAN_AIR:
-        return "air";
     case TRAN_PIG:
         return "pig";
     default:
@@ -829,7 +825,6 @@ static int _you_gold(lua_State *ls)
         const int new_gold = luaL_checkint(ls, 1);
         const int old_gold = you.gold;
         you.gold = std::max(new_gold, 0);
-        you.redraw_gold = true;
         if (new_gold > old_gold)
             you.attribute[ATTR_GOLD_FOUND] += new_gold - old_gold;
         else if (old_gold > new_gold)
@@ -1621,7 +1616,7 @@ static int food_do_eat(lua_State *ls)
 {
     bool eaten = false;
     if (!you.turn_is_over)
-        eaten = eat_food(false);
+        eaten = eat_food(-1);
     lua_pushboolean(ls, eaten);
     return (1);
 }
@@ -1630,7 +1625,7 @@ static int food_prompt_eat_chunks(lua_State *ls)
 {
     int eaten = 0;
     if (!you.turn_is_over)
-        eaten = eat_chunks();
+        eaten = prompt_eat_chunks();
 
     lua_pushboolean(ls, (eaten != 0));
     return (1);
@@ -3208,7 +3203,7 @@ void print_clua_stack(void)
     int              i = 0;
     lua_State       *L = clua.state();
 
-    fprintf(stderr, "\n");
+    fprintf(stderr, EOL);
     while (lua_getstack(L, i++, &dbg) == 1)
     {
         lua_getinfo(L, "lnuS", &dbg);
@@ -3219,11 +3214,9 @@ void print_clua_stack(void)
         else
             file++;
 
-        // Have to use "\r\n" instead of just "\n" here, for some
-        // reason.
-        fprintf(stderr, "%s, function %s, line %d\r\n", file,
+        fprintf(stderr, "%s, function %s, line %d" EOL, file,
                 dbg.name, dbg.currentline);
     }
 
-    fprintf(stderr, "\n");
+    fprintf(stderr, EOL);
 }

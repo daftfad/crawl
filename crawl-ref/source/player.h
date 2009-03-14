@@ -99,7 +99,7 @@ int burden_change(void);
 /* ***********************************************************************
  * called from: items - misc
  * *********************************************************************** */
-int carrying_capacity( burden_state_type bs = BS_OVERLOADED );
+int carrying_capacity(burden_state_type bs = BS_OVERLOADED);
 
 
 /* ***********************************************************************
@@ -149,7 +149,8 @@ int player_magical_power( void );
 /* ***********************************************************************
  * called from: fight - misc - ouch - spells
  * *********************************************************************** */
-int player_prot_life(bool calc_unid = true, bool temp = true);
+int player_prot_life(bool calc_unid = true, bool temp = true,
+                     bool items = true);
 
 
 /* ***********************************************************************
@@ -173,9 +174,11 @@ bool player_item_conserve(bool calc_unid = true);
 int player_mental_clarity(bool calc_unid = true, bool items = true);
 
 bool player_can_smell();
+bool player_likes_chunks(bool permanently = false);
 bool player_can_swim();
 bool player_likes_water(bool permanently = false);
 
+bool player_is_unholy();
 int player_mutation_level(mutation_type mut);
 
 /* ***********************************************************************
@@ -345,45 +348,18 @@ bool player_wearing_slot( int eq );
 bool you_tran_can_wear(const item_def &item);
 bool you_tran_can_wear( int eq, bool check_mutation = false );
 
-/* ***********************************************************************
- * called from: ability - effects - fight - it_use3 - ouch - spell -
- *              spells - spells2 - spells3 - spells4
- * *********************************************************************** */
+bool enough_hp(int minimum, bool suppress_msg);
+bool enough_mp(int minimum, bool suppress_msg, bool include_items = true);
+
 void dec_hp(int hp_loss, bool fatal, const char *aux = NULL);
-
-
-/* ***********************************************************************
- * called from: ability - it_use3 - spell - spells3
- * *********************************************************************** */
-bool enough_hp (int minimum, bool suppress_msg);
-
-
-/* ***********************************************************************
- * called from: ability - it_use3
- * *********************************************************************** */
-bool enough_mp (int minimum, bool suppress_msg);
-
-
-/* ***********************************************************************
- * called from: ability - fight - it_use3 - monstuff - ouch - spell
- * *********************************************************************** */
 void dec_mp(int mp_loss);
 
-
-/* ***********************************************************************
- * called from: ability - acr - fight - it_use2 - it_use3 - spells3
- * *********************************************************************** */
 void inc_mp(int mp_gain, bool max_too);
-
-
-/* ***********************************************************************
- * called from: acr - fight - food - spells1 - spells2
- * *********************************************************************** */
 void inc_hp(int hp_gain, bool max_too);
 
 void rot_hp( int hp_loss );
 void unrot_hp( int hp_recovered );
-int player_rotted( void );
+int player_rotted();
 void rot_mp( int mp_loss );
 
 void inc_max_hp( int hp_gain );
@@ -392,34 +368,20 @@ void dec_max_hp( int hp_loss );
 void inc_max_mp( int mp_gain );
 void dec_max_mp( int mp_loss );
 
-/* ***********************************************************************
- * called from: acr - misc - religion - skills2 - spells1 - transfor
- * *********************************************************************** */
 void deflate_hp(int new_level, bool floor);
-
-
-/* ***********************************************************************
- * called from: acr - it_use2 - newgame - ouch - religion - spell - spells1
- * *********************************************************************** */
 void set_hp(int new_amount, bool max_too);
 
 int get_real_hp(bool trans, bool rotted = false);
+int get_real_mp(bool include_items);
 
-/* ***********************************************************************
- * called from: it_use3 - newgame
- * *********************************************************************** */
 void set_mp(int new_amount, bool max_too);
 
-// last updated 19apr2001 {gdl}
-/* ***********************************************************************
- * called from:
- * *********************************************************************** */
 void contaminate_player(int change, bool controlled = false,
                         bool status_only = false);
 
 bool confuse_player(int amount, bool resistable = true);
 
-bool curare_hits_player(int agent, int degree);
+bool curare_hits_player(int death_source, int amount);
 bool poison_player(int amount, bool force = false);
 void dec_poison_player();
 void reduce_poison_player(int amount);
@@ -438,7 +400,7 @@ void dec_disease_player();
 
 bool rot_player(int amount);
 
-bool player_has_spell( spell_type spell );
+bool player_has_spell(spell_type spell);
 size_type player_size(int psize = PSIZE_TORSO, bool base = false);
 
 bool player_weapon_wielded();

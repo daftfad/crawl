@@ -90,7 +90,7 @@ end
 function ziggurat_portal(e)
   local d = crawl.roll_dice
   local entry_fee =
-    10 * math.floor(100 + d(3,200) / 3 + d(10) * d(10) * d(10))
+    10 * math.floor(200 + d(3,200) / 3 + d(10) * d(10) * d(10))
 
   local function stair()
     return toll_stair {
@@ -341,6 +341,7 @@ local dgn_passable = dgn.passable_excluding("closed_door")
 local function ziggurat_create_monsters(p, mfn)
   local depth = zig_depth()
   local hd_pool = depth * (depth + 8)
+-- (was depth * (depth + 8) before and too easy)
 
   local nth = 1
 

@@ -23,6 +23,7 @@ REVISION("$Rev$");
 #include "newgame.h"
 #include "mon-util.h"
 #include "player.h"
+#include "religion.h"
 #include "spells3.h"
 #include "stuff.h"
 #include "terrain.h"
@@ -218,7 +219,7 @@ DungeonRegion::DungeonRegion(ImageManager* im, FTFont *tag_font,
     m_cx_to_gx(0),
     m_cy_to_gy(0),
     m_buf_dngn(&im->m_textures[TEX_DUNGEON]),
-    m_buf_doll(&im->m_textures[TEX_DOLL]),
+    m_buf_doll(&im->m_textures[TEX_PLAYER]),
     m_buf_main(&im->m_textures[TEX_DEFAULT])
 {
     for (int i = 0; i < CURSOR_MAX; i++)
@@ -391,14 +392,8 @@ void DungeonRegion::pack_player(int x, int y)
         int item = you.equip[EQ_GLOVES];
         if (item != -1)
             result.parts[TILEP_PART_ARM] = tilep_equ_gloves(you.inv[item]);
-        else if (player_mutation_level(MUT_CLAWS) >= 3
-            || you.species == SP_TROLL || you.species == SP_GHOUL)
-        {
-            // There is player_has_claws() but it is not equivalent.
-            // Claws appear if they're big enough to not wear gloves
-            // or on races that have claws.
+        else if (you.has_claws(false) >= 3)
             result.parts[TILEP_PART_ARM] = TILEP_ARM_CLAWS;
-        }
         else
             result.parts[TILEP_PART_ARM] = 0;
     }
@@ -476,9 +471,7 @@ void DungeonRegion::pack_mcache(mcache_entry *entry, int x, int y)
     ASSERT(draw_info_count <= sizeof(dinfo) / (sizeof(dinfo[0])));
 
     for (unsigned int i = 0; i < draw_info_count; i++)
-    {
         m_buf_doll.add(dinfo[i].idx, x, y, dinfo[i].ofs_x, dinfo[i].ofs_y);
-    }
 }
 
 void DungeonRegion::pack_foreground(unsigned int bg, unsigned int fg, int x, int y)
@@ -537,6 +530,11 @@ void DungeonRegion::pack_foreground(unsigned int bg, unsigned int fg, int x, int
     if (fg & TILE_FLAG_POISON)
     {
         m_buf_main.add(TILE_POISON, x, y, -status_shift, 0);
+        status_shift += 5;
+    }
+    if (fg & TILE_FLAG_FLAME)
+    {
+        m_buf_main.add(TILE_FLAME, x, y, -status_shift, 0);
         status_shift += 5;
     }
 
@@ -650,9 +648,8 @@ void DungeonRegion::pack_buffers()
     if (m_cursor[CURSOR_TUTORIAL] != NO_CURSOR
         && on_screen(m_cursor[CURSOR_TUTORIAL]))
     {
-        m_buf_main.add(TILE_TUTORIAL_CURSOR,
-                 m_cursor[CURSOR_TUTORIAL].x,
-                 m_cursor[CURSOR_TUTORIAL].y);
+        m_buf_main.add(TILE_TUTORIAL_CURSOR, m_cursor[CURSOR_TUTORIAL].x,
+                                             m_cursor[CURSOR_TUTORIAL].y);
     }
 
     for (unsigned int i = 0; i < m_overlays.size(); i++)
@@ -828,6 +825,14 @@ int DungeonRegion::handle_mouse(MouseEvent &event)
         return 0;
 
     if (mouse_control::current_mode() == MOUSE_MODE_NORMAL
+        && event.event == MouseEvent::PRESS
+        && event.button == MouseEvent::LEFT)
+    {
+        you.last_clicked_grid = m_cursor[CURSOR_MOUSE];
+        return CK_MOUSE_CLICK;
+    }
+
+    if (mouse_control::current_mode() == MOUSE_MODE_NORMAL
         || mouse_control::current_mode() == MOUSE_MODE_MACRO
         || mouse_control::current_mode() == MOUSE_MODE_MORE)
     {
@@ -863,6 +868,7 @@ int DungeonRegion::handle_mouse(MouseEvent &event)
         else if (event.event == MouseEvent::PRESS
                  && event.button == MouseEvent::LEFT && on_screen(gc))
         {
+            you.last_clicked_grid = m_cursor[CURSOR_MOUSE];
             return CK_MOUSE_CLICK;
         }
 
@@ -872,24 +878,33 @@ int DungeonRegion::handle_mouse(MouseEvent &event)
     if (event.event != MouseEvent::PRESS)
         return 0;
 
+    you.last_clicked_grid = m_cursor[CURSOR_MOUSE];
+
     if (you.pos() == gc)
     {
         switch (event.button)
         {
         case MouseEvent::LEFT:
+        {
             if (!(event.mod & MOD_SHIFT))
                 return 'g';
 
-            switch (grid_stair_direction(grd(gc)))
+            const dungeon_feature_type grid = grd(gc);
+            switch (grid_stair_direction(grid))
             {
-                case CMD_GO_DOWNSTAIRS:
-                    return ('>');
-                case CMD_GO_UPSTAIRS:
-                    return ('<');
-                default:
-                    return 0;
+            case CMD_GO_DOWNSTAIRS:
+                return ('>');
+            case CMD_GO_UPSTAIRS:
+                return ('<');
+            default:
+                if (is_altar(grid)
+                    && player_can_join_god(grid_altar_god(grid)))
+                {
+                    return ('p');
+                }
+                return 0;
             }
-
+        }
         case MouseEvent::RIGHT:
             if (!(event.mod & MOD_SHIFT))
                 return '%'; // Character overview.
@@ -944,6 +959,8 @@ int DungeonRegion::get_buffer_index(const coord_def &gc)
 
 void DungeonRegion::place_cursor(cursor_type type, const coord_def &gc)
 {
+    coord_def result = gc;
+
     // If we're only looking for a direction, put the mouse
     // cursor next to the player to let them know that their
     // spell/wand will only go one square.
@@ -955,8 +972,7 @@ void DungeonRegion::place_cursor(cursor_type type, const coord_def &gc)
         int ax = abs(delta.x);
         int ay = abs(delta.y);
 
-        coord_def result = you.pos();
-
+        result = you.pos();
         if (1000 * ay < 414 * ax)
             result += (delta.x > 0) ? coord_def(1, 0) : coord_def(-1, 0);
         else if (1000 * ax < 414 * ay)
@@ -965,20 +981,14 @@ void DungeonRegion::place_cursor(cursor_type type, const coord_def &gc)
             result += (delta.y > 0) ? coord_def(1, 1) : coord_def(1, -1);
         else if (delta.x < 0)
             result += (delta.y > 0) ? coord_def(-1, 1) : coord_def(-1, -1);
-
-        if (m_cursor[type] != result)
-        {
-            m_dirty = true;
-            m_cursor[type] = result;
-        }
     }
-    else
+
+    if (m_cursor[type] != result)
     {
-        if (m_cursor[type] != gc)
-        {
-            m_dirty = true;
-            m_cursor[type] = gc;
-        }
+        m_dirty = true;
+        m_cursor[type] = result;
+        if (type == CURSOR_MOUSE)
+            you.last_clicked_grid = coord_def();
     }
 }
 
@@ -990,12 +1000,12 @@ bool DungeonRegion::update_tip_text(std::string& tip)
     // and some parsing of formatting to get that to work.
 
     if (mouse_control::current_mode() != MOUSE_MODE_COMMAND)
-        return false;
+        return (false);
 
     if (m_cursor[CURSOR_MOUSE] == NO_CURSOR)
-        return false;
+        return (false);
     if (!map_bounds(m_cursor[CURSOR_MOUSE]))
-        return false;
+        return (false);
 
     if (m_cursor[CURSOR_MOUSE] == you.pos())
     {
@@ -1008,8 +1018,25 @@ bool DungeonRegion::update_tip_text(std::string& tip)
         if (igrd(m_cursor[CURSOR_MOUSE]) != NON_ITEM)
             tip += "\n[L-Click] Pick up items (g)";
 
-        if (grid_stair_direction(grd(m_cursor[CURSOR_MOUSE])) != CMD_NO_CMD)
-            tip += "\n[Shift-L-Click] use stairs (</>)";
+        const dungeon_feature_type grid = grd(m_cursor[CURSOR_MOUSE]);
+        const command_type dir = grid_stair_direction(grid);
+        if (dir != CMD_NO_CMD)
+        {
+            tip += "\n[Shift-L-Click] ";
+            if (grid == DNGN_ENTER_SHOP)
+                tip += "enter shop";
+            else if (is_gate(grid))
+                tip += "enter gate";
+            else
+                tip += "use stairs";
+
+            if (dir == CMD_GO_DOWNSTAIRS)
+                tip += " (>)";
+            else
+                tip += " (<)";
+        }
+        else if (is_altar(grid) && player_can_join_god(grid_altar_god(grid)))
+            tip += "\n[Shift-L-Click] pray on altar (p)";
 
         // Character overview.
         tip += "\n[R-Click] Overview (%)";
@@ -1042,14 +1069,119 @@ bool DungeonRegion::update_tip_text(std::string& tip)
     else
     {
         if (i_feel_safe() && !grid_is_solid(m_cursor[CURSOR_MOUSE]))
-        {
             tip = "[L-Click] Travel\n";
-        }
 
         tip += "[R-Click] Describe";
     }
 
-    return true;
+    return (true);
+}
+
+class alt_desc_proc
+{
+public:
+    alt_desc_proc(int _w, int _h) { w = _w; h = _h; }
+
+    int width() { return w; }
+    int height() { return h; }
+    void nextline()
+    {
+        ostr << "\n";
+    }
+    void print(const std::string &str)
+    {
+        ostr << str;
+    }
+
+    static int count_newlines(const std::string &str)
+    {
+        int count = 0;
+        for (size_t i = 0; i < str.size(); i++)
+        {
+            if (str[i] == '\n')
+                count++;
+        }
+        return count;
+    }
+
+    // Remove trailing newlines.
+    static void trim(std::string &str)
+    {
+        int idx = str.size();
+        while (--idx >= 0)
+        {
+            if (str[idx] != '\n')
+                break;
+        }
+        str.resize(idx + 1);
+    }
+
+    // rfind consecutive newlines and truncate.
+    static bool chop(std::string &str)
+    {
+        int loc = -1;
+        for (size_t i = 1; i < str.size(); i++)
+            if (str[i] == '\n' && str[i-1] == '\n')
+                loc = i;
+
+        if (loc == -1)
+            return (false);
+
+        str.resize(loc);
+        return (true);
+    }
+
+    void get_string(std::string &str)
+    {
+        str = replace_all(ostr.str(), "\n\n\n\n", "\n\n");
+        str = replace_all(str, "\n\n\n", "\n\n");
+
+        trim(str);
+        while (count_newlines(str) > h)
+        {
+            if (!chop(str))
+                break;
+        }
+    }
+
+protected:
+    int w;
+    int h;
+    std::ostringstream ostr;
+};
+
+bool DungeonRegion::update_alt_text(std::string &alt)
+{
+    if (mouse_control::current_mode() != MOUSE_MODE_COMMAND)
+        return (false);
+
+    const coord_def &gc = m_cursor[CURSOR_MOUSE];
+
+    if (gc == NO_CURSOR)
+        return (false);
+    if (!map_bounds(gc))
+        return (false);
+    if (!see_grid(gc))
+        return (false);
+    if (you.last_clicked_grid == gc)
+        return (false);
+
+    describe_info inf;
+    get_square_desc(gc, inf, true);
+
+    alt_desc_proc proc(crawl_view.msgsz.x, crawl_view.msgsz.y);
+    process_description<alt_desc_proc>(proc, inf);
+
+    proc.get_string(alt);
+
+    // Suppress floor description
+    if (alt == "Floor.")
+    {
+        alt.clear();
+        return (false);
+    }
+
+    return (true);
 }
 
 void DungeonRegion::clear_text_tags(text_tag_type type)
@@ -1192,8 +1324,7 @@ void InventoryRegion::render()
         else
             desc = you.inv[idx].name(DESC_INVENTORY_EQUIP);
 
-        m_tag_font->render_string(x, y,
-                                  desc.c_str(),
+        m_tag_font->render_string(x, y, desc.c_str(),
                                   min_pos, max_pos, WHITE, false, 200);
     }
 }
@@ -1334,6 +1465,9 @@ void InventoryRegion::place_cursor(const coord_def &cursor)
         m_dirty = true;
     }
 
+    if (m_cursor != cursor)
+        you.last_clicked_item = -1;
+
     m_cursor = cursor;
 
     if (m_cursor == NO_CURSOR || cursor_index() >= m_items.size())
@@ -1395,6 +1529,7 @@ int InventoryRegion::handle_mouse(MouseEvent &event)
             else
                 tile_item_use(idx);
         }
+        you.last_clicked_item = item_idx;
         // TODO enne - need to redraw inventory here?
         return CK_MOUSE_CMD;
     }
@@ -1405,6 +1540,7 @@ int InventoryRegion::handle_mouse(MouseEvent &event)
             if (event.mod & MOD_SHIFT)
             {
                 tile_item_eat_floor(idx);
+                you.last_clicked_item = item_idx;
             }
             else
             {
@@ -1451,7 +1587,7 @@ static bool _can_use_item(const item_def &item, bool equipped)
     {
         // Misc. items/rods can always be evoked, cursed or not.
         if (item.base_type == OBJ_MISCELLANY || item_is_rod(item))
-            return true;
+            return (true);
 
         // You can't unwield/fire a wielded cursed weapon/staff
         // but cursed armour and rings can be unwielded without problems.
@@ -1463,24 +1599,24 @@ static bool _can_use_item(const item_def &item, bool equipped)
         return (item.base_type != OBJ_POTIONS && item.base_type != OBJ_FOOD);
 
     // In all other cases you can use the item in some way.
-    return true;
+    return (true);
 }
 
 bool InventoryRegion::update_tip_text(std::string& tip)
 {
     if (m_cursor == NO_CURSOR)
-        return false;
+        return (false);
 
     unsigned int item_idx = cursor_index();
     if (item_idx >= m_items.size() || m_items[item_idx].empty())
-        return false;
+        return (false);
 
     int idx = m_items[item_idx].idx;
 
     // TODO enne - consider subclassing this class, rather than depending
     // on "key" to determine if this is the crt inventory or the on screen one.
     bool display_actions = (m_items[item_idx].key == 0
-        && mouse_control::current_mode() == MOUSE_MODE_COMMAND);
+                    && mouse_control::current_mode() == MOUSE_MODE_COMMAND);
 
     // TODO enne - should the command keys here respect keymaps?
 
@@ -1498,7 +1634,7 @@ bool InventoryRegion::update_tip_text(std::string& tip)
         tip += item.name(DESC_NOCAP_A);
 
         if (!display_actions)
-            return true;
+            return (true);
 
         tip += "\n[L-Click] Pick up (g)";
         if (item.base_type == OBJ_CORPSES
@@ -1528,7 +1664,7 @@ bool InventoryRegion::update_tip_text(std::string& tip)
         tip = item.name(DESC_INVENTORY_EQUIP);
 
         if (!display_actions)
-            return true;
+            return (true);
 
         int type = item.base_type;
         const bool equipped = m_items[item_idx].flag & TILEI_FLAG_EQUIP;
@@ -1564,7 +1700,7 @@ bool InventoryRegion::update_tip_text(std::string& tip)
                     tip += "\n[Ctrl-L-Click] Fire (f)";
                 break;
             case OBJ_WEAPONS + EQUIP_OFFSET:
-                tip += "Unwield";
+                tip += "Unwield (w-)";
                 if (is_throwable(&you, item))
                     tip += "\n[Ctrl-L-Click] Fire (f)";
                 break;
@@ -1572,14 +1708,14 @@ bool InventoryRegion::update_tip_text(std::string& tip)
                 if (item.sub_type >= MISC_DECK_OF_ESCAPE
                     && item.sub_type <= MISC_DECK_OF_DEFENCE)
                 {
-                    tip += "Draw a card (v)";
-                    tip += "\n[Ctrl-L-Click] Unwield";
+                    tip += "Draw a card (v)\n";
+                    tip += "[Ctrl-L-Click] Unwield (w-)";
                     break;
                 }
                 // else fall-through
             case OBJ_STAVES + EQUIP_OFFSET: // rods - other staves handled above
-                tip += "Evoke (v)";
-                tip += "\n[Ctrl-L-Click] Unwield";
+                tip += "Evoke (v)\n";
+                tip += "[Ctrl-L-Click] Unwield (w-)";
                 break;
             case OBJ_ARMOUR:
                 tip += "Wear (W)";
@@ -1597,12 +1733,11 @@ bool InventoryRegion::update_tip_text(std::string& tip)
                 tip += "Fire (f)";
 
                 if (wielded)
-                    tip += "\n[Ctrl-L-Click] Unwield";
-                else if ( item.sub_type == MI_STONE
-                             && player_knows_spell(SPELL_SANDBLAST)
-                          || item.sub_type == MI_ARROW
-                             && player_knows_spell(
-                                    SPELL_STICKS_TO_SNAKES) )
+                    tip += "\n[Ctrl-L-Click] Unwield (w-)";
+                else if (item.sub_type == MI_STONE
+                            && player_knows_spell(SPELL_SANDBLAST)
+                         || item.sub_type == MI_ARROW
+                            && player_knows_spell(SPELL_STICKS_TO_SNAKES))
                 {
                     // For Sandblast and Sticks to Snakes,
                     // respectively.
@@ -1612,7 +1747,7 @@ bool InventoryRegion::update_tip_text(std::string& tip)
             case OBJ_WANDS:
                 tip += "Zap (Z)";
                 if (wielded)
-                    tip += "\n[Ctrl-L-Click] Unwield";
+                    tip += "\n[Ctrl-L-Click] Unwield (w-)";
                 break;
             case OBJ_BOOKS:
                 if (item_type_known(item)
@@ -1621,24 +1756,23 @@ bool InventoryRegion::update_tip_text(std::string& tip)
                 {
                     tip += "Memorise (M)";
                     if (wielded)
-                        tip += "\n[Ctrl-L-Click] Unwield";
+                        tip += "\n[Ctrl-L-Click] Unwield (w-)";
                     break;
                 }
                 // else fall-through
             case OBJ_SCROLLS:
                 tip += "Read (r)";
                 if (wielded)
-                    tip += "\n[Ctrl-L-Click] Unwield";
+                    tip += "\n[Ctrl-L-Click] Unwield (w-)";
                 break;
             case OBJ_POTIONS:
                 tip += "Quaff (q)";
                 // For Sublimation of Blood.
                 if (wielded)
-                    tip += "\n[Ctrl-L-Click] Unwield";
-                else if ( item_type_known(item)
-                          && is_blood_potion(item)
-                          && player_knows_spell(
-                                SPELL_SUBLIMATION_OF_BLOOD) )
+                    tip += "\n[Ctrl-L-Click] Unwield (w-)";
+                else if (item_type_known(item)
+                         && is_blood_potion(item)
+                         && player_knows_spell(SPELL_SUBLIMATION_OF_BLOOD))
                 {
                     tip += "\n[Ctrl-L-Click] Wield (w)";
                 }
@@ -1647,7 +1781,7 @@ bool InventoryRegion::update_tip_text(std::string& tip)
                 tip += "Eat (e)";
                 // For Sublimation of Blood.
                 if (wielded)
-                    tip += "\n[Ctrl-L-Click] Unwield";
+                    tip += "\n[Ctrl-L-Click] Unwield (w-)";
                 else if (item.sub_type == FOOD_CHUNK
                          && player_knows_spell(
                                 SPELL_SUBLIMATION_OF_BLOOD))
@@ -1663,7 +1797,7 @@ bool InventoryRegion::update_tip_text(std::string& tip)
                 {
                     if (you.species == SP_VAMPIRE)
                         tip += EOL;
-                    tip += "[Ctrl-L-Click] Unwield";
+                    tip += "[Ctrl-L-Click] Unwield (w-)";
                 }
                 break;
             default:
@@ -1689,10 +1823,42 @@ bool InventoryRegion::update_tip_text(std::string& tip)
         {
             tip += "\n[Shift-L-Click] Drop (d)";
         }
-
     }
 
-    return true;
+    return (true);
+}
+
+bool InventoryRegion::update_alt_text(std::string &alt)
+{
+    if (m_cursor == NO_CURSOR)
+        return (false);
+
+    unsigned int item_idx = cursor_index();
+    if (item_idx >= m_items.size() || m_items[item_idx].empty())
+        return (false);
+
+    if (you.last_clicked_item >= 0
+        && item_idx == (unsigned int) you.last_clicked_item)
+    {
+        return (false);
+    }
+    int idx = m_items[item_idx].idx;
+
+    const item_def *item;
+    if (m_items[item_idx].flag & TILEI_FLAG_FLOOR)
+        item = &mitm[idx];
+    else
+        item = &you.inv[idx];
+
+    describe_info inf;
+    get_item_desc(*item, inf);
+
+    alt_desc_proc proc(crawl_view.msgsz.x, crawl_view.msgsz.y);
+    process_description<alt_desc_proc>(proc, inf);
+
+    proc.get_string(alt);
+
+    return (true);
 }
 
 MapRegion::MapRegion(int pixsz) :
@@ -1721,27 +1887,27 @@ void MapRegion::init_colours()
 {
     // TODO enne - the options array for colours should be
     // tied to the map feature enumeration to avoid this function.
-    m_colours[MF_UNSEEN] = (map_colour)Options.tile_unseen_col;
-    m_colours[MF_FLOOR] = (map_colour)Options.tile_floor_col;
-    m_colours[MF_WALL] = (map_colour)Options.tile_wall_col;
-    m_colours[MF_MAP_FLOOR] = (map_colour)Options.tile_floor_col; // TODO enne
-    m_colours[MF_MAP_WALL] = (map_colour)Options.tile_mapped_wall_col;
-    m_colours[MF_DOOR] = (map_colour)Options.tile_door_col;
-    m_colours[MF_ITEM] = (map_colour)Options.tile_item_col;
-    m_colours[MF_MONS_HOSTILE] = (map_colour)Options.tile_monster_col;
+    m_colours[MF_UNSEEN]        = (map_colour)Options.tile_unseen_col;
+    m_colours[MF_FLOOR]         = (map_colour)Options.tile_floor_col;
+    m_colours[MF_WALL]          = (map_colour)Options.tile_wall_col;
+    m_colours[MF_MAP_FLOOR]     = (map_colour)Options.tile_floor_col; // TODO enne
+    m_colours[MF_MAP_WALL]      = (map_colour)Options.tile_mapped_wall_col;
+    m_colours[MF_DOOR]          = (map_colour)Options.tile_door_col;
+    m_colours[MF_ITEM]          = (map_colour)Options.tile_item_col;
+    m_colours[MF_MONS_HOSTILE]  = (map_colour)Options.tile_monster_col;
     m_colours[MF_MONS_FRIENDLY] = (map_colour)Options.tile_friendly_col;
-    m_colours[MF_MONS_NEUTRAL] = (map_colour)Options.tile_neutral_col;
-    m_colours[MF_MONS_NO_EXP] = (map_colour)Options.tile_plant_col;
-    m_colours[MF_STAIR_UP] = (map_colour)Options.tile_upstairs_col;
-    m_colours[MF_STAIR_DOWN] = (map_colour)Options.tile_downstairs_col;
-    m_colours[MF_STAIR_BRANCH] = (map_colour)Options.tile_feature_col;
-    m_colours[MF_FEATURE] = (map_colour)Options.tile_feature_col;
-    m_colours[MF_WATER] = (map_colour)Options.tile_water_col;
-    m_colours[MF_LAVA] = (map_colour)Options.tile_lava_col;
-    m_colours[MF_TRAP] = (map_colour)Options.tile_trap_col;
-    m_colours[MF_EXCL_ROOT] = (map_colour)Options.tile_excl_centre_col;
-    m_colours[MF_EXCL] = (map_colour)Options.tile_excluded_col;
-    m_colours[MF_PLAYER] = (map_colour)Options.tile_player_col;
+    m_colours[MF_MONS_NEUTRAL]  = (map_colour)Options.tile_neutral_col;
+    m_colours[MF_MONS_NO_EXP]   = (map_colour)Options.tile_plant_col;
+    m_colours[MF_STAIR_UP]      = (map_colour)Options.tile_upstairs_col;
+    m_colours[MF_STAIR_DOWN]    = (map_colour)Options.tile_downstairs_col;
+    m_colours[MF_STAIR_BRANCH]  = (map_colour)Options.tile_feature_col;
+    m_colours[MF_FEATURE]       = (map_colour)Options.tile_feature_col;
+    m_colours[MF_WATER]         = (map_colour)Options.tile_water_col;
+    m_colours[MF_LAVA]          = (map_colour)Options.tile_lava_col;
+    m_colours[MF_TRAP]          = (map_colour)Options.tile_trap_col;
+    m_colours[MF_EXCL_ROOT]     = (map_colour)Options.tile_excl_centre_col;
+    m_colours[MF_EXCL]          = (map_colour)Options.tile_excluded_col;
+    m_colours[MF_PLAYER]        = (map_colour)Options.tile_player_col;
 }
 
 MapRegion::~MapRegion()
@@ -1919,7 +2085,7 @@ int MapRegion::handle_mouse(MouseEvent &event)
             m_far_view = true;
             tiles.load_dungeon(gc);
         }
-        return CK_MOUSE_CMD;
+        return 0;
     case MouseEvent::RELEASE:
         if ((event.button == MouseEvent::RIGHT) && m_far_view)
         {
@@ -1935,10 +2101,10 @@ int MapRegion::handle_mouse(MouseEvent &event)
 bool MapRegion::update_tip_text(std::string& tip)
 {
     if (mouse_control::current_mode() != MOUSE_MODE_COMMAND)
-        return false;
+        return (false);
 
     tip = "[L-Click] Travel / [R-Click] View";
-    return true;
+    return (true);
 }
 
 void TextRegion::scroll()
@@ -2199,10 +2365,10 @@ int StatRegion::handle_mouse(MouseEvent &event)
 bool StatRegion::update_tip_text(std::string& tip)
 {
     if (mouse_control::current_mode() != MOUSE_MODE_COMMAND)
-        return false;
+        return (false);
 
     tip = "[L-Click] Rest / Search for a while";
-    return true;
+    return (true);
 }
 
 MessageRegion::MessageRegion(FTFont *font) : TextRegion(font), m_overlay(false)
@@ -2229,10 +2395,10 @@ int MessageRegion::handle_mouse(MouseEvent &event)
 bool MessageRegion::update_tip_text(std::string& tip)
 {
     if (mouse_control::current_mode() != MOUSE_MODE_COMMAND)
-        return false;
+        return (false);
 
     tip = "[L-Click] Browse message history";
-    return true;
+    return (true);
 }
 
 void MessageRegion::set_overlay(bool is_overlay)
@@ -2255,6 +2421,15 @@ void MessageRegion::render()
     int idx = -1;
     unsigned char char_back = 0;
     unsigned char col_back = 0;
+
+    if (!m_overlay && !m_alt_text.empty())
+    {
+        coord_def min_pos(sx, sy);
+        coord_def max_pos(ex, ey);
+        m_font->render_string(sx + ox, sy + oy, m_alt_text.c_str(),
+                              min_pos, max_pos, WHITE, false);
+        return;
+    }
 
     if (this == TextRegion::cursor_region && cursor_x > 0 && cursor_y > 0)
     {
@@ -2289,34 +2464,13 @@ void MessageRegion::render()
         if (height > 0)
         {
             height *= m_font->char_height();
-            box_vert verts[4];
-            for (int i = 0; i < 4; i++)
-            {
-                verts[i].r = 100;
-                verts[i].g = 100;
-                verts[i].b = 100;
-                verts[i].a = 100;
-            }
-            verts[0].x = sx;
-            verts[0].y = sy;
-            verts[1].x = sx;
-            verts[1].y = sy + height;
-            verts[2].x = ex;
-            verts[2].y = sy + height;
-            verts[3].x = ex;
-            verts[3].y = sy;
 
             glLoadIdentity();
 
-            GLState state;
-            state.array_vertex = true;
-            state.array_colour = true;
-            state.blend = true;
-            GLStateManager::set(state);
-
-            glVertexPointer(2, GL_FLOAT, sizeof(box_vert), &verts[0].x);
-            glColorPointer(4, GL_UNSIGNED_BYTE, sizeof(box_vert), &verts[0].r);
-            glDrawArrays(GL_QUADS, 0, sizeof(verts) / sizeof(box_vert));
+            ShapeBuffer buff;
+            VColour col(100, 100, 100, 100);
+            buff.add(sx, sy, ex, sy + height, col);
+            buff.draw();
         }
     }
 
@@ -2335,7 +2489,10 @@ CRTRegion::CRTRegion(FTFont *font) : TextRegion(font)
 
 int CRTRegion::handle_mouse(MouseEvent &event)
 {
-    return 0;
+    if (event.event != MouseEvent::PRESS || event.button != MouseEvent::LEFT)
+        return 0;
+
+    return CK_MOUSE_CLICK;
 }
 
 MenuRegion::MenuRegion(ImageManager *im, FTFont *entry) :
@@ -2635,9 +2792,10 @@ void MenuRegion::set_entry(int idx, const std::string &str, int colour,
     e.text.clear();
     e.text.textcolor(colour);
     e.text += formatted_string::parse_string(str);
-    e.heading = (me->level == MEL_TITLE || me->level == MEL_SUBTITLE);
+
+    e.heading  = (me->level == MEL_TITLE || me->level == MEL_SUBTITLE);
     e.selected = me->selected();
-    e.key = me->hotkeys.size() > 0 ? me->hotkeys[0] : 0;
+    e.key      = me->hotkeys.size() > 0 ? me->hotkeys[0] : 0;
     e.sx = e.sy = e.ex = e.ey = 0;
     e.tiles.clear();
     me->get_tiles(e.tiles);
@@ -2660,7 +2818,7 @@ int MenuRegion::maxpagesize() const
     int more_height = (lines + 1) * m_font_entry->char_height();
 
     int pagesize = ((my - more_height) / 32) * m_max_columns;
-    return pagesize;
+    return (pagesize);
 }
 
 void MenuRegion::set_offset(int lines)
@@ -2689,15 +2847,15 @@ bool ImageManager::load_textures()
 {
     GenericTexture::MipMapOptions mip = GenericTexture::MIPMAP_CREATE;
     if (!m_textures[TEX_DUNGEON].load_texture("dngn.png", mip))
-        return false;
+        return (false);
 
-    if (!m_textures[TEX_DOLL].load_texture("player.png", mip))
-        return false;
+    if (!m_textures[TEX_PLAYER].load_texture("player.png", mip))
+        return (false);
 
     m_textures[TEX_DUNGEON].set_info(TILE_DNGN_MAX, &tile_dngn_info);
-    m_textures[TEX_DOLL].set_info(TILEP_PLAYER_MAX, &tile_player_info);
+    m_textures[TEX_PLAYER].set_info(TILEP_PLAYER_MAX, &tile_player_info);
 
-    return true;
+    return (true);
 }
 
 static void _copy_onto(unsigned char *pixels, int width,
@@ -2787,16 +2945,16 @@ static bool _copy_under(unsigned char *pixels, int width,
                         int uofs_x = 0, int uofs_y = 0)
 {
     const tile_info &under = tile_main_info(idx_under);
-    const tile_info &over = tile_main_info(idx_over);
+    const tile_info &over  = tile_main_info(idx_over);
 
     if (over.width != under.width || over.height != under.height)
-        return false;
+        return (false);
 
     if (over.ex - over.sx != over.width || over.ey - over.sy != over.height)
-        return false;
+        return (false);
 
     if (over.offset_x != 0 || over.offset_y != 0)
-        return false;
+        return (false);
 
     size_t image_size = under.width * under.height * 4;
 
@@ -2814,7 +2972,7 @@ static bool _copy_under(unsigned char *pixels, int width,
     delete[] under_pixels;
     delete[] over_pixels;
 
-    return true;
+    return (true);
 }
 
 static bool _process_item_image(unsigned char *pixels, unsigned int width,
@@ -2866,7 +3024,7 @@ static bool _process_item_image(unsigned char *pixels, unsigned int width,
         success &= _copy_under(pixels, width, height, tile0, tile1);
     }
 
-    return true;
+    return (true);
 }
 
 bool ImageManager::load_item_texture()
@@ -2886,7 +3044,5 @@ bool ImageManager::load_item_texture()
 void ImageManager::unload_textures()
 {
     for (int i = 0; i < TEX_MAX; i++)
-    {
         m_textures[i].unload_texture();
-    }
 }

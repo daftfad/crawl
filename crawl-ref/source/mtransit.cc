@@ -208,15 +208,13 @@ void place_transiting_items()
         coord_def pos = item->pos;
 
         if (!in_bounds(pos))
-        {
-            pos.x = random_range(X_BOUND_1 + 1, X_BOUND_2 - 1);
-            pos.y = random_range(Y_BOUND_1 + 1, Y_BOUND_2 - 1);
-        }
+            pos = random_in_bounds();
 
-        const coord_def where_to_go
-            = dgn_find_nearby_stair(DNGN_ESCAPE_HATCH_DOWN, pos, true);
+        const coord_def where_to_go =
+            dgn_find_nearby_stair(DNGN_ESCAPE_HATCH_DOWN,
+                                  pos, true);
 
-        // List of items we couldn't place
+        // List of items we couldn't place.
         if (!copy_item_to_grid(*item, where_to_go))
             keep.push_back(*item);
     }
@@ -264,15 +262,12 @@ bool follower::place(bool near_player)
                 dgn_find_nearby_stair(DNGN_ESCAPE_HATCH_DOWN,
                                       m.pos(), true);
 
-            if (monster_habitable_grid(&m, grd(where_to_go)))
+            if (where_to_go == you.pos())
+                near_player = true;
+            else if (m.find_home_near_place(where_to_go))
             {
-                if (where_to_go == you.pos())
-                    near_player = true;
-                else
-                {
-                    mgrd[where_to_go.x][where_to_go.y] = monster_index(&m);
-                    placed = true;
-                }
+                mgrd(m.pos()) = m.mindex();
+                placed = true;
             }
         }
 

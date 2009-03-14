@@ -1,11 +1,11 @@
 # NOTE FOR PLAYERS OF OLD VERSIONS (DCSS 0.3.4 or before):
 #
-# DCSS 0.4 introduces several rather drastic changes to the interface; 
-# read 034_changes.txt for details. Uncomment these options if you want 
-# to disable them and go back to the old state: 
+# DCSS 0.4 introduces several rather drastic changes to the interface;
+# read 034_changes.txt for details. Uncomment these options if you want
+# to disable them and go back to the old state:
 # monster colours, command keys, order on the character selection screen,
-# item colours, appearance of the stat section, butchering interface, 
-# targeting interface. 
+# item colours, appearance of the stat section, butchering interface,
+# targeting interface.
 # The options for monster glyphs and item colours don't matter for Tiles.
 # (New players should just ignore these lines.)
 #
@@ -20,7 +20,7 @@
 
 # Crawl Init file
 #
-# On Unix systems (such as Mac OS X, Linux and the BSDs), you must copy 
+# On Unix systems (such as Mac OS X, Linux and the BSDs), you must copy
 # init.txt to ~/.crawlrc as:
 #   cp init.txt ~/.crawlrc
 #
@@ -34,14 +34,14 @@
 # cases (the character's name and specifying files or directories when
 # on a system that has case-sensitive filenames).
 #
-# White space is stripped from the beginning and end of the line, as 
-# well as immediately before and after the '='. If the option allows 
-# multiple comma/semicolon-separated terms (such as 
-# autopickup_exceptions), all whitespace around the separator is also 
+# White space is stripped from the beginning and end of the line, as
+# well as immediately before and after the '='. If the option allows
+# multiple comma/semicolon-separated terms (such as
+# autopickup_exceptions), all whitespace around the separator is also
 # trimmed. All other whitespace is left intact.
 #
-# For descriptions concerning an option consult the file 
-#    options_guide.txt 
+# For descriptions concerning an option consult the file
+#    options_guide.txt
 # in your /docs directory. Also note that the ordering of the options
 # is taken from that file; this is for presentational reasons only.
 #
@@ -61,8 +61,8 @@
 # chaos_knight = (Xom | Makhleb | random)
 # death_knight = (necromancy | Yredelemnul | random)
 # priest       = (Zin | Yredelemnul | Beogh | random)
-# race  = (Human |...| Merfolk | random)
-# class = (Fighter |...| Wanderer | random)
+# species = (Human |...| Vampire | random)
+# job     = (Fighter |...| Wanderer | random)
 # random_pick = true
 # good_random = false
 
@@ -80,7 +80,6 @@ lua_file = lua/stash.lua
 lua_file = lua/wield.lua
 lua_file = lua/runrest.lua
 lua_file = lua/gearset.lua
-lua_file = lua/eat.lua
 lua_file = lua/trapwalk.lua
 lua_file = lua/pickup.lua
 
@@ -90,7 +89,7 @@ lua_file = lua/pickup.lua
 ##### 4-  Interface #################################################
 #
 ##### 4-a	Picking up and Dropping ###############
-#	
+#
 autopickup = $?!+"/%
 
 # There is a long list of autopickup exceptions in
@@ -174,7 +173,7 @@ auto_exclude = curse skull,Roxanne
 # tc_excluded       = lightmagenta
 # tc_exclude_circle = red
 
-# The following options are not default. 
+# The following options are not default.
 #
 runrest_ignore_message = pray:
 runrest_ignore_message = You feel.*sick
@@ -193,7 +192,7 @@ trapwalk_safe_hp = dart:20,needle:15,arrow:35,bolt:45,spear:40,axe:45,blade:95
 
 #rest_wait_both = true
 
-# The file (travel_stoppers.txt) contains a list of travel_stop_message 
+# The file (travel_stoppers.txt) contains a list of travel_stop_message
 # settings, with brief descriptions of what they do.
 include = travel_stoppers.txt
 
@@ -223,6 +222,8 @@ stash_filter = ring of hunger, amulet of inaccuracy
 # always_confirm_butcher = true
 # prefer_safe_chunks     = false
 # easy_eat_chunks        = true
+# easy_eat_gourmand      = true
+# easy_eat_contaminated  = true
 # prompt_for_swap        = false
 # easy_quit_item_prompts = false
 # easy_exit_menu         = false
@@ -265,8 +266,9 @@ include = standard_colours.txt
 #
 #   yellow     = preferred food                    ($preferred)
 #   darkgrey   = cannot be eaten at all            ($inedible)
-#   lightred   = extremely dangerous, causes rot   ($rot-inducing)
-#   magenta    = mutagenic, or evil                ($mutagenic, $evil)
+#   lightred   = causes rot                        ($rot-inducing)
+#   magenta    = dangerous to use, mutagenic       ($dangerous, $mutagenic)
+#   red        = considered "evil" by your deity   ($evil)
 #   lightgreen = poisonous                         ($poisonous)
 #   brown      = contaminated, may cause sickness  ($contaminated)
 #
@@ -276,7 +278,7 @@ include = standard_colours.txt
 include = food_colouring.txt
 
 # There is elaborate colouring of items in the inventory (and other menus)
-# depending on their usefulness, taking race and other criteria into account.
+# depending on their usefulness, taking species and other criteria into account.
 include = menu_colours.txt
 
 # Colouring of autoinscribed god gifts
@@ -351,8 +353,9 @@ include = tiles_options.txt
 # dump_item_origin_price = -1
 # dump_message_count = 20
 # dump_order  = header, hiscore, stats, misc, notes, inventory,
-# dump_order += turns_by_place, skills,s pells, overview, mutations,
+# dump_order += turns_by_place, skills, spells, overview, mutations,
 # dump_order += messages, screenshot, monlist, kills_by_place, kills
+# dump_book_spells = false
 
 ##### 5-b	Notes #################################
 #
@@ -384,9 +387,11 @@ note_monsters = orb of fire, ancient lich, Sigmund
 # colour.lightgray = black
 # colour.lightcyan = cyan
 # colour.yellow    = brown
+#
+# pizza            = Sausage
 
 # See options_guide.txt for the options
-# cset_ascii, cset_ibm, cset_dec, cset_unicode, cset_any, 
+# cset_ascii, cset_ibm, cset_dec, cset_unicode, cset_any,
 # feature, mon_glyph
 
 ##### 6-b	DOS and Windows #######################

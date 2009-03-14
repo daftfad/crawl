@@ -1,6 +1,6 @@
 /*
  *  File:       spells4.cc
- *  Summary:    new spells, focusing on Transmutation, Divination,
+ *  Summary:    new spells, focusing on Transmutations, Divinations,
  *              and other neglected areas of Crawl magic ;^)
  *  Written by: Copyleft Josh Fishman 1999-2000, All Rights Preserved
  *
@@ -65,46 +65,42 @@ enum DEBRIS                 // jmf: add for shatter, dig, and Giants to throw
     NUM_DEBRIS
 };          // jmf: ...and I'll actually implement the items Real Soon Now...
 
-static int _make_a_rot_cloud(const coord_def& where, int pow, cloud_type ctype);
-static int _quadrant_blink(coord_def where, int pow, int garbage);
-
-void do_monster_rot(int mon);
-
 // Just to avoid typing this over and over.
 // Returns true if monster died. -- bwr
 static bool _player_hurt_monster(monsters& m, int damage)
 {
     if (damage > 0)
     {
-        m.hurt(&you, damage);
+        m.hurt(&you, damage, BEAM_MISSILE, false);
+
         if (m.alive())
+        {
             print_wounds(&m);
+            behaviour_event(&m, ME_WHACK, MHITYOU);
+        }
+        else
+        {
+            monster_die(&m, KILL_YOU, NON_MONSTER);
+            return (true);
+        }
     }
 
-    return (!m.alive());
-}
-
-static bool _player_hurt_monster(int monster, int damage)
-{
-    ASSERT( !invalid_monster_index(monster) );
-    return _player_hurt_monster(menv[monster], damage);
+    return (false);
 }
 
 // Here begin the actual spells:
-static int _shatter_monsters(coord_def where, int pow, int garbage)
+static int _shatter_monsters(coord_def where, int pow, int, actor *)
 {
-    UNUSED( garbage );
-
     dice_def   dam_dice( 0, 5 + pow / 3 );  // number of dice set below
-    const int  monster = mgrd(where);
+    monsters *monster = monster_at(where);
 
-    if (monster == NON_MONSTER)
+    if (monster == NULL)
         return (0);
 
     // Removed a lot of silly monsters down here... people, just because
     // it says ice, rock, or iron in the name doesn't mean it's actually
     // made out of the substance. -- bwr
-    switch (menv[monster].type)
+    switch (monster->type)
     {
     case MONS_ICE_BEAST:        // 3/2 damage
     case MONS_SIMULACRUM_SMALL:
@@ -169,27 +165,26 @@ static int _shatter_monsters(coord_def where, int pow, int garbage)
         break;
 
     default:                    // normal damage
-        if (mons_flies( &menv[monster] ))
+        if (mons_flies(monster))
             dam_dice.num = 1;
         else
             dam_dice.num = 3;
         break;
     }
 
-    int damage = dam_dice.roll() - random2( menv[monster].ac );
+    int damage = dam_dice.roll() - random2(monster->ac);
 
     if (damage > 0)
-        _player_hurt_monster( monster, damage );
+        _player_hurt_monster(*monster, damage);
     else
         damage = 0;
 
     return (damage);
 }
 
-static int _shatter_items(coord_def where, int pow, int garbage)
+static int _shatter_items(coord_def where, int pow, int, actor *)
 {
     UNUSED( pow );
-    UNUSED( garbage );
 
     int broke_stuff = 0;
 
@@ -213,10 +208,8 @@ static int _shatter_items(coord_def where, int pow, int garbage)
     return 0;
 }
 
-static int _shatter_walls(coord_def where, int pow, int garbage)
+static int _shatter_walls(coord_def where, int pow, int, actor *)
 {
-    UNUSED(garbage);
-
     int chance = 0;
 
     // if not in-bounds then we can't really shatter it -- bwr
@@ -301,8 +294,6 @@ void cast_shatter(int pow)
     case TRAN_SPIDER:
     case TRAN_LICH:
     case TRAN_DRAGON:
-    case TRAN_AIR:
-    case TRAN_SERPENT_OF_HELL:
     case TRAN_BAT:
         break;
 
@@ -388,36 +379,32 @@ void cast_detect_secret_doors(int pow)
     mprf("You detect %s", (found > 0) ? "secret doors!" : "nothing.");
 }
 
-static int _sleep_monsters(coord_def where, int pow, int garbage)
+static int _sleep_monsters(coord_def where, int pow, int, actor *)
 {
-    UNUSED( garbage );
-    const int mnstr = mgrd(where);
+    monsters *monster = monster_at(where);
+    if (monster == NULL)
+        return (0);
 
-    if (mnstr == NON_MONSTER)
-        return 0;
-
-    monsters& mon = menv[mnstr];
-
-    if (mons_holiness(&mon) != MH_NATURAL)
-        return 0;
-    if (check_mons_resist_magic( &mon, pow ))
-        return 0;
+    if (mons_holiness(monster) != MH_NATURAL)
+        return (0);
+    if (check_mons_resist_magic(monster, pow))
+        return (0);
 
     // Works on friendlies too, so no check for that.
 
     //jmf: Now that sleep == hibernation:
-    const int res = mons_res_cold( &mon );
+    const int res = mons_res_cold(monster);
     if (res > 0 && one_chance_in(std::max(4 - res, 1)))
-        return 0;
-    if (mon.has_ench(ENCH_SLEEP_WARY) && !one_chance_in(3))
-        return 0;
+        return (0);
+    if (monster->has_ench(ENCH_SLEEP_WARY) && !one_chance_in(3))
+        return (0);
 
-    mon.put_to_sleep();
+    monster->put_to_sleep();
 
-    if (mons_class_flag( mon.type, M_COLD_BLOOD ) && coinflip())
-        mon.add_ench(ENCH_SLOW);
+    if (mons_class_flag( monster->type, M_COLD_BLOOD ) && coinflip())
+        monster->add_ench(ENCH_SLOW);
 
-    return 1;
+    return (1);
 }
 
 void cast_mass_sleep(int pow)
@@ -447,15 +434,11 @@ static bool _is_domesticated_animal(int type)
     return (false);
 }
 
-static int _tame_beast_monsters(coord_def where, int pow, int garbage)
+static int _tame_beast_monsters(coord_def where, int pow, int, actor *)
 {
-    UNUSED( garbage );
-    const int which_mons = mgrd(where);
-
-    if (which_mons == NON_MONSTER)
+    monsters *monster = monster_at(where);
+    if (monster == NULL)
         return 0;
-
-    monsters *monster = &menv[which_mons];
 
     if (!_is_domesticated_animal(monster->type) || mons_friendly(monster)
         || player_will_anger_monster(monster))
@@ -488,10 +471,9 @@ void cast_tame_beasts(int pow)
     apply_area_visible(_tame_beast_monsters, pow);
 }
 
-static int _ignite_poison_objects(coord_def where, int pow, int garbage)
+static int _ignite_poison_objects(coord_def where, int pow, int, actor *)
 {
     UNUSED( pow );
-    UNUSED( garbage );
 
     int strength = 0;
 
@@ -526,10 +508,9 @@ static int _ignite_poison_objects(coord_def where, int pow, int garbage)
     return (strength);
 }
 
-static int _ignite_poison_clouds( coord_def where, int pow, int garbage )
+static int _ignite_poison_clouds( coord_def where, int pow, int, actor *)
 {
     UNUSED( pow );
-    UNUSED( garbage );
 
     bool did_anything = false;
 
@@ -557,20 +538,16 @@ static int _ignite_poison_clouds( coord_def where, int pow, int garbage )
     return did_anything;
 }
 
-static int _ignite_poison_monsters(coord_def where, int pow, int garbage)
+static int _ignite_poison_monsters(coord_def where, int pow, int, actor *)
 {
-    UNUSED( garbage );
-
     bolt beam;
     beam.flavour = BEAM_FIRE;   // This is dumb, only used for adjust!
 
-    dice_def  dam_dice( 0, 5 + pow / 7 );  // Dice added below if applicable.
+    dice_def dam_dice(0, 5 + pow/7);  // Dice added below if applicable.
 
-    const int mon_index = mgrd(where);
-    if (mon_index == NON_MONSTER)
+    monsters *mon = monster_at(where);
+    if (mon == NULL)
         return (0);
-
-    struct monsters *const mon = &menv[ mon_index ];
 
     // Monsters which have poison corpses or poisonous attacks.
     if (mons_is_poisoner(mon))
@@ -598,7 +575,7 @@ static int _ignite_poison_monsters(coord_def where, int pow, int garbage)
              dam_dice.num, dam_dice.size, damage );
 #endif
 
-        if (!_player_hurt_monster( mon_index, damage ))
+        if (!_player_hurt_monster(*mon, damage))
         {
             // Monster survived, remove any poison.
             mon->del_ench(ENCH_POISON);
@@ -777,11 +754,9 @@ void cast_silence(int pow)
     }
 }
 
-static int _discharge_monsters( coord_def where, int pow, int garbage )
+static int _discharge_monsters(coord_def where, int pow, int, actor *)
 {
-    UNUSED( garbage );
-
-    const int mon = mgrd(where);
+    monsters *monster = monster_at(where);
     int damage = 0;
 
     bolt beam;
@@ -789,27 +764,27 @@ static int _discharge_monsters( coord_def where, int pow, int garbage )
 
     if (where == you.pos())
     {
-        mpr( "You are struck by lightning." );
-        damage = 3 + random2( 5 + pow / 10 );
+        mpr("You are struck by lightning.");
+        damage = 3 + random2(5 + pow / 10);
         damage = check_your_resists( damage, BEAM_ELECTRICITY );
-        if ( player_is_airborne() )
+        if (player_is_airborne())
             damage /= 2;
         ouch(damage, NON_MONSTER, KILLED_BY_WILD_MAGIC);
     }
-    else if (mon == NON_MONSTER)
+    else if (monster == NULL)
         return (0);
-    else if (mons_res_elec(&menv[mon]) > 0 || mons_flies(&menv[mon]))
+    else if (mons_res_elec(monster) > 0 || mons_flies(monster))
         return (0);
     else
     {
-        damage = 3 + random2( 5 + pow / 10 );
-        damage = mons_adjust_flavoured( &menv[mon], beam, damage );
+        damage = 3 + random2(5 + pow/10);
+        damage = mons_adjust_flavoured(monster, beam, damage );
 
         if (damage)
         {
-            mprf( "%s is struck by lightning.",
-                  menv[mon].name(DESC_CAP_THE).c_str());
-            _player_hurt_monster( mon, damage );
+            mprf("%s is struck by lightning.",
+                 monster->name(DESC_CAP_THE).c_str());
+            _player_hurt_monster(*monster, damage);
         }
     }
 
@@ -817,31 +792,31 @@ static int _discharge_monsters( coord_def where, int pow, int garbage )
     // Low power slight chance added for low power characters -- bwr
     if ((pow >= 10 && !one_chance_in(3)) || (pow >= 3 && one_chance_in(10)))
     {
-        mpr( "The lightning arcs!" );
+        mpr("The lightning arcs!");
         pow /= (coinflip() ? 2 : 3);
-        damage += apply_random_around_square( _discharge_monsters, where,
-                                              true, pow, 1 );
+        damage += apply_random_around_square(_discharge_monsters, where,
+                                             true, pow, 1);
     }
     else if (damage > 0)
     {
         // Only printed if we did damage, so that the messages in
         // cast_discharge() are clean. -- bwr
-        mpr( "The lightning grounds out." );
+        mpr("The lightning grounds out.");
     }
 
     return (damage);
 }
 
-void cast_discharge( int pow )
+void cast_discharge(int pow)
 {
-    int num_targs = 1 + random2( 1 + pow / 25 );
+    int num_targs = 1 + random2(1 + pow / 25);
     int dam;
 
-    dam = apply_random_around_square( _discharge_monsters, you.pos(),
-                                      true, pow, num_targs );
+    dam = apply_random_around_square(_discharge_monsters, you.pos(),
+                                     true, pow, num_targs);
 
 #if DEBUG_DIAGNOSTICS
-    mprf(MSGCH_DIAGNOSTICS, "Arcs: %d Damage: %d", num_targs, dam );
+    mprf(MSGCH_DIAGNOSTICS, "Arcs: %d Damage: %d", num_targs, dam);
 #endif
 
     if (dam == 0)
@@ -861,111 +836,14 @@ void cast_discharge( int pow )
     }
 }
 
-// NB: this must be checked against the same effects
-// in fight.cc for all forms of attack !!! {dlb}
-// This function should be currently unused (the effect is too powerful).
-static int _distortion_monsters(coord_def where, int pow, int message)
-{
-    if (pow > 100)
-        pow = 100;
-
-    if (where == you.pos())
-    {
-        if (you.skills[SK_TRANSLOCATIONS] < random2(8))
-        {
-            MiscastEffect( &you, NON_MONSTER, SPTYP_TRANSLOCATION,
-                           pow / 9 + 1, pow, "cast bend on self" );
-        }
-        else
-        {
-            MiscastEffect( &you, NON_MONSTER, SPTYP_TRANSLOCATION, 1, 1,
-                           "cast bend on self" );
-        }
-
-        return 1;
-    }
-
-    int monster_attacked = mgrd(where);
-
-    if (monster_attacked == NON_MONSTER)
-        return 0;
-
-    int specdam = 0;
-    monsters *defender = &menv[monster_attacked];
-
-    if (defender->type == MONS_BLINK_FROG
-        || defender->type == MONS_PRINCE_RIBBIT)      // any others resist?
-    {
-        int hp = defender->hit_points;
-        int max_hp = defender->max_hit_points;
-
-        mpr("The blink frog basks in the translocular energy.");
-
-        if (hp < max_hp)
-            hp += 1 + random2(1 + pow / 4) + random2(1 + pow / 7);
-
-        if (hp > max_hp)
-            hp = max_hp;
-
-        defender->hit_points = hp;
-        return 1;
-    }
-    else if (coinflip())
-    {
-        mprf("Space bends around %s.",
-             defender->name(DESC_NOCAP_THE).c_str());
-        specdam += 1 + random2avg( 7, 2 ) + random2(pow) / 40;
-    }
-    else if (coinflip())
-    {
-        mprf("Space warps horribly around %s!",
-             defender->name(DESC_NOCAP_THE).c_str());
-        specdam += 3 + random2avg( 12, 2 ) + random2(pow) / 25;
-    }
-    else if (one_chance_in(3))
-    {
-        monster_blink(defender);
-        return 1;
-    }
-    else if (one_chance_in(3))
-    {
-        monster_teleport(defender, coinflip());
-        return 1;
-    }
-    else if (one_chance_in(3))
-    {
-        defender->banish();
-        return 1;
-    }
-    else if (message)
-    {
-        mpr("Nothing seems to happen.");
-        return 1;
-    }
-
-    _player_hurt_monster(monster_attacked, specdam);
-
-    return (specdam);
-}
-
-void cast_bend(int pow)
-{
-    apply_one_neighbouring_square( _distortion_monsters, pow );
-}
-
 // Really this is just applying the best of Band/Warp weapon/Warp field
 // into a spell that gives the "make monsters go away" benefit without
 // the insane damage potential.  -- bwr
-int disperse_monsters(coord_def where, int pow, int message)
+int disperse_monsters(coord_def where, int pow, int, actor *)
 {
-    UNUSED( message );
-
-    const int monster_attacked = mgrd(where);
-
-    if (monster_attacked == NON_MONSTER)
+    monsters *defender = monster_at(where);
+    if (defender == NULL)
         return 0;
-
-    monsters *defender = &menv[monster_attacked];
 
     if (defender->type == MONS_BLINK_FROG
         || defender->type == MONS_PRINCE_RIBBIT)
@@ -997,74 +875,8 @@ int disperse_monsters(coord_def where, int pow, int message)
 
 void cast_dispersal(int pow)
 {
-    if (apply_area_around_square( disperse_monsters, you.pos(), pow ) == 0)
-    {
-        mpr( "The air shimmers briefly around you." );
-    }
-}
-
-static int _spell_swap_func(coord_def where, int pow, int message)
-{
-    UNUSED( message );
-
-    int monster_attacked = mgrd(where);
-
-    if (monster_attacked == NON_MONSTER)
-        return 0;
-
-    monsters *defender = &menv[monster_attacked];
-
-    if (defender->type == MONS_BLINK_FROG
-        || defender->type == MONS_PRINCE_RIBBIT
-        || check_mons_resist_magic( defender, pow ))
-    {
-        simple_monster_message( defender, mons_immune_magic(defender) ?
-                                " is unaffected." : " resists." );
-    }
-    else
-    {
-        // Swap doesn't seem to actually swap, but just sets the
-        // monster's location equal to the players... this being because
-        // the acr.cc call is going to move the player afterwards (for
-        // the regular friendly monster swap).  So we'll go through
-        // standard swap procedure here... since we really want to apply
-        // the same swap_places function as with friendly monsters...
-        // see note over there. -- bwr
-        coord_def old_pos = defender->pos();
-
-        if (swap_places( defender ))
-            you.moveto(old_pos);
-    }
-
-    return 1;
-}
-
-void cast_swap(int pow)
-{
-    apply_one_neighbouring_square( _spell_swap_func, pow );
-}
-
-static int _make_a_rot_cloud(const coord_def& where, int pow, cloud_type ctype)
-{
-    for (stack_iterator si(where); si; ++si)
-    {
-        if (si->base_type == OBJ_CORPSES && si->sub_type == CORPSE_BODY)
-        {
-            // Found a corpse.  Skeletonise it if possible.
-            if (!mons_skeleton(si->plus))
-                destroy_item(si->index());
-            else
-                turn_corpse_into_skeleton(*si);
-
-            place_cloud(ctype, where,
-                        (3 + random2(pow / 4) + random2(pow / 4)
-                           + random2(pow / 4)),
-                        KC_YOU);
-            return (1);
-        }
-    }
-
-    return (0);
+    if (apply_area_around_square(disperse_monsters, you.pos(), pow) == 0)
+        mpr("The air shimmers briefly around you.");
 }
 
 int make_a_normal_cloud(coord_def where, int pow, int spread_rate,
@@ -1081,10 +893,8 @@ int make_a_normal_cloud(coord_def where, int pow, int spread_rate,
     return 1;
 }
 
-static int _passwall(coord_def where, int pow, int garbage)
+static int _passwall(coord_def where, int pow, int, actor *)
 {
-    UNUSED( garbage );
-
     int howdeep = 0;
     bool done = false;
     int shallow = 1 + (you.skills[SK_EARTH_MAGIC] / 8);
@@ -1142,7 +952,7 @@ static int _passwall(coord_def where, int pow, int garbage)
         {
             if (howdeep > range || non_rock_barriers)
             {
-                ouch(1 + you.hp, NON_MONSTER, KILLED_BY_PETRIFICATION);
+                ouch(INSTANT_DEATH, NON_MONSTER, KILLED_BY_PETRIFICATION);
                 //jmf: not return; if wizard, successful transport is option
             }
         }
@@ -1160,29 +970,27 @@ static int _passwall(coord_def where, int pow, int garbage)
     start_delay( DELAY_PASSWALL, 1 + howdeep, n.x, n.y );
 
     return 1;
-}                               // end passwall()
+}
 
 void cast_passwall(int pow)
 {
     apply_one_neighbouring_square(_passwall, pow);
 }
 
-static int _intoxicate_monsters(coord_def where, int pow, int garbage)
+static int _intoxicate_monsters(coord_def where, int pow, int, actor *)
 {
     UNUSED( pow );
-    UNUSED( garbage );
 
-    int mon = mgrd(where);
-
-    if (mon == NON_MONSTER
-        || mons_intel(&menv[mon]) < I_NORMAL
-        || mons_holiness(&menv[mon]) != MH_NATURAL
-        || mons_res_poison(&menv[mon]) > 0)
+    monsters *monster = monster_at(where);
+    if (monster == NULL
+        || mons_intel(monster) < I_NORMAL
+        || mons_holiness(monster) != MH_NATURAL
+        || mons_res_poison(monster) > 0)
     {
         return 0;
     }
 
-    menv[mon].add_ench(mon_enchant(ENCH_CONFUSION, 0, KC_YOU));
+    monster->add_ench(mon_enchant(ENCH_CONFUSION, 0, KC_YOU));
     return 1;
 }
 
@@ -1205,38 +1013,37 @@ bool backlight_monsters(coord_def where, int pow, int garbage)
     UNUSED( pow );
     UNUSED( garbage );
 
-    int mon = mgrd(where);
-
-    if (mon == NON_MONSTER)
+    monsters *monster = monster_at(where);
+    if (monster == NULL)
         return (false);
 
     // Already glowing.
-    if (mons_class_flag(menv[mon].type, M_GLOWS))
+    if (mons_class_flag(monster->type, M_GLOWS))
         return (false);
 
-    mon_enchant bklt = menv[mon].get_ench(ENCH_BACKLIGHT);
+    mon_enchant bklt = monster->get_ench(ENCH_BACKLIGHT);
     const int lvl = bklt.degree;
 
     // This enchantment overrides invisibility (neat).
-    if (menv[mon].has_ench(ENCH_INVIS))
+    if (monster->has_ench(ENCH_INVIS))
     {
-        if (!menv[mon].has_ench(ENCH_BACKLIGHT))
+        if (!monster->has_ench(ENCH_BACKLIGHT))
         {
-            menv[mon].add_ench(
+            monster->add_ench(
                 mon_enchant(ENCH_BACKLIGHT, 1, KC_OTHER, random_range(30, 50)));
-            simple_monster_message( &menv[mon], " is lined in light." );
+            simple_monster_message(monster, " is lined in light.");
         }
         return (true);
     }
 
-    menv[mon].add_ench(mon_enchant(ENCH_BACKLIGHT, 1));
+    monster->add_ench(mon_enchant(ENCH_BACKLIGHT, 1));
 
     if (lvl == 0)
-        simple_monster_message( &menv[mon], " is outlined in light." );
+        simple_monster_message(monster, " is outlined in light.");
     else if (lvl == 4)
-        simple_monster_message( &menv[mon], " glows brighter for a moment." );
+        simple_monster_message(monster, " glows brighter for a moment.");
     else
-        simple_monster_message( &menv[mon], " glows brighter." );
+        simple_monster_message(monster, " glows brighter.");
 
     return (true);
 }
@@ -1536,168 +1343,32 @@ void cast_fulsome_distillation( int powc )
         mpr( "Unfortunately, you can't carry it right now!" );
 }
 
-static int _rot_living(coord_def where, int pow, int message)
-{
-    UNUSED( message );
-
-    int mon = mgrd(where);
-    int ench;
-
-    if (mon == NON_MONSTER)
-        return 0;
-
-    if (mons_holiness(&menv[mon]) != MH_NATURAL)
-        return 0;
-
-    if (check_mons_resist_magic(&menv[mon], pow))
-        return 0;
-
-    ench = ((random2(pow) + random2(pow) + random2(pow) + random2(pow)) / 4);
-    ench = 1 + (ench >= 20) + (ench >= 35) + (ench >= 50);
-
-    menv[mon].add_ench( mon_enchant(ENCH_ROT, ench, KC_YOU) );
-
-    return 1;
-}
-
-static int _rot_undead(coord_def where, int pow, int garbage)
-{
-    UNUSED( garbage );
-
-    int mon = mgrd(where);
-    int ench;
-
-    if (mon == NON_MONSTER)
-        return 0;
-
-    if (mons_holiness(&menv[mon]) != MH_UNDEAD)
-        return 0;
-
-    if (check_mons_resist_magic(&menv[mon], pow))
-        return 0;
-
-    // This does not make sense -- player mummies are
-    // immune to rotting (or have been) -- so what is
-    // the schema in use here to determine rotting??? {dlb}
-
-    //jmf: Up for discussion. it is clearly unfair to
-    //     rot player mummies.
-    //     the `schema' here is: corporeal non-player undead
-    //     rot, discorporeal undead don't rot. if you wanna
-    //     insist that monsters get the same treatment as
-    //     players, I demand my player mummies get to worship
-    //     the evil mummy & orc gods.
-    switch (menv[mon].type)
-    {
-    case MONS_ZOMBIE_SMALL:
-    case MONS_ZOMBIE_LARGE:
-    case MONS_MUMMY:
-    case MONS_GUARDIAN_MUMMY:
-    case MONS_GREATER_MUMMY:
-    case MONS_MUMMY_PRIEST:
-    case MONS_GHOUL:
-    case MONS_NECROPHAGE:
-    case MONS_VAMPIRE:
-    case MONS_VAMPIRE_KNIGHT:
-    case MONS_VAMPIRE_MAGE:
-    case MONS_LICH:
-    case MONS_ANCIENT_LICH:
-    case MONS_WIGHT:
-    case MONS_BORIS:
-        break;
-    case MONS_ROTTING_HULK:
-    default:
-        return 0;               // Immune (no flesh) or already rotting.
-    }
-
-    ench = ((random2(pow) + random2(pow) + random2(pow) + random2(pow)) / 4);
-    ench = 1 + (ench >= 20) + (ench >= 35) + (ench >= 50);
-
-    menv[mon].add_ench( mon_enchant(ENCH_ROT, ench, KC_YOU) );
-
-    return 1;
-}
-
-static int _rot_corpses(coord_def where, int pow, int garbage)
-{
-    UNUSED( garbage );
-
-    return _make_a_rot_cloud(where, pow, CLOUD_MIASMA);
-}
-
-void cast_rotting(int pow)
-{
-    apply_area_visible(_rot_living, pow);
-    apply_area_visible(_rot_undead, pow);
-    apply_area_visible(_rot_corpses, pow);
-    return;
-}
-
-void do_monster_rot(int mon)
-{
-    int damage = 1 + random2(3);
-
-    if (mons_holiness(&menv[mon]) == MH_UNDEAD && !one_chance_in(5))
-    {
-        apply_area_cloud(make_a_normal_cloud, menv[mon].pos(),
-                         10, 1, CLOUD_MIASMA, KC_YOU, KILL_YOU_MISSILE);
-    }
-
-    _player_hurt_monster( mon, damage );
-    return;
-}
-
-static int _snake_charm_monsters(coord_def where, int pow, int message)
-{
-    UNUSED( message );
-
-    int mon = mgrd(where);
-
-    if (mon == NON_MONSTER
-        || one_chance_in(4)
-        || mons_friendly(&menv[mon])
-        || mons_char(menv[mon].type) != 'S'
-        || check_mons_resist_magic(&menv[mon], pow))
-    {
-        return 0;
-    }
-
-    menv[mon].attitude = ATT_FRIENDLY;
-    mprf("%s sways back and forth.", menv[mon].name(DESC_CAP_THE).c_str());
-
-    return 1;
-}
-
-void cast_snake_charm(int pow)
-{
-    apply_one_neighbouring_square(_snake_charm_monsters, pow);
-}
-
 bool cast_fragmentation(int pow, const dist& spd)
 {
-    bolt beam;
     int debris = 0;
     bool explode = false;
     bool hole = true;
     const char *what = NULL;
 
     ray_def ray;
-    if ( !find_ray(you.pos(), spd.target, false, ray) )
+    if (!find_ray(you.pos(), spd.target, false, ray))
     {
         mpr("There's a wall in the way!");
-        return false;
+        return (false);
     }
 
     //FIXME: If (player typed '>' to attack floor) goto do_terrain;
+
+    bolt beam;
+
+    beam.flavour     = BEAM_FRAG;
+    beam.type        = dchar_glyph(DCHAR_FIRED_BURST);
     beam.beam_source = MHITYOU;
     beam.thrower     = KILL_YOU;
-    beam.ex_size     = 1;              // default
-    beam.type        = '#';
-    beam.colour      = 0;
+    beam.ex_size     = 1;
     beam.source      = you.pos();
-    beam.flavour     = BEAM_FRAG;
     beam.hit         = AUTOMATIC_HIT;
-    beam.is_tracer   = false;
+
     beam.set_target(spd);
     beam.aux_source.clear();
 
@@ -1705,14 +1376,11 @@ bool cast_fragmentation(int pow, const dist& spd)
     beam.damage = dice_def(0, 5 + pow / 10);
 
     const dungeon_feature_type grid = grd(spd.target);
-    const int midx = mgrd(spd.target);
 
-    if (midx != NON_MONSTER)
+    if (monsters *mon = monster_at(spd.target))
     {
-        monsters *mon = &menv[midx];
-
         // Save the monster's name in case it isn't available later.
-        std::string name_cap_the = mon->name(DESC_CAP_THE);
+        const std::string name_cap_the = mon->name(DESC_CAP_THE);
 
         switch (mon->type)
         {
@@ -1724,7 +1392,7 @@ bool cast_fragmentation(int pow, const dist& spd)
             // fizzle (since we don't actually explode wood golems). -- bwr
             explode         = false;
             beam.damage.num = 2;
-            _player_hurt_monster(midx, beam.damage.roll());
+            _player_hurt_monster(*mon, beam.damage.roll());
             break;
 
         case MONS_IRON_GOLEM:
@@ -1733,7 +1401,7 @@ bool cast_fragmentation(int pow, const dist& spd)
             beam.name       = "blast of metal fragments";
             beam.colour     = CYAN;
             beam.damage.num = 4;
-            if (_player_hurt_monster(midx, beam.damage.roll()))
+            if (_player_hurt_monster(*mon, beam.damage.roll()))
                 beam.damage.num += 2;
             break;
 
@@ -1746,7 +1414,7 @@ bool cast_fragmentation(int pow, const dist& spd)
             beam.name       = "blast of rock fragments";
             beam.colour     = BROWN;
             beam.damage.num = 3;
-            if (_player_hurt_monster(midx, beam.damage.roll()))
+            if (_player_hurt_monster(*mon, beam.damage.roll()))
                 beam.damage.num++;
             break;
 
@@ -1772,7 +1440,7 @@ bool cast_fragmentation(int pow, const dist& spd)
                 if (pow >= 50 && one_chance_in(10))
                     statue_damage = mon->hit_points;
 
-                if (_player_hurt_monster(midx, statue_damage))
+                if (_player_hurt_monster(*mon, statue_damage))
                     beam.damage.num += 2;
             }
             break;
@@ -1783,7 +1451,7 @@ bool cast_fragmentation(int pow, const dist& spd)
             beam.name       = "blast of crystal shards";
             beam.colour     = WHITE;
             beam.damage.num = 4;
-            if (_player_hurt_monster(midx, beam.damage.roll()))
+            if (_player_hurt_monster(*mon, beam.damage.roll()))
                 beam.damage.num += 2;
             break;
 
@@ -1795,7 +1463,7 @@ bool cast_fragmentation(int pow, const dist& spd)
                 beam.colour     = WHITE;
                 beam.damage.num = 2;
                     beam.flavour    = BEAM_ICE;
-                if (_player_hurt_monster(midx, beam.damage.roll()))
+                if (_player_hurt_monster(*mon, beam.damage.roll()))
                     beam.damage.num++;
                 break;
             }
@@ -1817,7 +1485,7 @@ bool cast_fragmentation(int pow, const dist& spd)
                 else
                 {
                       beam.damage.num = 2;
-                      if (_player_hurt_monster(midx, beam.damage.roll()))
+                      if (_player_hurt_monster(*mon, beam.damage.roll()))
                           beam.damage.num += 2;
                   }
                   goto all_done; // i.e., no "Foo Explodes!"
@@ -1835,7 +1503,7 @@ bool cast_fragmentation(int pow, const dist& spd)
                     beam.name       = "blast of petrified fragments";
                     beam.colour     = mons_class_colour(mon->type);
                     beam.damage.num = petrifying ? 2 : 3;
-                    if (_player_hurt_monster(midx, beam.damage.roll()))
+                    if (_player_hurt_monster(*mon, beam.damage.roll()))
                         beam.damage.num++;
                     break;
                 }
@@ -1846,7 +1514,7 @@ bool cast_fragmentation(int pow, const dist& spd)
 
             // Yes, this spell does lousy damage if the monster
             // isn't susceptible. -- bwr
-            _player_hurt_monster(midx, roll_dice(1, 5 + pow / 25));
+            _player_hurt_monster(*mon, roll_dice(1, 5 + pow / 25));
             goto do_terrain;
         }
 
@@ -2021,48 +1689,9 @@ bool cast_fragmentation(int pow, const dist& spd)
     }
     else if (beam.damage.num == 0)
     {
-        // If damage dice are zero we assume that nothing happened at all.
+        // If damage dice are zero, assume that nothing happened at all.
         canned_msg(MSG_SPELL_FIZZLES);
     }
-
-    return (true);
-}
-
-bool cast_twist(int pow, const coord_def& where)
-{
-    // Anything there?
-    if (invalid_monster_index(mgrd(where)))
-    {
-        mpr("There is no monster there!");
-        // This counts as a real cast, in order not to leak invisible
-        // monster locations, and to allow victory-dancing.
-        return (true);
-    }
-
-    monsters& m = menv[mgrd(where)];
-
-    // Identify mimics, if necessary.
-    if (mons_is_mimic(m.type))
-        m.flags |= MF_KNOWN_MIMIC;
-
-    // Monster can magically save vs attack.
-    if (check_mons_resist_magic(&m, pow * 2))
-    {
-        simple_monster_message(&m, mons_resist_string(&m));
-        return (true);
-    }
-
-    // Roll the damage... this spell is pretty low on damage, because
-    // it can target any monster in LOS (high utility).  This is
-    // similar to the damage done by Magic Dart (although, the
-    // distribution is much more uniform). -- bwr
-    const int damage = 1 + random2(3 + pow / 5);
-
-    // Inflict the damage.
-    _player_hurt_monster(m, damage);
-
-    if (mons_is_mimic(m.type))
-        mimic_alert(&m);
 
     return (true);
 }
@@ -2096,128 +1725,6 @@ bool cast_portal_projectile(int pow)
     return (true);
 }
 
-//
-// This version of far strike is a bit too creative for level one, in
-// order to make it work we needed to put a lot of restrictions on it
-// (like the damage limitation), which wouldn't be necessary if it were
-// a higher level spell.  This code might come back as a high level
-// translocation spell later (maybe even with special effects if it's
-// using some of Josh's ideas about occasionally losing the weapon).
-// Would potentially make a good high-level, second book Warper spell
-// (since Translocations is a utility school, it should be higher level
-// that usual... especially if it turns into a flavoured smiting spell).
-// This can all wait until after the next release (as it would be better
-// to have a proper way to do a single weapon strike here (you_attack
-// does far more than we need or want here)). --bwr
-//
-void cast_far_strike(int pow)
-{
-    dist targ;
-    bolt tmp;    // used, but ignored
-
-    // Get target, using DIR_TARGET for targetting only,
-    // since we don't use fire_beam() for this spell.
-    if (!spell_direction(targ, tmp, DIR_TARGET))
-        return;
-
-    // Get the target monster...
-    if (mgrd(targ.target) == NON_MONSTER || targ.isMe)
-    {
-        mpr("There is no monster there!");
-        return;
-    }
-
-    if (trans_wall_blocking( targ.target ))
-    {
-        mpr("A translucent wall is in the way.");
-        return;
-    }
-
-    //  Start with weapon base damage...
-
-    int damage = 3;     // default unarmed damage
-    int speed  = 10;    // default unarmed time
-
-    if (you.weapon())   // if not unarmed
-    {
-        const item_def& wpn(*you.weapon());
-        // Look up the base damage.
-        if (wpn.base_type == OBJ_WEAPONS)
-        {
-            damage = property( wpn, PWPN_DAMAGE );
-            speed  = property( wpn, PWPN_SPEED );
-
-            if (get_weapon_brand(wpn) == SPWPN_SPEED)
-                speed /= 2;
-        }
-        else if (item_is_staff(wpn))
-        {
-            damage = property(wpn, PWPN_DAMAGE );
-            speed = property(wpn, PWPN_SPEED );
-        }
-    }
-
-    // Because we're casting a spell (and don't want to make this level
-    // one spell too good), we're not applying skill speed bonuses and at
-    // the very least guaranteeing one full turn (speed == 10) like the
-    // other spells (if any thing else related to speed is changed, at
-    // least leave this right before the application to you.time_taken).
-    // Leaving skill out of the speed bonus is an important part of
-    // keeping this spell from becoming a "better than actual melee"
-    // spell... although, it's fine if that's the case for early Warpers,
-    // Fighter types, and such that pick up this trivial first level spell,
-    // shouldn't be using it instead of melee (but rather as an accessory
-    // long range plinker).  Therefore, we tone things down to try and
-    // guarantee that the spell is never begins to approach real combat
-    // (although the magic resistance check might end up with a higher
-    // hit rate than attacking against EV for high level Warpers). -- bwr
-    if (speed < 10)
-        speed = 10;
-
-    you.time_taken *= speed;
-    you.time_taken /= 10;
-
-    // Apply strength only to damage (since we're only interested in
-    // force here, not finesse... the dex/to-hit part of combat is
-    // instead handled via magical ability).  This part could probably
-    // just be removed, as it's unlikely to make any real difference...
-    // if it is, the Warper stats in newgame.cc should be changed back
-    // to the standard 6 int-4 dex of spellcasters. -- bwr
-    int dammod = 78;
-    const int dam_stat_val = you.strength;
-
-    if (dam_stat_val > 11)
-        dammod += (random2(dam_stat_val - 11) * 2);
-    else if (dam_stat_val < 9)
-        dammod -= (random2(9 - dam_stat_val) * 3);
-
-    damage *= dammod;
-    damage /= 78;
-
-    monsters *monster = &menv[ mgrd(targ.target) ];
-
-    // Apply monster's AC.
-    if (monster->ac > 0)
-        damage -= random2( 1 + monster->ac );
-
-    // Roll the damage...
-    damage = 1 + random2( damage );
-
-    // Monster can magically save vs attack (this could be replaced or
-    // augmented with an EV check).
-    if (check_mons_resist_magic( monster, pow * 2 ))
-    {
-        simple_monster_message( monster, mons_immune_magic(monster) ?
-                                " is unaffected." : " resists." );
-        return;
-    }
-
-    // Inflict the damage.
-    monster->hurt(&you, damage);
-    if (monster->alive())
-        print_wounds(monster);
-}
-
 bool cast_apportation(int pow, const coord_def& where)
 {
     // Protect the player from destroying the item.
@@ -2238,15 +1745,13 @@ bool cast_apportation(int pow, const coord_def& where)
     if (item_idx == NON_ITEM)
     {
         // Maybe the player *thought* there was something there (a mimic.)
-        const int mon = mgrd(where);
-        if (!invalid_monster_index(mon))
+        if (monsters* m = monster_at(where))
         {
-            monsters& m = menv[mon];
-            if (mons_is_mimic(m.type) && you.can_see(&m))
+            if (mons_is_mimic(m->type) && you.can_see(m))
             {
-                mprf("%s twitches.", m.name(DESC_CAP_THE).c_str());
+                mprf("%s twitches.", m->name(DESC_CAP_THE).c_str());
                 // Nothing else gives this message, so identify the mimic.
-                m.flags |= MF_KNOWN_MIMIC;
+                m->flags |= MF_KNOWN_MIMIC;
                 return (true);  // otherwise you get free mimic ID
             }
         }
@@ -2289,10 +1794,8 @@ bool cast_apportation(int pow, const coord_def& where)
         && item_is_stationary(item))
     {
         remove_item_stationary(item);
-
-        const int mon = mgrd(where);
-        if (!invalid_monster_index(mon))
-            menv[mon].del_ench(ENCH_HELD, true);
+        if (monsters *monster = monster_at(where))
+            monster->del_ench(ENCH_HELD, true);
     }
 
     // Actually move the item.
@@ -2327,7 +1830,7 @@ bool cast_sandblast(int pow, bolt &beam)
 
 void remove_condensation_shield()
 {
-    mpr("Your icy shield dissipates!", MSGCH_DURATION);
+    mpr("Your icy shield evaporates.", MSGCH_DURATION);
     you.duration[DUR_CONDENSATION_SHIELD] = 0;
     you.redraw_armour_class = true;
 }
@@ -2393,10 +1896,8 @@ void cast_divine_shield()
     you.redraw_armour_class = true;
 }
 
-static int _quadrant_blink(coord_def where, int pow, int garbage)
+static int _quadrant_blink(coord_def where, int pow, int, actor *)
 {
-    UNUSED( garbage );
-
     if (where == you.pos())
         return (0);
 
