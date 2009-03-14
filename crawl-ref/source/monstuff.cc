@@ -1076,6 +1076,7 @@ static void _hogs_to_humans()
         monsters *monster = &menv[i];
         if (monster->type == MONS_HOG)
         {
+            monster->type = MONS_HUMAN;
             monster->attitude = ATT_GOOD_NEUTRAL;
             monster->flags |= MF_WAS_NEUTRAL;
             behaviour_event(monster, ME_EVAL);
