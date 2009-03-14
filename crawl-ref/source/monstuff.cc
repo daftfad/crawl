@@ -58,6 +58,7 @@ REVISION("$Rev$");
 #include "state.h"
 #include "stuff.h"
 #include "terrain.h"
+#include "transfor.h"
 #include "traps.h"
 #include "tutorial.h"
 #include "view.h"
@@ -1089,6 +1090,10 @@ static void _hogs_to_humans()
         mpr("No longer under Kirke's spell, the hog turns into a human!");
     else if (any>1)
         mpr("No longer under Kirke's spell, all hogs revert to their human form!");
+
+    // Revert the player as well.
+    if (you.attribute[ATTR_TRANSFORMATION] == TRAN_PIG)
+        untransform();
 }
 
 int monster_die(monsters *monster, killer_type killer,
