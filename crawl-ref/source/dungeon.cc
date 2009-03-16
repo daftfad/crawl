@@ -3283,7 +3283,7 @@ static monster_type _choose_unique_by_depth(int step)
                             MONS_RUPERT, MONS_WAYNE, MONS_DUANE, MONS_XTAHUA,
                             MONS_NORRIS, MONS_FREDERICK, MONS_MARGERY,
                             MONS_BORIS, MONS_ROXANNE, MONS_NERGALLE,
-                            MONS_SAINT_ROKA, -1);
+                            MONS_SAINT_ROKA, MONS_KIRKE, -1);
     }
 
     return static_cast<monster_type>(ret);
