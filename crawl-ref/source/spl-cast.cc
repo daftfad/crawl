@@ -57,6 +57,9 @@ REVISION("$Rev$");
 #include <conio.h>
 #endif
 
+static int _calc_spell_range(spell_type spell, int power = 0,
+                             bool real_cast = false);
+
 static bool _surge_identify_boosters(spell_type spell)
 {
     const unsigned int typeflags = get_spell_disciplines(spell);
@@ -66,15 +69,16 @@ static bool _surge_identify_boosters(spell_type spell)
         // Note that robes of the Archmagi identify on wearing,
         // so that's less of an issue.
         const item_def* wpn = player_weapon();
-        if ( wpn == NULL ||
-             wpn->base_type != OBJ_STAVES ||
-             item_ident(*wpn, ISFLAG_KNOW_PROPERTIES) )
+        if (wpn == NULL
+            || wpn->base_type != OBJ_STAVES
+            || item_ident(*wpn, ISFLAG_KNOW_PROPERTIES))
         {
             int num_unknown = 0;
-            for ( int i = EQ_LEFT_RING; i <= EQ_RIGHT_RING; ++i )
+            for (int i = EQ_LEFT_RING; i <= EQ_RIGHT_RING; ++i)
             {
-                if (you.equip[i] != -1 &&
-                    !item_ident(you.inv[you.equip[i]], ISFLAG_KNOW_PROPERTIES))
+                if (player_wearing_slot(i)
+                    && !item_ident(you.inv[you.equip[i]],
+                                   ISFLAG_KNOW_PROPERTIES))
                 {
                     ++num_unknown;
                 }
@@ -82,10 +86,10 @@ static bool _surge_identify_boosters(spell_type spell)
 
             // We can also identify cases with two unknown rings, both
             // of fire (or both of ice)...let's skip it.
-            if ( num_unknown == 1 )
+            if (num_unknown == 1)
             {
-                for ( int i = EQ_LEFT_RING; i <= EQ_RIGHT_RING; ++i )
-                    if ( you.equip[i] != -1 )
+                for (int i = EQ_LEFT_RING; i <= EQ_RIGHT_RING; ++i)
+                    if (player_wearing_slot(i))
                     {
                         item_def& ring = you.inv[you.equip[i]];
                         if (!item_ident(ring, ISFLAG_KNOW_PROPERTIES)
@@ -127,10 +131,12 @@ static void _surge_power(spell_type spell)
     }
 }
 
-static std::string _spell_base_description(spell_type spell)
+static std::string _spell_base_description(spell_type spell, bool grey = false)
 {
     std::ostringstream desc;
 
+    if (grey)
+        desc << "<darkgrey>";
     desc << std::left;
 
     // spell name
@@ -138,7 +144,7 @@ static std::string _spell_base_description(spell_type spell)
 
     // spell schools
     bool already = false;
-    for ( int i = 0; i <= SPTYP_LAST_EXPONENT; ++i)
+    for (int i = 0; i <= SPTYP_LAST_EXPONENT; ++i)
     {
         if (spell_typematch(spell, (1<<i)))
         {
@@ -149,21 +155,25 @@ static std::string _spell_base_description(spell_type spell)
         }
     }
 
-    const int so_far = desc.str().length();
-    if ( so_far < 60 )
+    const int so_far = desc.str().length() - (grey ? 10 : 0);
+    if (so_far < 60)
         desc << std::string(60 - so_far, ' ');
 
     // spell fail rate, level
     desc << std::setw(12) << failure_rate_to_string(spell_fail(spell))
          << spell_difficulty(spell);
+    if (grey)
+        desc << "</darkgrey>";
 
     return desc.str();
 }
 
-static std::string _spell_extra_description(spell_type spell)
+static std::string _spell_extra_description(spell_type spell, bool grey = false)
 {
     std::ostringstream desc;
 
+    if (grey)
+        desc << "<darkgrey>";
     desc << std::left;
 
     // spell name
@@ -177,13 +187,60 @@ static std::string _spell_extra_description(spell_type spell)
          << std::setw(12) << spell_hunger_string(spell)
          << spell_difficulty(spell);
 
+    if (grey)
+        desc << "</darkgrey>";
+
     return desc.str();
 }
 
-int list_spells(bool toggle_with_I, bool viewing)
+static bool _spell_no_hostile_in_range(spell_type spell, int minRange)
 {
-    ToggleableMenu spell_menu(MF_SINGLESELECT | MF_ANYPRINTABLE |
-        MF_ALWAYS_SHOW_MORE | MF_ALLOW_FORMATTING);
+    if (minRange < 0)
+        return (false);
+
+    bool bonus = 0;
+    switch (spell)
+    {
+    // These don't target monsters.
+    case SPELL_APPORTATION:
+    case SPELL_PROJECTED_NOISE:
+    case SPELL_CONJURE_FLAME:
+    case SPELL_DIG:
+    // These bounce and may be aimed elsewhere to bounce at monsters
+    // outside range (I guess).
+    case SPELL_SHOCK:
+    case SPELL_LIGHTNING_BOLT:
+        return (false);
+    case SPELL_EVAPORATE:
+    case SPELL_MEPHITIC_CLOUD:
+    case SPELL_FIREBALL:
+    case SPELL_FREEZING_CLOUD:
+    case SPELL_POISONOUS_CLOUD:
+        // Increase range by one due to cloud radius.
+        bonus = 1;
+        break;
+    default:
+        break;
+    }
+
+    // The healing spells.
+    if (testbits(get_spell_flags(spell), SPFLAG_HELPFUL))
+        return (false);
+
+    const int range = _calc_spell_range(spell);
+    if (range < 0)
+        return (false);
+
+    if (range + bonus < minRange)
+        return (true);
+
+    return (false);
+}
+
+int list_spells(bool toggle_with_I, bool viewing, int minRange)
+{
+    ToggleableMenu spell_menu(MF_SINGLESELECT | MF_ANYPRINTABLE
+                                |   MF_ALWAYS_SHOW_MORE | MF_ALLOW_FORMATTING);
 #ifdef USE_TILE
     {
         // [enne] - Hack.  Make title an item so that it's aligned.
@@ -216,25 +273,31 @@ int list_spells(bool toggle_with_I, bool viewing)
         spell_menu.add_toggle_key('I');
         more_str += "or 'I' ";
     }
-    more_str += "to toggle spell view.";
     if (!viewing)
-    {
-        spell_menu.allow_toggle = true;
-        spell_menu.menu_action  = Menu::ACT_EXECUTE;
-        more_str += " Press ''?' to toggle between spell selection"
-                    " and description.";
-    }
+        spell_menu.menu_action = Menu::ACT_EXECUTE;
+    more_str += "to toggle spell view.";
     spell_menu.set_more(formatted_string(more_str));
 
+    bool grey = false; // Needs to be greyed out?
     for (int i = 0; i < 52; ++i)
     {
         const char letter = index_to_letter(i);
         const spell_type spell = get_spell_by_letter(letter);
+        if (!viewing)
+        {
+            if (spell_mana(spell) > you.magic_points
+                || _spell_no_hostile_in_range(spell, minRange))
+            {
+                grey = true;
+            }
+            else
+                grey = false;
+        }
         if (spell != SPELL_NO_SPELL)
         {
             ToggleableMenuEntry* me =
-                new ToggleableMenuEntry(_spell_base_description(spell),
-                                        _spell_extra_description(spell),
+                new ToggleableMenuEntry(_spell_base_description(spell, grey),
+                                        _spell_extra_description(spell, grey),
                                         MEL_ITEM, 1, letter);
             spell_menu.add_entry(me);
         }
@@ -243,7 +306,8 @@ int list_spells(bool toggle_with_I, bool viewing)
     while (true)
     {
         std::vector<MenuEntry*> sel = spell_menu.show();
-        redraw_screen();
+        if (!crawl_state.doing_prev_cmd_again)
+            redraw_screen();
         if (sel.empty())
             return 0;
 
@@ -376,7 +440,7 @@ int spell_fail(spell_type spell)
 
         case ARM_LARGE_SHIELD:
             // *BCR* Large chars now get a lower penalty for large shields
-            if (you.species == SP_OGRE || you.species == SP_TROLL
+            if (player_genus(GENPC_OGRE) || you.species == SP_TROLL
                 || player_genus(GENPC_DRACONIAN))
             {
                 chance += 20;
@@ -555,8 +619,44 @@ void inspect_spells()
     list_spells(true, true);
 }
 
+static int _get_dist_to_nearest_monster()
+{
+    int minRange = LOS_RADIUS + 1;
+    for (radius_iterator ri(you.pos(), LOS_RADIUS, true, false, true); ri; ++ri)
+    {
+        if (!in_bounds(*ri))
+            continue;
+
+        // Can we see (and reach) the grid?
+        if (!see_grid_no_trans(*ri))
+            continue;
+
+        const monsters *mon = monster_at(*ri);
+        if (mon == NULL)
+            continue;
+
+        if (!player_monster_visible(mon)
+            || mons_is_unknown_mimic(mon))
+        {
+            continue;
+        }
+
+        // Plants/fungi don't count.
+        if (mons_class_flag(mon->type, M_NO_EXP_GAIN))
+            continue;
+
+        if (mons_wont_attack(mon))
+            continue;
+
+        int dist = grid_distance(you.pos(), *ri);
+        if (dist < minRange)
+            minRange = dist;
+    }
+    return (minRange);
+}
+
 // Returns false if spell failed, and true otherwise.
-bool cast_a_spell()
+bool cast_a_spell(bool check_range)
 {
     if (!you.spell_no)
     {
@@ -579,26 +679,40 @@ bool cast_a_spell()
         return (false);
     }
 
-    int keyin = 0;              // silence stupid compilers
+    if (you.magic_points < 1)
+    {
+        mpr("You don't have enough magic to cast spells.");
+        return (false);
+    }
+
+    const int minRange = _get_dist_to_nearest_monster();
+
+    int keyin = (check_range ? 0 : '?');
 
     while (true)
     {
-        mpr("Cast which spell? (? or * to list) ", MSGCH_PROMPT);
+        if (keyin == 0)
+        {
+            mpr("Cast which spell? (? or * to list) ", MSGCH_PROMPT);
 
-        keyin = get_ch();
+            keyin = get_ch();
+        }
 
         if (keyin == '?' || keyin == '*')
         {
-            keyin = list_spells();
+            keyin = list_spells(true, false, minRange);
             if (!keyin)
                 keyin = ESCAPE;
 
-            redraw_screen();
+            if (!crawl_state.doing_prev_cmd_again)
+                redraw_screen();
 
             if (isalpha(keyin) || keyin == ESCAPE)
                 break;
             else
                 mesclr();
+
+            keyin = 0;
         }
         else
             break;
@@ -626,9 +740,15 @@ bool cast_a_spell()
         return (false);
     }
 
-    if (spell_mana( spell ) > you.magic_points)
+    if (spell_mana(spell) > you.magic_points)
     {
         mpr("You don't have enough magic to cast that spell.");
+        return (false);
+    }
+
+    if (check_range && _spell_no_hostile_in_range(spell, minRange))
+    {
+        mpr("There are no visible monsters within range! (Use <w>Z</w> to cast anyway.)");
         return (false);
     }
 
@@ -1045,18 +1165,14 @@ spret_type your_spells(spell_type spell, int powc, bool allow_fail)
                 return (SPRET_ABORT);
         }
         else if (dir == DIR_DIR)
-            mpr(prompt ? prompt : "Which direction?", MSGCH_PROMPT);
+            mpr(prompt ? prompt : "Which direction? ", MSGCH_PROMPT);
 
         const bool needs_path = (!testbits(flags, SPFLAG_GRID)
                                  && !testbits(flags, SPFLAG_TARGET));
 
         const bool dont_cancel_me = testbits(flags, SPFLAG_AREA);
 
-
-        // FIXME: Code duplication (see similar line below).
-        int range_power = (powc == 0 ? calc_spell_power(spell, true) : powc);
-
-        const int range = spell_range(spell, range_power, false);
+        const int range = _calc_spell_range(spell, powc, false);
 
         if (!spell_direction(spd, beam, dir, targ, range,
                              needs_path, true, dont_cancel_me, prompt,
@@ -1065,14 +1181,14 @@ spret_type your_spells(spell_type spell, int powc, bool allow_fail)
             return (SPRET_ABORT);
         }
 
-        beam.range = spell_range(spell, range_power, true);
+        beam.range = _calc_spell_range(spell, powc, true);
 
         if (testbits(flags, SPFLAG_NOT_SELF) && spd.isMe)
         {
             if (spell == SPELL_TELEPORT_OTHER || spell == SPELL_POLYMORPH_OTHER
                 || spell == SPELL_BANISHMENT)
             {
-                mpr( "Sorry, this spell works on others only." );
+                mpr("Sorry, this spell works on others only.");
             }
             else
                 canned_msg(MSG_UNTHINKING_ACT);
@@ -1610,7 +1726,7 @@ spret_type your_spells(spell_type spell, int powc, bool allow_fail)
     case SPELL_SLEEP:
     {
         const int sleep_power =
-            stepdown_value( powc * 9 / 10, 5, 35, 45, 50 );
+            stepdown_value(powc * 9 / 10, 5, 35, 45, 50);
 #ifdef DEBUG_DIAGNOSTICS
         mprf(MSGCH_DIAGNOSTICS, "Sleep power stepdown: %d -> %d",
              powc, sleep_power);
@@ -1773,32 +1889,32 @@ spret_type your_spells(spell_type spell, int powc, bool allow_fail)
     // Transformations.
     case SPELL_BLADE_HANDS:
         if (!transform(powc, TRAN_BLADE_HANDS))
-            canned_msg(MSG_SPELL_FIZZLES);
+            return (SPRET_ABORT);
         break;
 
     case SPELL_SPIDER_FORM:
         if (!transform(powc, TRAN_SPIDER))
-            canned_msg(MSG_SPELL_FIZZLES);
+            return (SPRET_ABORT);
         break;
 
     case SPELL_STATUE_FORM:
         if (!transform(powc, TRAN_STATUE))
-            canned_msg(MSG_SPELL_FIZZLES);
+            return (SPRET_ABORT);
         break;
 
     case SPELL_ICE_FORM:
         if (!transform(powc, TRAN_ICE_BEAST))
-            canned_msg(MSG_SPELL_FIZZLES);
+            return (SPRET_ABORT);
         break;
 
     case SPELL_DRAGON_FORM:
         if (!transform(powc, TRAN_DRAGON))
-            canned_msg(MSG_SPELL_FIZZLES);
+            return (SPRET_ABORT);
         break;
 
     case SPELL_NECROMUTATION:
         if (!transform(powc, TRAN_LICH))
-            canned_msg(MSG_SPELL_FIZZLES);
+            return (SPRET_ABORT);
         break;
 
     case SPELL_ALTER_SELF:
@@ -1978,9 +2094,7 @@ spret_type your_spells(spell_type spell, int powc, bool allow_fail)
 
     case SPELL_MAGIC_MAPPING:
         if (you.level_type == LEVEL_PANDEMONIUM)
-        {
             mpr("Your Earth magic cannot map Pandemonium.");
-        }
         else
         {
             powc = stepdown_value( powc, 10, 10, 40, 45 );
@@ -2172,14 +2286,14 @@ const char* spell_hunger_string( spell_type spell )
 int spell_power_colour(spell_type spell)
 {
     const int powercap = spell_power_cap(spell);
-    if ( powercap == 0 )
+    if (powercap == 0)
         return DARKGREY;
     const int power = calc_spell_power(spell, true);
-    if ( power >= powercap )
+    if (power >= powercap)
         return WHITE;
-    if ( power * 3 < powercap )
+    if (power * 3 < powercap)
         return RED;
-    if ( power * 3 < powercap * 2 )
+    if (power * 3 < powercap * 2)
         return YELLOW;
     return GREEN;
 }
@@ -2206,23 +2320,34 @@ std::string spell_power_string(spell_type spell)
 {
     const int numbars = spell_power_bars(spell);
     const int capbars = _power_to_barcount(spell_power_cap(spell));
-    ASSERT( numbars <= capbars );
-    if ( numbars < 0 )
+    ASSERT(numbars <= capbars);
+    if (numbars < 0)
         return "N/A";
     else
         return std::string(numbars, '#') + std::string(capbars - numbars, '.');
 }
 
+static int _calc_spell_range(spell_type spell, int power, bool real_cast)
+{
+    if (power == 0)
+        power = calc_spell_power(spell, true);
+    const int range = spell_range(spell, power, real_cast);
+
+    return (range);
+}
+
 std::string spell_range_string(spell_type spell)
 {
-    const int cap = spell_power_cap(spell);
-    const int power = calc_spell_power(spell, true);
-    const int range = spell_range(spell, power, false);
+    const int cap      = spell_power_cap(spell);
+    const int range    = _calc_spell_range(spell);
     const int maxrange = spell_range(spell, cap, false);
+
     if (range < 0)
         return "N/A";
     else
+    {
         return std::string("@") + std::string(range, '.')
-            + "<darkgrey>" + std::string(maxrange - range, '.')
-            + "</darkgrey>";
+               + "<darkgrey>" + std::string(maxrange - range, '.')
+               + "</darkgrey>";
+    }
 }

@@ -470,70 +470,53 @@ void mons_cast(monsters *monster, bolt &pbolt, spell_type spell_cast,
 
     case SPELL_CANTRIP:
     {
-        // Don't give any message if the monster isn't nearby.
-        // (Otherwise you could get them from halfway across the level.)
-        if (!mons_near(monster))
-            return;
-
-        const bool friendly      = mons_friendly(monster);
-        const bool buff_only     = !friendly && is_sanctuary(you.pos());
-        bool need_friendly_stub  = false;
-        const msg_channel_type channel = (friendly) ? MSGCH_FRIEND_ENCHANT
-                                                    : MSGCH_MONSTER_ENCHANT;
-
         // Monster spell of uselessness, just prints a message.
         // This spell exists so that some monsters with really strong
         // spells (ie orc priest) can be toned down a bit. -- bwr
         //
         // XXX: Needs expansion, and perhaps different priest/mage flavours.
-        switch (random2((buff_only || crawl_state.arena) ? 4 : 7))
-        {
-        case 0:
-            simple_monster_message(monster, " glows brightly for a moment.",
-                                   channel);
-            break;
-        case 1:
-            simple_monster_message(monster, " looks stronger.",
-                                   channel);
-            break;
-        case 2:
-            simple_monster_message(monster, " becomes somewhat translucent.",
-                                   channel);
-            break;
-        case 3:
-            simple_monster_message(monster, "'s eyes start to glow.",
-                                   channel);
-            break;
-        case 4:
-            if (friendly)
-                need_friendly_stub = true;
-            else
-                mpr("You feel troubled.");
-            break;
-        case 5:
-            if (friendly)
-                need_friendly_stub = true;
-            else
-                mpr("You feel a wave of unholy energy pass over you.");
-            break;
-        case 6:
-        default:
-            if (friendly)
-                need_friendly_stub = true;
-            else if (one_chance_in(20))
-                mpr("You resist (whatever that was supposed to do).");
-            else
-                mpr("You resist.");
-            break;
-        }
 
-        if (need_friendly_stub)
-        {
-            simple_monster_message(monster, " shimmers for a moment.",
-                                   channel);
-        }
+        // Don't give any message if the monster isn't nearby.
+        // (Otherwise you could get them from halfway across the level.)
+        if (!mons_near(monster))
+            return;
+
+        const bool friendly  = mons_friendly(monster);
+        const bool buff_only = !friendly && is_sanctuary(you.pos());
+        const msg_channel_type channel = (friendly) ? MSGCH_FRIEND_ENCHANT
+                                                    : MSGCH_MONSTER_ENCHANT;
+
+        // Messages about the monster influencing itself.
+        const char* buff_msgs[] = { " glows brightly for a moment.",
+                                    " looks stronger.",
+                                    " becomes somewhat translucent.",
+                                    "'s eyes start to glow." };
+
+        // Messages about the monster influencing you.
+        const char* other_msgs[] = {
+            "You feel troubled.",
+            "You feel a wave of unholy energy pass over you."
+        };
+
+        if (buff_only || crawl_state.arena || x_chance_in_y(2,3))
+            simple_monster_message(monster, RANDOM_ELEMENT(buff_msgs), channel);
+        else if (friendly)
+            simple_monster_message(monster, " shimmers for a moment.", channel);
+        else
+            mpr(RANDOM_ELEMENT(other_msgs));
 
         return;
+    }
+    case SPELL_BLINK_OTHER:
+    {
+        // Allow the caster to comment on moving the foe.
+        std::string msg = getSpeakString(monster->name(DESC_PLAIN)
+                                         + " blink_other");
+        if (!msg.empty() && msg != "__NONE")
+        {
+            mons_speaks_msg(monster, msg, MSGCH_TALK,
+                            silenced(you.pos()) || silenced(monster->pos()));
+        }
     }
     }
 
@@ -602,10 +585,10 @@ void mons_cast_noise(monsters *monster, bolt &pbolt, spell_type spell_cast)
 
     int noise;
     if (silent
-       || (innate
-           && !mons_class_flag(monster->type, M_NOISY_SPELLS)
-           && !(flags & SPFLAG_NOISY)
-           && mons_genus(monster->type) != MONS_DRAGON))
+        || (innate
+            && !mons_class_flag(monster->type, M_NOISY_SPELLS)
+            && !(flags & SPFLAG_NOISY)
+            && mons_genus(monster->type) != MONS_DRAGON))
     {
         noise = 0;
     }
@@ -652,11 +635,11 @@ void mons_cast_noise(monsters *monster, bolt &pbolt, spell_type spell_cast)
         key_list.push_back("demon" + cast_str);
 
     const bool visible_beam = pbolt.type != 0 && pbolt.type != ' '
-                           && pbolt.name[0] != '0'
-                           && !pbolt.is_enchantment();
+                              && pbolt.name[0] != '0'
+                              && !pbolt.is_enchantment();
 
     const bool targeted = (flags & SPFLAG_TARGETING_MASK)
-                       && (pbolt.target != monster->pos() || visible_beam);
+                           && (pbolt.target != monster->pos() || visible_beam);
 
     if (targeted)
     {
@@ -742,9 +725,9 @@ void mons_cast_noise(monsters *monster, bolt &pbolt, spell_type spell_cast)
     /////////////////////
 
     const bool gestured = msg.find("Gesture") != std::string::npos
-                       || msg.find(" gesture") != std::string::npos
-                       || msg.find("Point") != std::string::npos
-                       || msg.find(" point") != std::string::npos;
+                          || msg.find(" gesture") != std::string::npos
+                          || msg.find("Point") != std::string::npos
+                          || msg.find(" point") != std::string::npos;
 
     bolt tracer = pbolt;
     if (targeted)
@@ -778,8 +761,10 @@ void mons_cast_noise(monsters *monster, bolt &pbolt, spell_type spell_cast)
     else if (in_bounds(pbolt.target) && see_grid(pbolt.target))
     {
         if (const monsters* mtarg = monster_at(pbolt.target))
+        {
             if (you.can_see(mtarg))
                 target = mtarg->name(DESC_NOCAP_THE);
+        }
     }
 
     // Monster might be aiming past the real target, or maybe some fuzz has
@@ -928,13 +913,11 @@ void mons_cast_noise(monsters *monster, bolt &pbolt, spell_type spell_cast)
 
     const msg_channel_type chan =
         (unseen                      ? MSGCH_SOUND :
-         mons_friendly_real(monster) ? MSGCH_FRIEND_SPELL :
-                                       MSGCH_MONSTER_SPELL);
+         mons_friendly_real(monster) ? MSGCH_FRIEND_SPELL
+                                     : MSGCH_MONSTER_SPELL);
 
     if (silent)
-    {
         mons_speaks_msg(monster, msg, chan, true);
-    }
     else if (noisy(noise, monster->pos()) || !unseen)
     {
         // noisy() returns true if the player heard the noise.
@@ -1155,7 +1138,7 @@ void monster_teleport(monsters *monster, bool instan, bool silent)
     }
 
     if (player_monster_visible(monster) && now_visible)
-        seen_monster(monster);
+        handle_seen_interrupt(monster);
 
     monster->check_redraw(oldplace);
     monster->apply_location_effects(oldplace);
@@ -1557,7 +1540,7 @@ bool mons_throw(struct monsters *monster, struct bolt &pbolt, int hand_used)
 static void _scale_draconian_breath(bolt& beam, int drac_type)
 {
     int scaling = 100;
-    switch(drac_type)
+    switch (drac_type)
     {
     case MONS_RED_DRACONIAN:
         beam.name       = "searing blast";
@@ -2590,6 +2573,7 @@ int clone_mons(const monsters* orig, bool quiet, bool* obvious,
 
         mon.inv[i]      = new_index;
         mitm[new_index] = mitm[old_index];
+        mitm[new_index].set_holding_monster(midx);
     }
 
     bool _obvious;
@@ -2607,7 +2591,7 @@ int clone_mons(const monsters* orig, bool quiet, bool* obvious,
     mark_interesting_monst(&mon, mon.behaviour);
     if (you.can_see(&mon))
     {
-        seen_monster(&mon);
+        handle_seen_interrupt(&mon);
         viewwindow(true, false);
     }
 

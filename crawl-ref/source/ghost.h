@@ -23,6 +23,7 @@ public:
 
     species_type species;
     job_type job;
+    god_type religion;
     skill_type best_skill;
     short best_skill_level;
     short xl;
@@ -56,6 +57,8 @@ private:
     void add_spells();
     spell_type translate_spell(spell_type playerspell) const;
 };
+
+bool debug_check_ghosts();
 
 extern std::vector<ghost_demon> ghosts;
 

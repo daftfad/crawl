@@ -59,7 +59,6 @@ REVISION("$Rev$");
 #include "tutorial.h"
 #include "view.h"
 
-
 #ifdef UNIX
 #include "libunix.h"
 #endif
@@ -110,7 +109,7 @@ ability_type god_abilities[MAX_NUM_GODS][MAX_GOD_ABILITIES] =
     { ABIL_KIKU_RECALL_UNDEAD_SLAVES, ABIL_NON_ABILITY,
       ABIL_KIKU_ENSLAVE_UNDEAD, ABIL_NON_ABILITY, ABIL_KIKU_INVOKE_DEATH },
     // Yredelemnul
-    { ABIL_YRED_ANIMATE_REMAINS, ABIL_YRED_RECALL_UNDEAD,
+    { ABIL_YRED_ANIMATE_REMAINS, ABIL_YRED_RECALL_UNDEAD_SLAVES,
       ABIL_YRED_ANIMATE_DEAD, ABIL_YRED_DRAIN_LIFE, ABIL_YRED_ENSLAVE_SOUL },
     // Xom
     { ABIL_NON_ABILITY, ABIL_NON_ABILITY, ABIL_NON_ABILITY, ABIL_NON_ABILITY,
@@ -129,14 +128,14 @@ ability_type god_abilities[MAX_NUM_GODS][MAX_GOD_ABILITIES] =
     { ABIL_SIF_MUNA_CHANNEL_ENERGY, ABIL_SIF_MUNA_FORGET_SPELL,
       ABIL_NON_ABILITY, ABIL_NON_ABILITY, ABIL_NON_ABILITY },
     // Trog
-    { ABIL_TROG_BERSERK, ABIL_TROG_REGENERATION, ABIL_NON_ABILITY,
+    { ABIL_TROG_BERSERK, ABIL_TROG_REGEN_MR, ABIL_NON_ABILITY,
       ABIL_TROG_BROTHERS_IN_ARMS, ABIL_NON_ABILITY },
     // Nemelex
     { ABIL_NEMELEX_DRAW_ONE, ABIL_NEMELEX_PEEK_TWO, ABIL_NEMELEX_TRIPLE_DRAW,
       ABIL_NEMELEX_MARK_FOUR, ABIL_NEMELEX_STACK_FIVE },
     // Elyvilon
-    { ABIL_ELYVILON_LESSER_HEALING, ABIL_ELYVILON_PURIFICATION,
-      ABIL_ELYVILON_GREATER_HEALING, ABIL_ELYVILON_RESTORATION,
+    { ABIL_ELYVILON_LESSER_HEALING_OTHERS, ABIL_ELYVILON_PURIFICATION,
+      ABIL_ELYVILON_GREATER_HEALING_OTHERS, ABIL_ELYVILON_RESTORATION,
       ABIL_ELYVILON_DIVINE_VIGOUR },
     // Lugonu
     { ABIL_LUGONU_ABYSS_EXIT, ABIL_LUGONU_BEND_SPACE, ABIL_LUGONU_BANISH,
@@ -165,9 +164,11 @@ static const ability_def Ability_List[] =
     { ABIL_BREATHE_FIRE, "Breathe Fire", 0, 0, 125, 0, ABFLAG_BREATH },
     { ABIL_BREATHE_FROST, "Breathe Frost", 0, 0, 125, 0, ABFLAG_BREATH },
     { ABIL_BREATHE_POISON, "Breathe Poison Gas", 0, 0, 125, 0, ABFLAG_BREATH },
-    { ABIL_BREATHE_LIGHTNING, "Breathe Lightning", 0, 0, 125, 0, ABFLAG_BREATH },
+    { ABIL_BREATHE_LIGHTNING, "Breathe Lightning",
+      0, 0, 125, 0, ABFLAG_BREATH },
     { ABIL_BREATHE_POWER, "Breathe Power", 0, 0, 125, 0, ABFLAG_BREATH },
-    { ABIL_BREATHE_STICKY_FLAME, "Breathe Sticky Flame", 0, 0, 125, 0, ABFLAG_BREATH },
+    { ABIL_BREATHE_STICKY_FLAME, "Breathe Sticky Flame",
+      0, 0, 125, 0, ABFLAG_BREATH },
     { ABIL_BREATHE_STEAM, "Breathe Steam", 0, 0, 75, 0, ABFLAG_BREATH },
     { ABIL_TRAN_BAT, "Bat Form", 2, 0, 0, 0, ABFLAG_NONE },
 
@@ -186,10 +187,12 @@ static const ability_def Ability_List[] =
     { ABIL_BOLT_OF_DRAINING, "Bolt of Draining", 4, 4, 100, 0, ABFLAG_NONE },
 
     // FLY_II used to have ABFLAG_EXHAUSTION, but that's somewhat meaningless
-    // as exhaustion's only (and designed) effect is preventing Berserk. -- bwr
+    // as exhaustion's only (and designed) effect is preventing Berserk. - bwr
     { ABIL_FLY_II, "Fly", 0, 0, 25, 0, ABFLAG_NONE },
-    { ABIL_DELAYED_FIREBALL, "Release Delayed Fireball", 0, 0, 0, 0, ABFLAG_INSTANT },
-    { ABIL_MUMMY_RESTORATION, "Self-Restoration", 1, 0, 0, 0, ABFLAG_PERMANENT_MP },
+    { ABIL_DELAYED_FIREBALL, "Release Delayed Fireball",
+      0, 0, 0, 0, ABFLAG_INSTANT },
+    { ABIL_MUMMY_RESTORATION, "Self-Restoration",
+      1, 0, 0, 0, ABFLAG_PERMANENT_MP },
 
     // EVOKE abilities use Evocations and come from items:
     // Mapping, Teleportation, and Blink can also come from mutations
@@ -199,14 +202,17 @@ static const ability_def Ability_List[] =
     // you used a wand, potion, or miscast effect).  I didn't see
     // any reason to label them as "Evoke" in the text, they don't
     // use or train Evocations (the others do).  -- bwr
-    { ABIL_EVOKE_MAPPING, "Evoke Sense Surroundings", 0, 0, 30, 0, ABFLAG_NONE },
-    { ABIL_EVOKE_TELEPORTATION, "Evoke Teleportation", 3, 0, 200, 0, ABFLAG_NONE },
+    { ABIL_EVOKE_MAPPING, "Evoke Sense Surroundings",
+      0, 0, 30, 0, ABFLAG_NONE },
+    { ABIL_EVOKE_TELEPORTATION, "Evoke Teleportation",
+      3, 0, 200, 0, ABFLAG_NONE },
     { ABIL_EVOKE_BLINK, "Evoke Blink", 1, 0, 50, 0, ABFLAG_NONE },
     { ABIL_RECHARGING, "Device Recharging", 1, 0, 0, 0, ABFLAG_PERMANENT_MP },
 
     { ABIL_EVOKE_BERSERK, "Evoke Berserk Rage", 0, 0, 0, 0, ABFLAG_NONE },
 
-    { ABIL_EVOKE_TURN_INVISIBLE, "Evoke Invisibility", 2, 0, 250, 0, ABFLAG_NONE },
+    { ABIL_EVOKE_TURN_INVISIBLE, "Evoke Invisibility",
+      2, 0, 250, 0, ABFLAG_NONE },
     { ABIL_EVOKE_TURN_VISIBLE, "Turn Visible", 0, 0, 0, 0, ABFLAG_NONE },
     { ABIL_EVOKE_LEVITATE, "Evoke Levitation", 1, 0, 100, 0, ABFLAG_NONE },
     { ABIL_EVOKE_STOP_LEVITATING, "Stop Levitating", 0, 0, 0, 0, ABFLAG_NONE },
@@ -223,17 +229,20 @@ static const ability_def Ability_List[] =
     // The Shining One
     { ABIL_TSO_DIVINE_SHIELD, "Divine Shield", 3, 0, 50, 2, ABFLAG_NONE },
     { ABIL_TSO_CLEANSING_FLAME, "Cleansing Flame", 5, 0, 100, 2, ABFLAG_NONE },
-    { ABIL_TSO_SUMMON_DIVINE_WARRIOR, "Summon Divine Warrior", 8, 0, 150, 4, ABFLAG_NONE },
+    { ABIL_TSO_SUMMON_DIVINE_WARRIOR, "Summon Divine Warrior",
+      8, 0, 150, 4, ABFLAG_NONE },
 
     // Kikubaaqudgha
-    { ABIL_KIKU_RECALL_UNDEAD_SLAVES, "Recall Undead Slaves", 2, 0, 50, 0, ABFLAG_NONE },
+    { ABIL_KIKU_RECALL_UNDEAD_SLAVES, "Recall Undead Slaves",
+      2, 0, 50, 0, ABFLAG_NONE },
     { ABIL_KIKU_ENSLAVE_UNDEAD, "Enslave Undead", 4, 0, 150, 3, ABFLAG_NONE },
     { ABIL_KIKU_INVOKE_DEATH, "Invoke Death", 4, 0, 250, 3, ABFLAG_NONE },
 
     // Yredelemnul
     { ABIL_YRED_INJURY_MIRROR, "Injury Mirror", 0, 0, 0, 0, ABFLAG_PIETY },
     { ABIL_YRED_ANIMATE_REMAINS, "Animate Remains", 1, 0, 100, 0, ABFLAG_NONE },
-    { ABIL_YRED_RECALL_UNDEAD, "Recall Undead Slaves", 2, 0, 50, 0, ABFLAG_NONE },
+    { ABIL_YRED_RECALL_UNDEAD_SLAVES, "Recall Undead Slaves",
+      2, 0, 50, 0, ABFLAG_NONE },
     { ABIL_YRED_ANIMATE_DEAD, "Animate Dead", 3, 0, 100, 1, ABFLAG_NONE },
     { ABIL_YRED_DRAIN_LIFE, "Drain Life", 6, 0, 200, 2, ABFLAG_NONE },
     { ABIL_YRED_ENSLAVE_SOUL, "Enslave Soul", 8, 0, 150, 4, ABFLAG_NONE },
@@ -244,32 +253,43 @@ static const ability_def Ability_List[] =
       5, 0, 100, generic_cost::fixed(5), ABFLAG_NONE },
 
     // Makhleb
-    { ABIL_MAKHLEB_MINOR_DESTRUCTION, "Minor Destruction", 1, 0, 20, 0, ABFLAG_NONE },
-    { ABIL_MAKHLEB_LESSER_SERVANT_OF_MAKHLEB, "Lesser Servant of Makhleb", 2, 0, 50, 1, ABFLAG_NONE },
-    { ABIL_MAKHLEB_MAJOR_DESTRUCTION, "Major Destruction", 4, 0, 100, 2, ABFLAG_NONE },
-    { ABIL_MAKHLEB_GREATER_SERVANT_OF_MAKHLEB, "Greater Servant of Makhleb", 6, 0, 100, 3, ABFLAG_NONE },
+    { ABIL_MAKHLEB_MINOR_DESTRUCTION, "Minor Destruction",
+      1, 0, 20, 0, ABFLAG_NONE },
+    { ABIL_MAKHLEB_LESSER_SERVANT_OF_MAKHLEB, "Lesser Servant of Makhleb",
+      2, 0, 50, 1, ABFLAG_NONE },
+    { ABIL_MAKHLEB_MAJOR_DESTRUCTION, "Major Destruction",
+      4, 0, 100, 2, ABFLAG_NONE },
+    { ABIL_MAKHLEB_GREATER_SERVANT_OF_MAKHLEB, "Greater Servant of Makhleb",
+      6, 0, 100, 3, ABFLAG_NONE },
 
     // Sif Muna
-    { ABIL_SIF_MUNA_CHANNEL_ENERGY, "Channel Energy", 0, 0, 100, 0, ABFLAG_NONE },
+    { ABIL_SIF_MUNA_CHANNEL_ENERGY, "Channel Energy",
+      0, 0, 100, 0, ABFLAG_NONE },
     { ABIL_SIF_MUNA_FORGET_SPELL, "Forget Spell", 5, 0, 0, 8, ABFLAG_NONE },
 
     // Trog
     { ABIL_TROG_BURN_SPELLBOOKS, "Burn Spellbooks", 0, 0, 10, 0, ABFLAG_NONE },
     { ABIL_TROG_BERSERK, "Berserk", 0, 0, 200, 0, ABFLAG_NONE },
-    { ABIL_TROG_REGENERATION, "Trog's Hand", 0, 0, 50, 1, ABFLAG_NONE },
+    { ABIL_TROG_REGEN_MR, "Trog's Hand",
+      0, 0, 50, generic_cost::range(2, 3), ABFLAG_NONE },
     { ABIL_TROG_BROTHERS_IN_ARMS, "Brothers in Arms",
       0, 0, 100, generic_cost::range(5, 6), ABFLAG_NONE },
 
     // Elyvilon
-    { ABIL_ELYVILON_DESTROY_WEAPONS, "Destroy Weapons", 0, 0, 0, 0, ABFLAG_NONE },
-    { ABIL_ELYVILON_LESSER_HEALING, "Lesser Healing",
+    { ABIL_ELYVILON_DESTROY_WEAPONS, "Destroy Weapons",
+      0, 0, 0, 0, ABFLAG_NONE },
+    { ABIL_ELYVILON_LESSER_HEALING_SELF, "Lesser Self-Healing",
       1, 0, 100, generic_cost::range(0, 1), ABFLAG_CONF_OK },
+    { ABIL_ELYVILON_LESSER_HEALING_OTHERS, "Lesser Healing",
+      1, 0, 100, 0, ABFLAG_CONF_OK },
     { ABIL_ELYVILON_PURIFICATION, "Purification", 2, 0, 150, 1,
       ABFLAG_CONF_OK },
-    { ABIL_ELYVILON_GREATER_HEALING, "Greater Healing",
+    { ABIL_ELYVILON_GREATER_HEALING_SELF, "Greater Self-Healing",
+      2, 0, 250, 2, ABFLAG_CONF_OK },
+    { ABIL_ELYVILON_GREATER_HEALING_OTHERS, "Greater Healing",
       2, 0, 250, 2, ABFLAG_CONF_OK },
     { ABIL_ELYVILON_RESTORATION, "Restoration", 3, 0, 400, 3, ABFLAG_CONF_OK },
-    { ABIL_ELYVILON_DIVINE_VIGOUR, "Divine Vigour", 6, 0, 600, 5,
+    { ABIL_ELYVILON_DIVINE_VIGOUR, "Divine Vigour", 0, 0, 600, 6,
       ABFLAG_CONF_OK },
 
     // Lugonu
@@ -296,7 +316,8 @@ static const ability_def Ability_List[] =
       2, 0, 50, 0, ABFLAG_NONE },
 
     { ABIL_HARM_PROTECTION, "Protection From Harm", 0, 0, 0, 0, ABFLAG_NONE },
-    { ABIL_HARM_PROTECTION_II, "Reliable Protection From Harm", 0, 0, 0, 0, ABFLAG_PIETY },
+    { ABIL_HARM_PROTECTION_II, "Reliable Protection From Harm",
+      0, 0, 0, 0, ABFLAG_PIETY },
 
     { ABIL_RENOUNCE_RELIGION, "Renounce Religion", 0, 0, 0, 0, ABFLAG_NONE },
 };
@@ -313,13 +334,28 @@ const struct ability_def & get_ability_def( ability_type abil )
     return (Ability_List[0]);
 }
 
+bool string_matches_ability_name(const std::string key)
+{
+    for (int i = ABIL_SPIT_POISON; i <= ABIL_RENOUNCE_RELIGION; ++i)
+    {
+        const ability_def abil = get_ability_def((ability_type) i);
+        if (abil.ability == ABIL_NON_ABILITY)
+            continue;
+
+        std::string name = lowercase_string(ability_name(abil.ability));
+        if (name.find(key) != std::string::npos)
+            return (true);
+    }
+    return (false);
+}
+
 std::string print_abilities()
 {
     std::string text = "\n<w>a:</w> ";
 
     const std::vector<talent> talents = your_talents(false);
 
-    if ( talents.empty() )
+    if (talents.empty())
         text += "no special abilities";
     else
     {
@@ -453,7 +489,7 @@ static talent _get_talent(ability_type ability, bool check_confused)
     // Look through the table to see if there's a preference, else
     // find a new empty slot for this ability. -- bwr
     const int index = _find_ability_slot( ability );
-    if ( index != -1 )
+    if (index != -1)
         result.hotkey = index_to_letter(index);
     else
         result.hotkey = 0;      // means 'find later on'
@@ -601,7 +637,7 @@ static talent _get_talent(ability_type ability, bool check_confused)
         if (you.species == SP_TROLL)
             failure -= 30;
         else if (player_genus(GENPC_DWARVEN) || you.species == SP_HILL_ORC
-                || you.species == SP_OGRE)
+                || player_genus(GENPC_OGRE))
         {
             failure -= 10;
         }
@@ -618,7 +654,8 @@ static talent _get_talent(ability_type ability, bool check_confused)
     case ABIL_KIKU_RECALL_UNDEAD_SLAVES:
     case ABIL_BEOGH_RECALL_ORCISH_FOLLOWERS:
     case ABIL_OKAWARU_MIGHT:
-    case ABIL_ELYVILON_LESSER_HEALING:
+    case ABIL_ELYVILON_LESSER_HEALING_SELF:
+    case ABIL_ELYVILON_LESSER_HEALING_OTHERS:
     case ABIL_LUGONU_ABYSS_EXIT:
         invoc = true;
         failure = 30 - (you.piety / 20) - (6 * you.skills[SK_INVOCATIONS]);
@@ -641,7 +678,7 @@ static talent _get_talent(ability_type ability, bool check_confused)
         failure = 30 - you.piety;       // starts at 0%
         break;
 
-    case ABIL_TROG_REGENERATION:         // piety >= 50
+    case ABIL_TROG_REGEN_MR:            // piety >= 50
         invoc = true;
         failure = 80 - you.piety;       // starts at 30%
         break;
@@ -664,7 +701,8 @@ static talent _get_talent(ability_type ability, bool check_confused)
     case ABIL_KIKU_ENSLAVE_UNDEAD:
     case ABIL_YRED_ANIMATE_DEAD:
     case ABIL_MAKHLEB_LESSER_SERVANT_OF_MAKHLEB:
-    case ABIL_ELYVILON_GREATER_HEALING:
+    case ABIL_ELYVILON_GREATER_HEALING_SELF:
+    case ABIL_ELYVILON_GREATER_HEALING_OTHERS:
     case ABIL_LUGONU_BEND_SPACE:
         invoc = true;
         failure = 40 - (you.piety / 20) - (5 * you.skills[SK_INVOCATIONS]);
@@ -675,7 +713,7 @@ static talent _get_talent(ability_type ability, bool check_confused)
         failure = 40 - you.intel - you.skills[SK_INVOCATIONS];
         break;
 
-    case ABIL_YRED_RECALL_UNDEAD:
+    case ABIL_YRED_RECALL_UNDEAD_SLAVES:
         invoc = true;
         failure = 50 - (you.piety / 20) - (you.skills[SK_INVOCATIONS] * 4);
         break;
@@ -778,8 +816,8 @@ static void _print_talent_description(talent tal)
 
     std::string name   = get_ability_def(tal.which).name;
 
-    // The suffix is necessary to distinguish between similarly named spells.
-    // Yes, this is a hack. (XXX)
+    // XXX: The suffix is necessary to distinguish between similarly
+    // named spells.  Yes, this is a hack.
     std::string lookup = getLongDescription(name + "ability");
     if (lookup.empty())
     {
@@ -904,7 +942,7 @@ static bool _activate_talent(const talent& tal)
         }
     }
     else if (tal.which == ABIL_END_TRANSFORMATION
-             && you.attribute[ATTR_TRANSFORMATION] == TRAN_BAT
+             && player_in_bat_form()
              && you.dex <= 5)
     {
         mpr("Turning back with such low dexterity would be fatal!", MSGCH_WARN);
@@ -1039,7 +1077,7 @@ static bool _do_ability(const ability_def& abil)
     dist spd;
 
     // Note: the costs will not be applied until after this switch
-    // statement... it's assumed that only failures have returned! -- bwr
+    // statement... it's assumed that only failures have returned! - bwr
     switch (abil.ability)
     {
     case ABIL_MUMMY_RESTORATION:
@@ -1124,10 +1162,10 @@ static bool _do_ability(const ability_def& abil)
         power = (abil.ability == ABIL_EVOKE_MAPPING) ?
             you.skills[SK_EVOCATIONS] : you.experience_level;
 
-        if ( magic_mapping(  3 + roll_dice( 2,
-                             (abil.ability == ABIL_EVOKE_MAPPING) ? power :
-                             power + player_mutation_level(MUT_MAPPING) * 10),
-                             40 + roll_dice( 2, power), true) )
+        if (magic_mapping(3 + roll_dice(2,
+                          (abil.ability == ABIL_EVOKE_MAPPING) ? power :
+                          power + player_mutation_level(MUT_MAPPING) * 10),
+                          40 + roll_dice( 2, power), true))
         {
             mpr("You sense your surroundings.");
         }
@@ -1135,18 +1173,18 @@ static bool _do_ability(const ability_def& abil)
             mpr("You feel momentarily disoriented.");
 
         if (abil.ability == ABIL_EVOKE_MAPPING)
-            exercise( SK_EVOCATIONS, 1 );
+            exercise(SK_EVOCATIONS, 1);
         break;
 
     case ABIL_EVOKE_TELEPORTATION:    // ring of teleportation
     case ABIL_TELEPORTATION:          // teleport mut
         if (player_mutation_level(MUT_TELEPORT_AT_WILL) == 3)
-            you_teleport_now( true, true ); // instant and to new area of Abyss
+            you_teleport_now(true, true); // instant and to new area of Abyss
         else
             you_teleport();
 
         if (abil.ability == ABIL_EVOKE_TELEPORTATION)
-            exercise( SK_EVOCATIONS, 1 );
+            exercise(SK_EVOCATIONS, 1);
         break;
 
     case ABIL_BREATHE_FIRE:
@@ -1260,11 +1298,11 @@ static bool _do_ability(const ability_def& abil)
         random_blink(true);
 
         if (abil.ability == ABIL_EVOKE_BLINK)
-            exercise( SK_EVOCATIONS, 1 );
+            exercise(SK_EVOCATIONS, 1);
         break;
 
     case ABIL_EVOKE_BERSERK:    // amulet of rage, randarts
-        // FIXME This is not the best way to do stuff, because
+        // FIXME: This is not the best way to do stuff, because
         // you have a chance of failing the evocation test, in
         // which case you'll lose MP, etc.
         // We should add a pre-failure-test check in general.
@@ -1273,25 +1311,25 @@ static bool _do_ability(const ability_def& abil)
             mpr("You're too hungry to berserk.");
             return (false);
         }
-        else if ( !you.can_go_berserk(true) )
+        else if (!you.can_go_berserk(true))
             return (false);
 
         // only exercise if berserk succeeds
         // because of the test above, this should always happen,
-        // but I'm leaving it in -- haranp
-        if ( go_berserk(true) )
-            exercise( SK_EVOCATIONS, 1 );
+        // but I'm leaving it in - haranp
+        if (go_berserk(true))
+            exercise(SK_EVOCATIONS, 1);
         break;
 
-    // Fly (kenku) -- eventually becomes permanent (see acr.cc).
+    // Fly (kenku) - eventually becomes permanent (see acr.cc).
     case ABIL_FLY:
-        cast_fly( you.experience_level * 4 );
+        cast_fly(you.experience_level * 4);
 
         if (you.experience_level > 14)
             mpr("You feel very comfortable in the air.");
         break;
 
-    // Fly (Draconians, or anything else with wings)
+    // Fly (Draconians, or anything else with wings).
     case ABIL_FLY_II:
         if (you.duration[DUR_EXHAUSTED])
         {
@@ -1304,9 +1342,7 @@ static bool _do_ability(const ability_def& abil)
             return (false);
         }
         else
-        {
-            cast_fly( you.experience_level * 2 );
-        }
+            cast_fly(you.experience_level * 2);
         break;
 
     // DEMONIC POWERS:
@@ -1386,7 +1422,7 @@ static bool _do_ability(const ability_def& abil)
 
         potion_effect(POT_INVISIBILITY, 2 * you.skills[SK_EVOCATIONS] + 5);
         contaminate_player( 1 + random2(3), true );
-        exercise( SK_EVOCATIONS, 1 );
+        exercise(SK_EVOCATIONS, 1);
         break;
 
     case ABIL_EVOKE_TURN_VISIBLE:
@@ -1396,7 +1432,7 @@ static bool _do_ability(const ability_def& abil)
 
     case ABIL_EVOKE_LEVITATE:           // ring, boots, randarts
         potion_effect(POT_LEVITATION, 2 * you.skills[SK_EVOCATIONS] + 30);
-        exercise( SK_EVOCATIONS, 1 );
+        exercise(SK_EVOCATIONS, 1);
         break;
 
     case ABIL_EVOKE_STOP_LEVITATING:
@@ -1429,7 +1465,7 @@ static bool _do_ability(const ability_def& abil)
             return (false);
         }
         // up to (60 + 40)/2 = 50
-        const int pow = ( 2*skill_bump(SK_INVOCATIONS) + you.piety / 5 ) / 2;
+        const int pow = (2*skill_bump(SK_INVOCATIONS) + you.piety / 5) / 2;
         start_delay(DELAY_RECITE, 3, pow, you.hp);
 
         exercise(SK_INVOCATIONS, 2);
@@ -1506,9 +1542,9 @@ static bool _do_ability(const ability_def& abil)
         exercise(SK_INVOCATIONS, 2 + random2(4));
         break;
 
-    case ABIL_YRED_RECALL_UNDEAD:
+    case ABIL_YRED_RECALL_UNDEAD_SLAVES:
         recall(1);
-        exercise(SK_INVOCATIONS, 2 + random2(4));
+        exercise(SK_INVOCATIONS, 1);
         break;
 
     case ABIL_YRED_ANIMATE_DEAD:
@@ -1577,7 +1613,7 @@ static bool _do_ability(const ability_def& abil)
         case 1: beam.range =  8; zapping(ZAP_PAIN,  power, beam); break;
         case 2: beam.range =  5; zapping(ZAP_STONE_ARROW, power, beam); break;
         case 3: beam.range = 13; zapping(ZAP_ELECTRICITY, power, beam); break;
-        case 4: beam.range = 8; zapping(ZAP_BREATHE_ACID, power/2, beam); break;
+        case 4: beam.range =  8; zapping(ZAP_BREATHE_ACID, power/2, beam); break;
         }
 
         exercise(SK_INVOCATIONS, 1);
@@ -1606,12 +1642,12 @@ static bool _do_ability(const ability_def& abil)
             zap_type ztype = ZAP_DEBUGGING_RAY;
             switch (random2(7))
             {
-            case 0: beam.range = 6;  ztype = ZAP_FIRE;               break;
-            case 1: beam.range = 6;  ztype = ZAP_FIREBALL;           break;
+            case 0: beam.range =  6; ztype = ZAP_FIRE;               break;
+            case 1: beam.range =  6; ztype = ZAP_FIREBALL;           break;
             case 2: beam.range = 10; ztype = ZAP_LIGHTNING;          break;
-            case 3: beam.range = 5;  ztype = ZAP_STICKY_FLAME;       break;
-            case 4: beam.range = 5;  ztype = ZAP_IRON_BOLT;          break;
-            case 5: beam.range = 6;  ztype = ZAP_NEGATIVE_ENERGY;    break;
+            case 3: beam.range =  5; ztype = ZAP_STICKY_FLAME;       break;
+            case 4: beam.range =  5; ztype = ZAP_IRON_BOLT;          break;
+            case 5: beam.range =  6; ztype = ZAP_NEGATIVE_ENERGY;    break;
             case 6: beam.range = 20; ztype = ZAP_ORB_OF_ELECTRICITY; break;
             }
             zapping(ztype, power, beam);
@@ -1642,9 +1678,9 @@ static bool _do_ability(const ability_def& abil)
         go_berserk(true);
         break;
 
-    case ABIL_TROG_REGENERATION:
+    case ABIL_TROG_REGEN_MR:
         // Trog abilities don't use or train invocations.
-        cast_regen(you.piety/2);
+        cast_regen(you.piety / 2, true);
         break;
 
     case ABIL_TROG_BROTHERS_IN_ARMS:
@@ -1663,25 +1699,41 @@ static bool _do_ability(const ability_def& abil)
             return (false);
         break;
 
-    case ABIL_ELYVILON_LESSER_HEALING:
-        if (cast_healing(3 + (you.skills[SK_INVOCATIONS] / 6), true) < 0)
+    case ABIL_ELYVILON_LESSER_HEALING_SELF:
+    case ABIL_ELYVILON_LESSER_HEALING_OTHERS:
+    {
+        const bool self = (abil.ability == ABIL_ELYVILON_LESSER_HEALING_SELF);
+
+        if (cast_healing(3 + (you.skills[SK_INVOCATIONS] / 6), true,
+                         self ? you.pos() : coord_def(0, 0), !self,
+                         self ? TARG_NUM_MODES : TARG_HOSTILE) < 0)
+        {
             return (false);
+        }
 
         exercise(SK_INVOCATIONS, 1);
         break;
-
+    }
     case ABIL_ELYVILON_PURIFICATION:
         purification();
         exercise(SK_INVOCATIONS, 2 + random2(3));
         break;
 
-    case ABIL_ELYVILON_GREATER_HEALING:
-        if (cast_healing(10 + (you.skills[SK_INVOCATIONS] / 3), true) < 0)
+    case ABIL_ELYVILON_GREATER_HEALING_SELF:
+    case ABIL_ELYVILON_GREATER_HEALING_OTHERS:
+    {
+        const bool self = (abil.ability == ABIL_ELYVILON_GREATER_HEALING_SELF);
+
+        if (cast_healing(10 + (you.skills[SK_INVOCATIONS] / 3), true,
+                         self ? you.pos() : coord_def(0, 0), !self,
+                         self ? TARG_NUM_MODES : TARG_HOSTILE) < 0)
+        {
             return (false);
+        }
 
         exercise(SK_INVOCATIONS, 3 + random2(5));
         break;
-
+    }
     case ABIL_ELYVILON_RESTORATION:
         restore_stat(STAT_ALL, 0, false);
         unrot_hp(100);
@@ -1702,6 +1754,7 @@ static bool _do_ability(const ability_def& abil)
             mpr("You aren't in the Abyss!");
             return (false);       // Don't incur costs.
         }
+
         banished(DNGN_EXIT_ABYSS);
         exercise(SK_INVOCATIONS, 8 + random2(10));
         break;
@@ -1721,11 +1774,13 @@ static bool _do_ability(const ability_def& abil)
             mpr("You cannot banish yourself!");
             return (false);
         }
+
         if (!zapping(ZAP_BANISHMENT, 16 + you.skills[SK_INVOCATIONS] * 8, beam,
                      true))
         {
             return (false);
         }
+
         exercise(SK_INVOCATIONS, 3 + random2(5));
         break;
 
@@ -1890,16 +1945,19 @@ int choose_ability_menu(const std::vector<talent>& talents)
 
     abil_menu.set_highlighter(NULL);
     abil_menu.set_title(
-        new MenuEntry("  Ability                            "
+        new MenuEntry("  Ability - do what?                 "
                       "Cost                    Success"));
+    abil_menu.set_title(
+        new MenuEntry("  Ability - describe what?           "
+                      "Cost                    Success"), false);
 
     abil_menu.set_flags(MF_SINGLESELECT | MF_ANYPRINTABLE
                             | MF_ALWAYS_SHOW_MORE);
 
     if (Options.tutorial_left)
     {
-        // XXX This could be buggy if you manage to pick up lots and lots
-        // of abilities during the tutorial.
+        // XXX: This could be buggy if you manage to pick up lots and
+        // lots of abilities during the tutorial.
         abil_menu.set_more(tut_abilities_info());
     }
     else
@@ -1950,7 +2008,8 @@ int choose_ability_menu(const std::vector<talent>& talents)
     while (true)
     {
         std::vector<MenuEntry*> sel = abil_menu.show(false);
-        redraw_screen();
+        if (!crawl_state.doing_prev_cmd_again)
+            redraw_screen();
         if (sel.empty())
             return -1;
 
@@ -1994,12 +2053,12 @@ std::vector<talent> your_talents(bool check_confused)
 {
     std::vector<talent> talents;
 
-    // Species-based abilities
+    // Species-based abilities.
     if (you.species == SP_MUMMY && you.experience_level >= 13)
         _add_talent(talents, ABIL_MUMMY_RESTORATION, check_confused);
 
-     if (you.species == SP_DEEP_DWARF)
-         _add_talent(talents, ABIL_RECHARGING, check_confused);
+    if (you.species == SP_DEEP_DWARF)
+        _add_talent(talents, ABIL_RECHARGING, check_confused);
 
     // Spit Poison. Nontransformed nagas can upgrade to Breathe Poison.
     // Transformed nagas, or non-nagas, can only get Spit Poison.
@@ -2132,7 +2191,21 @@ std::vector<talent> your_talents(bool check_confused)
             {
                 const ability_type abil = god_abilities[you.religion][i];
                 if (abil != ABIL_NON_ABILITY)
+                {
                     _add_talent(talents, abil, check_confused);
+                    if (abil == ABIL_ELYVILON_LESSER_HEALING_OTHERS)
+                    {
+                        _add_talent(talents,
+                                    ABIL_ELYVILON_LESSER_HEALING_SELF,
+                                    check_confused);
+                    }
+                    else if (abil == ABIL_ELYVILON_GREATER_HEALING_OTHERS)
+                    {
+                        _add_talent(talents,
+                                    ABIL_ELYVILON_GREATER_HEALING_SELF,
+                                    check_confused);
+                    }
+                }
             }
         }
     }
@@ -2204,19 +2277,19 @@ std::vector<talent> your_talents(bool check_confused)
     for (unsigned int i = 0; i < talents.size(); ++i)
     {
         // Skip preassigned hotkeys.
-        if ( talents[i].hotkey != 0 )
+        if (talents[i].hotkey != 0)
             continue;
 
         // Try to find a free hotkey for i, starting from Z.
-        for ( int k = 51; k >= 0; ++k )
+        for (int k = 51; k >= 0; ++k)
         {
             const int kkey = index_to_letter(k);
             bool good_key = true;
 
             // Check that it doesn't conflict with other hotkeys.
-            for ( unsigned int j = 0; j < talents.size(); ++j )
+            for (unsigned int j = 0; j < talents.size(); ++j)
             {
-                if ( talents[j].hotkey == kkey )
+                if (talents[j].hotkey == kkey)
                 {
                     good_key = false;
                     break;
@@ -2293,12 +2366,29 @@ void set_god_ability_slots()
 
     // Finally, add in current god's invocations in traditional slots.
     int num = 0;
+
     for (int i = 0; i < MAX_GOD_ABILITIES; ++i)
     {
         if (god_abilities[you.religion][i] != ABIL_NON_ABILITY)
         {
-            _set_god_ability_helper(god_abilities[you.religion][i], 'a' + num);
-            ++num;
+            _set_god_ability_helper(god_abilities[you.religion][i],
+                                    'a' + num++);
+
+            if (you.religion == GOD_ELYVILON)
+            {
+                if (god_abilities[you.religion][i]
+                        == ABIL_ELYVILON_LESSER_HEALING_OTHERS)
+                {
+                    _set_god_ability_helper(ABIL_ELYVILON_LESSER_HEALING_SELF,
+                                            'a' + num++);
+                }
+                else if (god_abilities[you.religion][i]
+                            == ABIL_ELYVILON_GREATER_HEALING_OTHERS)
+                {
+                    _set_god_ability_helper(ABIL_ELYVILON_GREATER_HEALING_SELF,
+                                            'a' + num++);
+                }
+            }
         }
     }
 }
@@ -2313,8 +2403,9 @@ static int _find_ability_slot(ability_type which_ability)
 
     // No requested slot, find new one and make it preferred.
 
-    // Skip over a-e (invocations).
-    for (int slot = 5; slot < 52; slot++)
+    // Skip over a-e (invocations), or a-g for Elyvilon.
+    const int first_slot = (you.religion == GOD_ELYVILON ? 7 : 5);
+    for (int slot = first_slot; slot < 52; ++slot)
     {
         if (you.ability_letter_table[slot] == ABIL_NON_ABILITY)
         {
@@ -2324,7 +2415,7 @@ static int _find_ability_slot(ability_type which_ability)
     }
 
     // If we can't find anything else, try a-e.
-    for (int slot = 4; slot >= 0; slot--)
+    for (int slot = first_slot - 1; slot >= 0; --slot)
     {
         if (you.ability_letter_table[slot] == ABIL_NON_ABILITY)
         {
@@ -2399,5 +2490,5 @@ static void _lugonu_bends_space()
 
 int generic_cost::cost() const
 {
-    return base + (add > 0 ? random2avg(add, rolls) : 0);
+    return (base + (add > 0 ? random2avg(add, rolls) : 0));
 }

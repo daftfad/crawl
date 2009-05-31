@@ -162,6 +162,28 @@ public:
     void toggle() { text.swap(alt_text); }
 };
 
+class MonsterMenuEntry : public MenuEntry
+{
+public:
+    MonsterMenuEntry(const std::string &str, const monsters* mon, int hotkey);
+
+#ifdef USE_TILE
+    virtual bool get_tiles(std::vector<tile_def>& tileset) const;
+#endif
+};
+
+class FeatureMenuEntry : public MenuEntry
+{
+public:
+    coord_def pos;
+
+    FeatureMenuEntry(const std::string &str, const coord_def p, int hotkey);
+
+#ifdef USE_TILE
+    virtual bool get_tiles(std::vector<tile_def>& tileset) const;
+#endif
+};
+
 class MenuHighlighter
 {
 public:
@@ -274,7 +296,7 @@ public:
     const formatted_string &get_more() const { return more; }
 
     void set_highlighter( MenuHighlighter *h );
-    void set_title( MenuEntry *e );
+    void set_title( MenuEntry *e, bool first = true );
     void add_entry( MenuEntry *entry );
     void get_selected( std::vector<MenuEntry*> *sel ) const;
 
@@ -314,6 +336,8 @@ public:
 
 protected:
     MenuEntry *title;
+    MenuEntry *title2;
+
     int flags;
     std::string tag;
 

@@ -82,8 +82,10 @@ REVISION("$Rev$");
 #include "view.h"
 #include "xom.h"
 
-static void _create_monster_hide(int mons_class)
+static void _create_monster_hide(const item_def corpse)
 {
+    int mons_class = corpse.plus;
+
     int o = get_item_slot();
     if (o == NON_ITEM)
         return;
@@ -118,6 +120,10 @@ static void _create_monster_hide(int mons_class)
         break;
     }
 
+    int mtype = corpse.orig_monnum - 1;
+    if (!invalid_monster_class(mtype) && mons_is_unique(mtype))
+        item.inscription = mons_type_name(mtype, DESC_PLAIN);
+
     move_item_to_grid(&o, you.pos());
 }
 
@@ -139,7 +145,7 @@ void turn_corpse_into_skeleton(item_def &item)
         item.plus = MONS_RAT;
 
     item.sub_type = CORPSE_SKELETON;
-    item.special  = 200;
+    item.special  = 200; // reset rotting counter
     item.colour   = LIGHTGREY;
 }
 
@@ -163,7 +169,7 @@ void turn_corpse_into_chunks(item_def &item)
 
     // Happens after the corpse has been butchered.
     if (monster_descriptor(item.plus, MDSC_LEAVES_HIDE) && !one_chance_in(3))
-        _create_monster_hide(item.plus);
+        _create_monster_hide(item);
 }
 
 void turn_corpse_into_skeleton_and_chunks(item_def &item)
@@ -232,6 +238,19 @@ static void _long_sort(CrawlVector &vec)
     }
 }
 
+static void _compare_blood_quantity(item_def &stack, int timer_size)
+{
+    if (timer_size != stack.quantity)
+    {
+        mprf(MSGCH_WARN,
+             "ERROR: blood potion quantity (%d) doesn't match timer (%d)",
+             stack.quantity, timer_size);
+
+        // sanity measure
+        stack.quantity = timer_size;
+    }
+}
+
 void maybe_coagulate_blood_potions_floor(int obj)
 {
     item_def &blood = mitm[obj];
@@ -245,7 +264,7 @@ void maybe_coagulate_blood_potions_floor(int obj)
     ASSERT(props.exists("timer"));
     CrawlVector &timer = props["timer"].get_vector();
     ASSERT(!timer.empty());
-    ASSERT(timer.size() == blood.quantity);
+    _compare_blood_quantity(blood, timer.size());
 
     // blood.sub_type could be POT_BLOOD or POT_BLOOD_COAGULATED
     // -> need different handling
@@ -302,7 +321,7 @@ void maybe_coagulate_blood_potions_floor(int obj)
     // Coagulated blood cannot coagulate any further...
     ASSERT(blood.sub_type == POT_BLOOD);
 
-    if (!held_by_monster(blood))
+    if (!blood.held_by_monster())
     {
         // Now that coagulating is necessary, check square for
         // !coagulated blood.
@@ -358,7 +377,7 @@ void maybe_coagulate_blood_potions_floor(int obj)
             timer.push_back(val);
         }
         dec_mitm_item_quantity(obj, rot_count);
-        ASSERT(timer.size() == blood.quantity);
+        _compare_blood_quantity(blood, timer.size());
         return;
     }
 
@@ -392,13 +411,13 @@ void maybe_coagulate_blood_potions_floor(int obj)
     ASSERT(timer_new.size() == coag_count);
     props_new.assert_validity();
 
-    if (held_by_monster(blood))
-        move_item_to_grid(&o, holding_monster(blood)->pos());
+    if (blood.held_by_monster())
+        move_item_to_grid(&o, blood.holding_monster()->pos());
     else
         move_item_to_grid(&o, blood.pos);
 
     dec_mitm_item_quantity(obj, rot_count + coag_count);
-    ASSERT(timer.size() == blood.quantity);
+    _compare_blood_quantity(blood, timer.size());
 }
 
 // Prints messages for blood potions coagulating in inventory (coagulate = true)
@@ -449,7 +468,7 @@ bool maybe_coagulate_blood_potions_inv(item_def &blood)
 
     ASSERT(props.exists("timer"));
     CrawlVector &timer = props["timer"].get_vector();
-    ASSERT(timer.size() == blood.quantity);
+    _compare_blood_quantity(blood, timer.size());
     ASSERT(!timer.empty());
 
     // blood.sub_type could be POT_BLOOD or POT_BLOOD_COAGULATED
@@ -510,7 +529,7 @@ bool maybe_coagulate_blood_potions_inv(item_def &blood)
             destroy_item(blood);
         }
         else
-            ASSERT(blood.quantity == timer.size());
+            _compare_blood_quantity(blood, timer.size());
 
         return (true);
     }
@@ -557,7 +576,7 @@ bool maybe_coagulate_blood_potions_inv(item_def &blood)
             }
             else
             {
-                ASSERT(timer.size() == blood.quantity);
+                _compare_blood_quantity(blood, timer.size());
                 if (!knew_blood)
                     mpr(blood.name(DESC_INVENTORY).c_str());
             }
@@ -601,7 +620,7 @@ bool maybe_coagulate_blood_potions_inv(item_def &blood)
         }
         blood.quantity -= rot_count;
         // Stack still exists because of coag_count.
-        ASSERT(timer.size() == blood.quantity);
+        _compare_blood_quantity(blood, timer.size());
 
         if (!knew_coag)
             mpr(blood.name(DESC_INVENTORY).c_str());
@@ -645,7 +664,7 @@ bool maybe_coagulate_blood_potions_inv(item_def &blood)
         props_new.assert_validity();
 
         blood.quantity -= coag_count + rot_count;
-        ASSERT(timer.size() == blood.quantity);
+        _compare_blood_quantity(blood, timer.size());
 
         if (!knew_blood)
             mpr(blood.name(DESC_INVENTORY).c_str());
@@ -684,7 +703,7 @@ bool maybe_coagulate_blood_potions_inv(item_def &blood)
             inc_mitm_item_quantity(o, coag_count);
             ASSERT(timer2.size() == mitm[o].quantity);
             dec_inv_item_quantity(blood.link, rot_count + coag_count);
-            ASSERT(timer.size() == blood.quantity);
+            _compare_blood_quantity(blood, timer.size());
             if (!knew_blood)
                 mpr(blood.name(DESC_INVENTORY).c_str());
 
@@ -736,7 +755,7 @@ bool maybe_coagulate_blood_potions_inv(item_def &blood)
     }
     else
     {
-        ASSERT(timer.size() == blood.quantity);
+        _compare_blood_quantity(blood, timer.size());
         if (!knew_blood)
             mpr(blood.name(DESC_INVENTORY).c_str());
     }
@@ -896,7 +915,7 @@ void turn_corpse_into_blood_potions(item_def &item)
 
     // Happens after the blood has been bottled.
     if (monster_descriptor(mons_class, MDSC_LEAVES_HIDE) && !one_chance_in(3))
-        _create_monster_hide(mons_class);
+        _create_monster_hide(item);
 }
 
 void turn_corpse_into_skeleton_and_blood_potions(item_def &item)
@@ -1172,7 +1191,7 @@ void generate_random_blood_spatter_on_level()
     }
 }
 
-void search_around( bool only_adjacent )
+void search_around(bool only_adjacent)
 {
     ASSERT(!crawl_state.arena);
 
@@ -1240,8 +1259,6 @@ bool merfolk_change_is_safe(bool quiet)
 
     std::set<equipment_type> r;
     r.insert(EQ_BOOTS);
-    if (!player_light_armour())
-        r.insert(EQ_BODY_ARMOUR);
 
     if (check_transformation_stat_loss(r, quiet))
         return (false);
@@ -1255,13 +1272,6 @@ void merfolk_start_swimming()
         untransform();
 
     remove_one_equip(EQ_BOOTS);
-
-    // Perhaps a bit to easy for the player, but we allow merfolk
-    // to slide out of heavy body armour freely when entering water,
-    // rather than handling emcumbered swimming. -- bwr
-    if (!player_light_armour())
-        remove_one_equip(EQ_BODY_ARMOUR, false);
-
     you.redraw_evasion = true;
 }
 
@@ -1644,6 +1654,11 @@ static bool _stair_moves_pre(dungeon_feature_type stair)
     else
         pct = 50;
 
+    // When the effect is still strong, the chance to actually catch a stair
+    // is smaller. (Assuming the duration starts out at 500.)
+    const int dur = std::max(0, you.duration[DUR_REPEL_STAIRS_CLIMB] - 200);
+    pct += dur/20;
+
     if (!x_chance_in_y(pct, 100))
         return (false);
 
@@ -1842,9 +1857,6 @@ void up_stairs(dungeon_feature_type force_stair,
     if (you.skills[SK_TRANSLOCATIONS] > 0 && !allow_control_teleport( true ))
         mpr( "You sense a powerful magical force warping space.", MSGCH_WARN );
 
-    // Tell stash-tracker and travel that we've changed levels.
-    trackers_init_new_level(true);
-
     if (collect_travel_data)
     {
         // Update stair information for the stairs we just ascended, and the
@@ -1928,12 +1940,11 @@ static void _mark_portal_return_point(const coord_def &pos)
 
 // All changes to you.level_type, you.where_are_you and you.your_level
 // for descending stairs should happen here.
-static void _player_change_level_downstairs(
-    dungeon_feature_type stair_find,
-    const level_id &place_override,
-    bool shaft,
-    int shaft_level,
-    const level_id &shaft_dest)
+static void _player_change_level_downstairs(dungeon_feature_type stair_find,
+                                            const level_id &place_override,
+                                            bool shaft,
+                                            int shaft_level,
+                                            const level_id &shaft_dest)
 {
     if (_stair_force_destination(place_override))
         return;
@@ -1999,8 +2010,8 @@ void down_stairs( int old_level, dungeon_feature_type force_stair,
     branch_type old_where = you.where_are_you;
 
     const bool shaft = (!force_stair
-                  && get_trap_type(you.pos()) == TRAP_SHAFT
-                  || force_stair == DNGN_TRAP_NATURAL);
+                            && get_trap_type(you.pos()) == TRAP_SHAFT
+                        || force_stair == DNGN_TRAP_NATURAL);
     level_id shaft_dest;
     int      shaft_level = -1;
 
@@ -2029,7 +2040,8 @@ void down_stairs( int old_level, dungeon_feature_type force_stair,
         return;
     }
 
-    if (!force_stair && you.flight_mode() == FL_LEVITATE)
+    if (!force_stair && you.flight_mode() == FL_LEVITATE
+        && !is_gate(stair_find))
     {
         mpr("You're floating high up above the floor!");
         return;
@@ -2136,9 +2148,9 @@ void down_stairs( int old_level, dungeon_feature_type force_stair,
     // Interlevel travel data.
     const bool collect_travel_data = can_travel_interlevel();
 
-    const level_id  old_level_id    = level_id::current();
-    LevelInfo &old_level_info = travel_cache.get_level_info(old_level_id);
-    const coord_def stair_pos = you.pos();
+    const level_id  old_level_id = level_id::current();
+    LevelInfo &old_level_info    = travel_cache.get_level_info(old_level_id);
+    const coord_def stair_pos    = you.pos();
     if (collect_travel_data)
         old_level_info.update();
 
@@ -2155,6 +2167,7 @@ void down_stairs( int old_level, dungeon_feature_type force_stair,
         _mark_portal_return_point(you.pos());
     }
 
+    const int shaft_depth = (shaft ? shaft_level - you.your_level : 1);
     _player_change_level_reset();
     _player_change_level_downstairs(stair_find, destination_override, shaft,
                                     shaft_level, shaft_dest);
@@ -2288,7 +2301,12 @@ void down_stairs( int old_level, dungeon_feature_type force_stair,
         switch (you.level_type)
         {
         case LEVEL_DUNGEON:
-            xom_is_stimulated(49);
+            // Xom thinks it's funny if you enter a new level via shaft
+            // or escape hatch, for shafts it's funnier the deeper you fell.
+            if (shaft || grid_is_escape_hatch(stair_find))
+                xom_is_stimulated(shaft_depth * 50);
+            else
+                xom_is_stimulated(14);
             break;
 
         case LEVEL_PORTAL_VAULT:
@@ -2408,6 +2426,7 @@ void down_stairs( int old_level, dungeon_feature_type force_stair,
     trackers_init_new_level(true);
 
     viewwindow(true, true);
+    maybe_update_stashes();
 
     if (collect_travel_data)
     {
@@ -2526,8 +2545,7 @@ bool go_berserk(bool intentional)
     you.duration[DUR_BERSERKER] += 20 + random2avg(19, 2);
 
     calc_hp();
-    you.hp *= 15;
-    you.hp /= 10;
+    you.hp *= 2;
 
     deflate_hp(you.hp_max, false);
 
@@ -2583,6 +2601,7 @@ bool mons_is_safe(const monsters *mon, bool want_move,
 
     bool is_safe = (mons_wont_attack(mon)
                     || mons_class_flag(mon->type, M_NO_EXP_GAIN)
+                    || mons_is_pacified(mon) && dist > 1
 #ifdef WIZARD
                     // Wizmode skill setting enforces hiddenness.
                     || you.skills[SK_STEALTH] > 27 && dist > 2
@@ -3008,7 +3027,10 @@ bool stop_attack_prompt(const monsters *mon, bool beam_attack,
     const bool isFriendly    = mons_friendly(mon);
     const bool isNeutral     = mons_neutral(mon);
     const bool isUnchivalric = is_unchivalric_attack(&you, mon);
-    const bool isHoly        = mons_is_holy(mon);
+    const bool isHoly        = mons_is_holy(mon)
+                                   && (mon->attitude != ATT_HOSTILE
+                                       || testbits(mon->flags, MF_CREATED_FRIENDLY)
+                                       || testbits(mon->flags, MF_WAS_NEUTRAL));
 
     if (isFriendly)
     {
@@ -3028,8 +3050,6 @@ bool stop_attack_prompt(const monsters *mon, bool beam_attack,
                 && you.religion == GOD_SHINING_ONE
                 && !tso_unchivalric_attack_safe_monster(mon))
     {
-        // "Really fire through the helpless neutral holy Daeva?"
-        // was: "Really fire through this helpless neutral holy creature?"
         snprintf(info, INFO_SIZE, "Really %s the %s%s%s%s%s?",
                  (beam_attack) ? (beam_target) ? "fire at"
                                                : "fire through"
@@ -3098,4 +3118,105 @@ bool is_dragonkind(const actor *act)
     }
 
     return (false);
+}
+
+// Make the player swap positions with a given monster.
+void swap_with_monster(monsters *mon_to_swap)
+{
+    monsters& mon(*mon_to_swap);
+    ASSERT(mon.alive());
+    const coord_def newpos = mon.pos();
+
+    // Be nice: no swapping into uninhabitable environments.
+    if (!you.is_habitable(newpos) || !mon.is_habitable(you.pos()))
+    {
+        mpr("You spin around.");
+        return;
+    }
+
+    const bool mon_caught = mons_is_caught(&mon);
+    const bool you_caught = you.attribute[ATTR_HELD];
+
+    // If it was submerged, it surfaces first.
+    mon.del_ench(ENCH_SUBMERGED);
+
+    mprf("You swap places with %s.", mon.name(DESC_NOCAP_THE).c_str());
+
+    // Pick the monster up.
+    mgrd(newpos) = NON_MONSTER;
+    mon.moveto(you.pos());
+
+    // Plunk it down.
+    mgrd(mon.pos()) = mon_to_swap->mindex();
+
+    if (you_caught)
+    {
+        check_net_will_hold_monster(&mon);
+        if (!mon_caught)
+            you.attribute[ATTR_HELD] = 0;
+    }
+
+    // Move you to its previous location.
+    move_player_to_grid(newpos, false, true, true, false);
+
+    if (mon_caught)
+    {
+        if (you.body_size(PSIZE_BODY) >= SIZE_GIANT)
+        {
+            mpr("The net rips apart!");
+            you.attribute[ATTR_HELD] = 0;
+            int net = get_trapping_net(you.pos());
+            if (net != NON_ITEM)
+                destroy_item(net);
+        }
+        else
+        {
+            you.attribute[ATTR_HELD] = 10;
+            mpr("You become entangled in the net!");
+
+            // Xom thinks this is hilarious if you trap yourself this way.
+            if (you_caught)
+                xom_is_stimulated(16);
+            else
+                xom_is_stimulated(255);
+        }
+
+        if (!you_caught)
+            mon.del_ench(ENCH_HELD, true);
+    }
+}
+
+// AutoID an equipped ring of teleport.
+// Code copied from fire/ice in spl-cast.cc
+void maybe_id_ring_TC()
+{
+    if (player_mutation_level(MUT_TELEPORT_CONTROL))
+        return;
+
+    int num_unknown = 0;
+    for (int i = EQ_LEFT_RING; i <= EQ_RIGHT_RING; ++i)
+    {
+        if (player_wearing_slot(i)
+            && !item_ident(you.inv[you.equip[i]], ISFLAG_KNOW_PROPERTIES))
+        {
+            ++num_unknown;
+        }
+    }
+
+    if (num_unknown != 1)
+        return;
+
+    for (int i = EQ_LEFT_RING; i <= EQ_RIGHT_RING; ++i)
+        if (player_wearing_slot(i))
+        {
+            item_def& ring = you.inv[you.equip[i]];
+            if (!item_ident(ring, ISFLAG_KNOW_PROPERTIES)
+                && ring.sub_type == RING_TELEPORT_CONTROL)
+            {
+                set_ident_type( ring.base_type, ring.sub_type, ID_KNOWN_TYPE );
+                set_ident_flags(ring, ISFLAG_KNOW_PROPERTIES);
+                mprf("You are wearing: %s",
+                     ring.name(DESC_INVENTORY_EQUIP).c_str());
+            }
+        }
 }

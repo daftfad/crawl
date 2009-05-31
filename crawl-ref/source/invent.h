@@ -18,17 +18,19 @@
 
 enum object_selector
 {
-    OSEL_ANY       =  -1,
-    OSEL_WIELD     =  -2,
-    OSEL_UNIDENT   =  -3,
-    OSEL_EQUIP     =  -4,
-    OSEL_MEMORISE  =  -5,
-    OSEL_RECHARGE  =  -6,
-    OSEL_ENCH_ARM  =  -7,
-    OSEL_VAMP_EAT  =  -8,
-    OSEL_DRAW_DECK =  -9,
-    OSEL_THROWABLE = -10,
-    OSEL_BUTCHERY  = -11
+    OSEL_ANY         =  -1,
+    OSEL_WIELD       =  -2,
+    OSEL_UNIDENT     =  -3,
+    OSEL_EQUIP       =  -4,
+    OSEL_MEMORISE    =  -5,
+    OSEL_RECHARGE    =  -6,
+    OSEL_ENCH_ARM    =  -7,
+    OSEL_VAMP_EAT    =  -8,
+    OSEL_DRAW_DECK   =  -9,
+    OSEL_THROWABLE   = -10,
+    OSEL_BUTCHERY    = -11,
+    OSEL_EVOKABLE    = -12,
+    OSEL_WORN_ARMOUR = -13
 };
 
 #define PROMPT_ABORT        -1
@@ -134,7 +136,7 @@ public:
     // effect.
     void set_title_annotator(invtitle_annotator fn);
 
-    void set_title(MenuEntry *title);
+    void set_title(MenuEntry *title, bool first = true);
     void set_title(const std::string &s);
 
     // Loads items into the menu. If "procfn" is provided, it'll be called
@@ -156,12 +158,13 @@ public:
     // of the use of the item pointers, or mayhem results!
     static std::vector<const item_def*> xlat_itemvect(
             const std::vector<item_def> &);
+    const menu_sort_condition *find_menu_sort_condition() const;
+    void sort_menu(std::vector<InvEntry*> &items,
+                   const menu_sort_condition *cond);
+
 protected:
     bool process_key(int key);
     void do_preselect(InvEntry *ie);
-    void sort_menu(std::vector<InvEntry*> &items,
-                   const menu_sort_condition *cond);
-    const menu_sort_condition *find_menu_sort_condition() const;
     virtual bool is_selectable(int index) const;
 
 protected:
@@ -181,7 +184,8 @@ int prompt_invent_item( const char *prompt,
                         const char other_valid_char = '\0',
                         int excluded_slot = -1,
                         int *const count = NULL,
-                        operation_types oper = OPER_ANY );
+                        operation_types oper = OPER_ANY,
+                        bool allow_list_known = false );
 
 std::vector<SelItem> select_items(
                         const std::vector<const item_def*> &items,
@@ -230,5 +234,8 @@ void init_item_sort_comparators(item_sort_comparators &list,
                                 const std::string &set);
 
 bool prompt_failed(int retval, std::string msg = "");
+
+bool item_is_evokable(const item_def &item, bool known = false,
+                      bool msg = false);
 
 #endif

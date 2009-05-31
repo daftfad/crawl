@@ -638,7 +638,7 @@ namespace arena
             int         chan = channels[i];
 
             std::string prefix;
-            switch(chan)
+            switch (chan)
             {
                 case MSGCH_ERROR: prefix = "ERROR: "; break;
                 case MSGCH_WARN: prefix = "WARN: "; break;
@@ -703,10 +703,10 @@ namespace arena
             return;
         }
 
-        const command_type cmd = key_to_command(ch, KC_DEFAULT);
+        const command_type cmd = key_to_command(ch, KMC_DEFAULT);
 
         // We only allow a short list of commands to be used in the arena.
-        switch(cmd)
+        switch (cmd)
         {
         case CMD_LOOK_AROUND:
         case CMD_SUSPEND_GAME:

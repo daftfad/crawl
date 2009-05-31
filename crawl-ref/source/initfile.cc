@@ -684,7 +684,7 @@ void game_options::reset_options()
 
     verbose_monster_pane = true;
 
-    autopickup_on = true;
+    autopickup_on    = 1;
     default_friendly_pickup = FRIENDLY_PICKUP_FRIEND;
     show_more_prompt = true;
 
@@ -726,6 +726,7 @@ void game_options::reset_options()
     show_uncursed          = true;
     easy_open              = true;
     easy_unequip           = true;
+    equip_unequip          = false;
     easy_butcher           = true;
     always_confirm_butcher = false;
     chunks_autopickup      = true;
@@ -745,8 +746,9 @@ void game_options::reset_options()
 
     user_note_prefix       = "";
     note_all_skill_levels  = false;
-    note_skill_max         = false;
-    note_all_spells        = false;
+    note_skill_max         = true;
+    note_all_spells        = true;
+    note_xom_effects       = true;
     note_hp_percent        = 5;
     ood_interesting        = 8;
     rare_interesting       = 9;
@@ -809,7 +811,11 @@ void game_options::reset_options()
 
     // 10 was the cursor step default on Linux.
     level_map_cursor_step  = 7;
+#ifdef UNIX
+    use_fake_cursor        = true;
+#else
     use_fake_cursor        = false;
+#endif
 
     stash_tracking         = STM_ALL;
 
@@ -888,6 +894,7 @@ void game_options::reset_options()
 #ifdef USE_TILE
     strcpy(tile_show_items, "!?/%=([)x}+\\_.");
     tile_title_screen    = true;
+    tile_menu_icons      = true;
     // minimap colours
     tile_player_col      = MAP_WHITE;
     tile_monster_col     = MAP_RED;
@@ -911,25 +918,25 @@ void game_options::reset_options()
     tile_window_col      = MAP_YELLOW;
 
     // font selection
-    tile_font_crt_file = "VeraMono.ttf";
-    tile_font_crt_size = 0;
-    tile_font_stat_file = "VeraMono.ttf";
-    tile_font_stat_size = 0;
-    tile_font_msg_file = "VeraMono.ttf";
-    tile_font_msg_size = 0;
-    tile_font_tip_file = "VeraMono.ttf";
-    tile_font_tip_size = 0;
-    tile_font_lbl_file = "Vera.ttf";
-    tile_font_lbl_size = 0;
+    tile_font_crt_file   = "VeraMono.ttf";
+    tile_font_crt_size   = 0;
+    tile_font_stat_file  = "VeraMono.ttf";
+    tile_font_stat_size  = 0;
+    tile_font_msg_file   = "VeraMono.ttf";
+    tile_font_msg_size   = 0;
+    tile_font_tip_file   = "VeraMono.ttf";
+    tile_font_tip_size   = 0;
+    tile_font_lbl_file   = "Vera.ttf";
+    tile_font_lbl_size   = 0;
 
     // window layout
-    tile_key_repeat = true;
-    tile_full_screen = SCREENMODE_AUTO;
-    tile_window_width = 0;
-    tile_window_height = 0;
-    tile_map_pixels = 0;
-    tile_tooltip_ms = 500;
-    tile_tag_pref = crawl_state.arena ? TAGPREF_NAMED : TAGPREF_ENEMY;
+    tile_key_repeat      = true;
+    tile_full_screen     = SCREENMODE_AUTO;
+    tile_window_width    = 0;
+    tile_window_height   = 0;
+    tile_map_pixels      = 0;
+    tile_tooltip_ms      = 500;
+    tile_tag_pref        = crawl_state.arena ? TAGPREF_NAMED : TAGPREF_ENEMY;
 #endif
 
     // map each colour to itself as default
@@ -974,7 +981,7 @@ void game_options::reset_options()
     force_more_message.clear();
     sound_mappings.clear();
     menu_colour_mappings.clear();
-    menu_colour_prefix_class = false;
+    menu_colour_prefix_class = true;
     menu_colour_shops = true;
     message_colour_mappings.clear();
     drop_filter.clear();
@@ -1505,8 +1512,10 @@ void game_options::read_options(InitLineInput &il, bool runscript,
             {
 #ifdef CLUA_BINDINGS
                 if (luacode.run(clua))
+                {
                     mprf(MSGCH_ERROR, "Lua error: %s",
                          luacode.orig_error().c_str());
+                }
                 luacode.clear();
 #endif
             }
@@ -2100,7 +2109,13 @@ void game_options::read_option_line(const std::string &str, bool runscript)
     }
 #endif
     else BOOL_OPTION(use_old_selection_order);
-    else BOOL_OPTION_NAMED("default_autopickup", autopickup_on);
+    else if (key == "default_autopickup")
+    {
+        if (_read_bool(field, true))
+            autopickup_on = 1;
+        else
+            autopickup_on = 0;
+    }
     else if (key == "default_friendly_pickup")
     {
         if (field == "none")
@@ -2138,6 +2153,7 @@ void game_options::read_option_line(const std::string &str, bool runscript)
     else BOOL_OPTION_NAMED("easy_quit_item_lists", easy_quit_item_prompts);
     else BOOL_OPTION(easy_open);
     else BOOL_OPTION(easy_unequip);
+    else BOOL_OPTION(equip_unequip);
     else BOOL_OPTION_NAMED("easy_armour", easy_unequip);
     else BOOL_OPTION_NAMED("easy_armor", easy_unequip);
     else BOOL_OPTION(easy_butcher);
@@ -2459,6 +2475,7 @@ void game_options::read_option_line(const std::string &str, bool runscript)
     else BOOL_OPTION(note_all_skill_levels);
     else BOOL_OPTION(note_skill_max);
     else BOOL_OPTION(note_all_spells);
+    else BOOL_OPTION(note_xom_effects);
     else BOOL_OPTION(delay_message_clear);
     else if (key == "flush")
     {
@@ -3008,6 +3025,7 @@ void game_options::read_option_line(const std::string &str, bool runscript)
         strncpy(tile_show_items, field.c_str(), 18);
     }
     else BOOL_OPTION(tile_title_screen);
+    else BOOL_OPTION(tile_menu_icons);
     else if (key == "tile_player_col")
     {
         tile_player_col =
@@ -3153,11 +3171,15 @@ void game_options::read_option_line(const std::string &str, bool runscript)
     else if (key == "constant")
     {
         if (variables.find(field) == variables.end())
+        {
             report_error(make_stringf("No variable named '%s' to make "
                                       "constant", field.c_str()));
+        }
         else if (constants.find(field) != constants.end())
+        {
             report_error(make_stringf("'%s' is already a constant",
                                       field.c_str()));
+        }
         else
             constants.insert(field);
     }
@@ -3471,7 +3493,7 @@ bool parse_args( int argc, char **argv, bool rc_only )
         }
 
         //.take action according to the cmd chosen
-        switch(o)
+        switch (o)
         {
         case CLO_SCORES:
         case CLO_TSCORES:

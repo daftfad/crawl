@@ -724,6 +724,7 @@ int place_monster(mgen_data mg, bool force_pos)
 #ifdef DEBUG_MON_CREATION
     mpr("in place_monster()", MSGCH_DIAGNOSTICS);
 #endif
+
     int tries = 0;
     dungeon_char_type stair_type = NUM_DCHAR_TYPES;
     int id = -1;
@@ -782,7 +783,7 @@ int place_monster(mgen_data mg, bool force_pos)
     {
         tries = 0;
 
-        // Try to pick px, py that is
+        // Try to pick a position that is
         // a) not occupied
         // b) compatible
         // c) in the 'correct' proximity to the player
@@ -818,6 +819,8 @@ int place_monster(mgen_data mg, bool force_pos)
 
             case PROX_CLOSE_TO_PLAYER:
             case PROX_AWAY_FROM_PLAYER:
+                // If this is supposed to measure los vs not los,
+                // then see_grid(mg.pos) should be used instead. (jpeg)
                 close_to_player = (distance(you.pos(), mg.pos) < 64);
 
                 if (mg.proximity == PROX_CLOSE_TO_PLAYER && !close_to_player
@@ -1122,8 +1125,8 @@ static int _place_monster_aux(const mgen_data &mg,
     {
         give_item(id, mg.power, summoned);
 
-        // Dancing swords *always* have a weapon. Fail to
-        // create them otherwise.
+        // Dancing weapons *always* have a weapon. Fail to create them
+        // otherwise.
         const item_def* wpn = menv[id].weapon();
         if (!wpn)
         {
@@ -1133,9 +1136,7 @@ static int _place_monster_aux(const mgen_data &mg,
             return (-1);
         }
         else
-        {
             menv[id].colour = wpn->colour;
-        }
     }
     else if (mons_class_itemuse(mg.cls) >= MONUSE_STARTING_EQUIPMENT)
     {
@@ -1181,9 +1182,10 @@ static int _place_monster_aux(const mgen_data &mg,
     }
 
     if (summoned)
+    {
         menv[id].mark_summoned( mg.abjuration_duration, true,
                                 mg.summon_type );
-
+    }
     menv[id].foe = mg.foe;
 
     // Initialise pandemonium demons.
@@ -1198,7 +1200,7 @@ static int _place_monster_aux(const mgen_data &mg,
     mark_interesting_monst(&menv[id], mg.behaviour);
 
     if (you.can_see(&menv[id]))
-        seen_monster(&menv[id]);
+        handle_seen_interrupt(&menv[id]);
 
     if (crawl_state.arena)
         arena_placed_monster(&menv[id]);
@@ -2074,7 +2076,7 @@ void mark_interesting_monst(struct monsters* monster, beh_type behaviour)
     bool interesting = false;
 
     // Unique monsters are always intersting
-    if ( mons_is_unique(monster->type) )
+    if (mons_is_unique(monster->type))
         interesting = true;
     // If it's never going to attack us, then not interesting
     else if (behaviour == BEH_FRIENDLY)
@@ -2141,9 +2143,6 @@ static monster_type _pick_zot_exit_defender()
 }
 
 int mons_place(mgen_data mg)
-    // int mon_type, beh_type behaviour, int target, bool summoned,
-    //             int px, int py, int level_type, proximity_type proximity,
-    //             int extra, int dur, bool permit_bands )
 {
 #ifdef DEBUG_MON_CREATION
     mpr("in mons_place()", MSGCH_DIAGNOSTICS);
@@ -3063,8 +3062,7 @@ bool monster_pathfind::mons_traversable(const coord_def p)
     // Your friends only know about doors you know about, unless they feel
     // at home in this branch.
     if (grd(p) == DNGN_SECRET_DOOR && mons_friendly(mons)
-        && (mons_intel(mons) < I_NORMAL
-            || !mons_is_native_in_branch(mons)))
+        && (mons_intel(mons) < I_NORMAL || !mons_is_native_in_branch(mons)))
     {
         return (false);
     }

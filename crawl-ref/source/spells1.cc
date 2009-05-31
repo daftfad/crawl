@@ -221,6 +221,7 @@ void random_blink(bool allow_partial_control, bool override_abyss)
     {
         mpr("You may select the general direction of your translocation.");
         cast_semi_controlled_blink(100);
+        maybe_id_ring_TC();
         success = true;
     }
 #endif
@@ -632,7 +633,8 @@ static bool _mons_hostile(const monsters *mon)
 
 static bool _can_pacify_monster(const monsters *mon, const int healed)
 {
-    ASSERT(you.religion == GOD_ELYVILON);
+    if (you.religion != GOD_ELYVILON)
+        return (false);
 
     if (healed < 1)
         return (false);
@@ -689,7 +691,8 @@ static bool _can_pacify_monster(const monsters *mon, const int healed)
 
 // Returns: 1 -- success, 0 -- failure, -1 -- cancel
 static int _healing_spell(int healed, bool divine_ability,
-                          const coord_def& where)
+                          const coord_def& where, bool not_self,
+                          targ_mode_type mode)
 {
     ASSERT(healed >= 1);
 
@@ -699,14 +702,15 @@ static int _healing_spell(int healed, bool divine_ability,
     if (where.origin())
     {
         spd.isValid = spell_direction(spd, beam, DIR_TARGET,
+                                      mode != TARG_NUM_MODES ? mode :
                                       you.religion == GOD_ELYVILON ?
-                                          TARG_ANY : TARG_FRIEND,
+                                            TARG_ANY : TARG_FRIEND,
                                       LOS_RADIUS,
                                       false, true, true, "Heal whom?");
     }
     else
     {
-        spd.target = where;
+        spd.target  = where;
         spd.isValid = in_bounds(spd.target);
     }
 
@@ -715,6 +719,12 @@ static int _healing_spell(int healed, bool divine_ability,
 
     if (spd.target == you.pos())
     {
+        if (not_self)
+        {
+            mpr("You can only heal others!");
+            return (-1);
+        }
+
         mpr("You are healed.");
         inc_hp(healed, false);
         return (1);
@@ -729,16 +739,53 @@ static int _healing_spell(int healed, bool divine_ability,
         return (0);
     }
 
+    const bool can_pacify = _can_pacify_monster(monster, healed);
+    const bool is_hostile = _mons_hostile(monster);
+
     // Don't divinely heal a monster you can't pacify.
     if (divine_ability
         && you.religion == GOD_ELYVILON
-        && !_can_pacify_monster(monster, healed))
+        && !can_pacify)
     {
         canned_msg(MSG_NOTHING_HAPPENS);
         return (0);
     }
 
     bool did_something = false;
+
+    if (you.religion == GOD_ELYVILON
+        && can_pacify && is_hostile)
+    {
+        did_something = true;
+
+        const bool is_holy     = mons_is_holy(monster);
+        const bool is_summoned = mons_is_summoned(monster);
+
+        int pgain = 0;
+        if (!is_holy && !is_summoned && you.piety < MAX_PIETY)
+        {
+            pgain = random2(1 + random2(monster->max_hit_points /
+                            (2 + you.piety / 20)));
+        }
+
+        if (pgain > 0)
+            simple_god_message(" approves of your offer of peace.");
+        else
+            simple_god_message(" supports your offer of peace.");
+
+        if (is_holy)
+            good_god_holy_attitude_change(monster);
+        else
+        {
+            simple_monster_message(monster, " turns neutral.");
+            mons_pacify(monster);
+
+            // Give a small piety return.
+            if (pgain > 0)
+                gain_piety(pgain);
+        }
+    }
+
     if (heal_monster(monster, healed, false))
     {
         did_something = true;
@@ -749,47 +796,45 @@ static int _healing_spell(int healed, bool divine_ability,
         else
             print_wounds(monster);
 
-        if (you.religion == GOD_ELYVILON && !_mons_hostile(monster))
+        if (you.religion == GOD_ELYVILON && !is_hostile)
         {
-            simple_god_message(" appreciates your healing of a fellow "
-                               "creature.");
-            if (one_chance_in(8))
-                gain_piety(1);
-        }
-    }
+            int pgain = 0;
+            if (one_chance_in(8) && you.piety < MAX_PIETY)
+                pgain = 1;
 
-    if (you.religion == GOD_ELYVILON
-        && _can_pacify_monster(monster, healed)
-        && _mons_hostile(monster))
-    {
-        did_something = true;
-        simple_god_message(" supports your offer of peace.");
-
-        if (mons_is_holy(monster))
-            good_god_holy_attitude_change(monster);
-        else
-        {
-            const bool is_summoned = mons_is_summoned(monster);
-            simple_monster_message(monster, " turns neutral.");
-            mons_pacify(monster);
+            if (pgain > 0)
+            {
+                simple_god_message(" approves of your healing of a fellow "
+                                   "creature.");
+            }
+            else
+            {
+                simple_god_message(" appreciates your healing of a fellow "
+                                   "creature.");
+            }
 
             // Give a small piety return.
-            if (!is_summoned)
-                gain_piety(1 + random2(healed/15));
+            if (pgain > 0)
+                gain_piety(pgain);
         }
     }
 
     if (!did_something)
+    {
         canned_msg(MSG_NOTHING_HAPPENS);
+        return (0);
+    }
 
-    return (did_something ? 1 : 0);
+    return (1);
 }
 
 // Returns: 1 -- success, 0 -- failure, -1 -- cancel
-int cast_healing(int pow, bool divine_ability, const coord_def& where)
+int cast_healing(int pow, bool divine_ability, const coord_def& where,
+                 bool not_self, targ_mode_type mode)
 {
     pow = std::min(50, pow);
-    return (_healing_spell(pow + roll_dice(2, pow) - 2, divine_ability, where));
+    return (_healing_spell(pow + roll_dice(2, pow) - 2, divine_ability, where,
+                           not_self, mode));
 }
 
 void remove_divine_vigour()
@@ -798,6 +843,7 @@ void remove_divine_vigour()
     you.duration[DUR_DIVINE_VIGOUR] = 0;
     you.attribute[ATTR_DIVINE_VIGOUR] = 0;
     calc_hp();
+    calc_mp();
 }
 
 bool cast_divine_vigour()
@@ -811,11 +857,14 @@ bool cast_divine_vigour()
 
         const int vigour_amt = 1 + (you.skills[SK_INVOCATIONS]/6);
         const int old_hp_max = you.hp_max;
+        const int old_mp_max = you.max_magic_points;
         you.attribute[ATTR_DIVINE_VIGOUR] = vigour_amt;
         you.duration[DUR_DIVINE_VIGOUR]
             = 40 + (you.skills[SK_INVOCATIONS]*5)/2;
         calc_hp();
         inc_hp(you.hp_max - old_hp_max, false);
+        calc_mp();
+        inc_mp(you.max_magic_points - old_mp_max, false);
 
         success = true;
     }
@@ -1179,12 +1228,18 @@ void extension(int pow)
     if (you.duration[DUR_RESIST_POISON])
         cast_resist_poison(pow);
 
-    if (you.duration[DUR_TRANSFORMATION])
+    if (you.duration[DUR_TRANSFORMATION]
+        && (you.species != SP_VAMPIRE
+            || you.attribute[ATTR_TRANSFORMATION] != TRAN_BAT))
     {
         mpr("Your transformation has been extended.");
         you.duration[DUR_TRANSFORMATION] += random2(pow);
         if (you.duration[DUR_TRANSFORMATION] > 100)
             you.duration[DUR_TRANSFORMATION] = 100;
+
+        // Give a warning if it won't last long enough for the
+        // timeout messages.
+        transformation_expiration_warning();
     }
 
     //jmf: added following
@@ -1289,10 +1344,27 @@ void deflection(int pow)
                        "You feel very safe from missiles.");
 }
 
-void cast_regen(int pow)
+void remove_regen(bool divine_ability)
+{
+    mpr("Your skin stops crawling.", MSGCH_DURATION);
+    you.duration[DUR_REGENERATION] = 0;
+    if (divine_ability)
+    {
+        mpr("You feel less resistant to magic.", MSGCH_DURATION);
+        you.attribute[ATTR_DIVINE_REGENERATION] = 0;
+    }
+}
+
+void cast_regen(int pow, bool divine_ability)
 {
     _increase_duration(DUR_REGENERATION, 5 + roll_dice(2, pow / 3 + 1), 100,
                        "Your skin crawls.");
+
+    if (divine_ability)
+    {
+        mpr("You feel resistant to magic.");
+        you.attribute[ATTR_DIVINE_REGENERATION] = 1;
+    }
 }
 
 void cast_berserk(void)

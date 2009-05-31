@@ -652,6 +652,9 @@ void init_travel_terrain_check(bool check_race_equip)
         _set_pass_feature(DNGN_TRAP_MECHANICAL, trav);
         // Shafts can also be levitated over.
         _set_pass_feature(DNGN_TRAP_NATURAL, trav);
+
+        if (!player_can_open_doors())
+            _set_pass_feature(DNGN_CLOSED_DOOR, IMPASSABLE);
     }
     else
     {
@@ -2562,7 +2565,7 @@ void start_translevel_travel(bool prompt_for_destination)
     if (level_target.p.id.depth > 0)
     {
         // Forget interrupted butchering.
-        you.attribute[ATTR_WEAPON_SWAP_INTERRUPTED] = 0;
+        maybe_clear_weapon_swap();
 
         you.running = RMODE_INTERLEVEL;
         you.running.pos.reset();
@@ -2977,9 +2980,9 @@ void start_explore(bool grab_items)
         return;
 
     // Forget interrupted butchering.
-    you.attribute[ATTR_WEAPON_SWAP_INTERRUPTED] = 0;
+    maybe_clear_weapon_swap();
 
-    you.running = grab_items? RMODE_EXPLORE_GREEDY : RMODE_EXPLORE;
+    you.running = (grab_items? RMODE_EXPLORE_GREEDY : RMODE_EXPLORE);
     if (you.running == RMODE_EXPLORE_GREEDY
         && Options.stash_tracking != STM_ALL)
     {
@@ -3063,9 +3066,9 @@ level_id level_id::get_next_level_id(const coord_def &pos)
     int gridc = grd(pos);
     level_id id = current();
 
-    for ( int i = 0; i < NUM_BRANCHES; ++i )
+    for (int i = 0; i < NUM_BRANCHES; ++i)
     {
-        if ( gridc == branches[i].entry_stairs )
+        if (gridc == branches[i].entry_stairs)
         {
             id.branch = static_cast<branch_type>(i);
             id.depth = 1;
@@ -4191,7 +4194,8 @@ void explore_discoveries::add_item(const item_def &i)
         items[j].thing.quantity = orig_quantity;
     }
 
-    items.push_back( named_thing<item_def>(i.name(DESC_NOCAP_A), i) );
+    items.push_back( named_thing<item_def>(get_menu_colour_prefix_tags(i,
+                                                DESC_NOCAP_A), i) );
 
     // First item of this type?
     // XXX: Only works when travelling.
@@ -4230,8 +4234,8 @@ void explore_discoveries::found_item(const coord_def &pos, const item_def &i)
     } // if (you.running == RMODE_EXPLORE_GREEDY)
 
     add_item(i);
-    es_flags |= (you.running == RMODE_EXPLORE_GREEDY) ? ES_GREEDY_PICKUP :
-                                                        ES_PICKUP;
+    es_flags |= (you.running == RMODE_EXPLORE_GREEDY) ? ES_GREEDY_PICKUP
+                                                      : ES_PICKUP;
 }
 
 // Expensive O(n^2) duplicate search, but we can live with that.

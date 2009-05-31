@@ -107,18 +107,14 @@ enum brand_type // equivalent to (you.inv[].special or mitm[].special) % 30
     SPWPN_DISTORTION,
     SPWPN_REACHING,
     SPWPN_RETURNING,                   //   18
-
-    MAX_PAN_LORD_BRANDS = SPWPN_RETURNING,
-
     SPWPN_CHAOS,
+
+    MAX_PAN_LORD_BRANDS = SPWPN_CHAOS,
+
     SPWPN_CONFUSE,                     //   20
-    SPWPN_PENETRATION,
-    SPWPN_SHADOW,
-    SPWPN_RANDART_I = 25,              //   25
-    SPWPN_RANDART_II,
-    SPWPN_RANDART_III,
-    SPWPN_RANDART_IV,
-    SPWPN_RANDART_V,
+    SPWPN_PENETRATION,  // unused
+    SPWPN_SHADOW,       // unused
+    SPWPN_DEBUG_RANDART = 25,          //   25
     NUM_SPECIAL_WEAPONS,
     SPWPN_DUMMY_CRUSHING,        // ONLY TEMPORARY USAGE -- converts to VORPAL
 
@@ -172,7 +168,7 @@ enum helmet_desc_type
     THELM_DESC_MAX_SOFT = THELM_DESC_PLUMED,
     THELM_DESC_SPIKED,
     THELM_DESC_VISORED,
-    THELM_DESC_JEWELLED,
+    THELM_DESC_GOLDEN,
     THELM_NUM_DESCS
 };
 
@@ -372,14 +368,13 @@ enum special_missile_type // to separate from weapons in general {dlb}
     SPMSL_FLAME,
     SPMSL_FROST,
     SPMSL_POISONED,
-    SPMSL_POISONED_II,                 //    unused
-    SPMSL_CURARE,                      //    5
-    SPMSL_RETURNING,
+    SPMSL_CURARE,
+    SPMSL_RETURNING,                   //    5
     SPMSL_CHAOS,
     SPMSL_PENETRATION,
     SPMSL_SHADOW,
-    SPMSL_DISPERSAL,                   //   10
-    SPMSL_EXPLODING,
+    SPMSL_DISPERSAL,
+    SPMSL_EXPLODING,                   //   10
     SPMSL_STEEL,
     SPMSL_SILVER
 };
@@ -602,9 +597,9 @@ enum wand_type
 
 enum zap_count_type
 {
-    ZAPCOUNT_EMPTY = -1,
-    ZAPCOUNT_UNKNOWN = -2,
-    ZAPCOUNT_RECHARGED = -3,
+    ZAPCOUNT_EMPTY       = -1,
+    ZAPCOUNT_UNKNOWN     = -2,
+    ZAPCOUNT_RECHARGED   = -3,
     ZAPCOUNT_MAX_CHARGED = -4
 };
 
@@ -675,10 +670,11 @@ int   fit_armour_size( const item_def &item, size_type size );
 bool  check_armour_size( const item_def &item, size_type size );
 bool  check_armour_shape( const item_def &item, bool quiet );
 
-bool item_is_rechargeable(const item_def &it, bool unknown = false,
-                          bool hide_charged = false);
+bool item_is_rechargeable(const item_def &it, bool hide_charged = false,
+                          bool weapons = false);
 int wand_charge_value(int type);
-bool is_enchantable_weapon(const item_def &wpn, bool uncurse);
+bool is_enchantable_weapon(const item_def &wpn, bool uncurse,
+                           bool first = true);
 bool is_enchantable_armour(const item_def &arm, bool uncurse,
                            bool unknown = false);
 
@@ -755,24 +751,24 @@ bool item_is_staff( const item_def &item );
 int ring_has_pluses( const item_def &item );
 
 // food functions:
-bool food_is_meat( const item_def &item );
-bool food_is_veg( const item_def &item );
-bool is_blood_potion( const item_def &item );
-int  food_value( const item_def &item );
-int  food_turns( const item_def &item );
-bool can_cut_meat( const item_def &item );
-bool food_is_rotten( const item_def &item );
-int  corpse_freshness( const item_def &item );
+bool food_is_meat(const item_def &item);
+bool food_is_veg(const item_def &item);
+bool is_blood_potion(const item_def &item);
+int food_value(const item_def &item);
+int food_turns(const item_def &item);
+bool can_cut_meat(const item_def &item);
+bool food_is_rotten(const item_def &item);
+int corpse_freshness(const item_def &item);
 
 // generic item property functions:
-bool is_tool( const item_def &item );
-int property( const item_def &item, int prop_type );
-bool gives_ability( const item_def &item );
-bool gives_resistance( const item_def &item );
-int item_mass( const item_def &item );
-size_type item_size( const item_def &item );
+bool is_tool(const item_def &item);
+int property(const item_def &item, int prop_type);
+bool gives_ability(const item_def &item);
+bool gives_resistance(const item_def &item);
+int item_mass(const item_def &item);
+size_type item_size(const item_def &item);
 
-bool is_colourful_item( const item_def &item );
+bool is_colourful_item(const item_def &item);
 
 std::string item_base_name(const item_def &item);
 const char* weapon_base_name(unsigned char subtype);

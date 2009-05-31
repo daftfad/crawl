@@ -798,7 +798,7 @@ static monsterentry mondata[] = {
     MONS_HELL_HOG, 'h', LIGHTRED, "hell-hog",
     M_SPELLCASTER | M_EVIL,
     MR_NO_FLAGS,
-    0, 10, MONS_HELL_HOG, MONS_HELL_HOG, MH_DEMONIC, -3,
+    0, 10, MONS_HOG, MONS_HELL_HOG, MH_DEMONIC, -3,
     { {AT_BITE, AF_PLAIN, 20}, AT_NO_ATK, AT_NO_ATK, AT_NO_ATK },
     { 11, 3, 5, 0 },
     2, 9, MST_HELL_HOG, CE_CLEAN, Z_NOZOMBIE, S_SILENT, I_ANIMAL,
@@ -3422,7 +3422,7 @@ static monsterentry mondata[] = {
     M_EVIL,
     MR_NO_FLAGS,
     0, 12, MONS_ORANGE_DEMON, MONS_ORANGE_DEMON, MH_DEMONIC, -6,
-    { {AT_STING, AF_POISON_STR, 10}, {AT_HIT, AF_PLAIN, 8}, AT_NO_ATK,
+    { {AT_HIT, AF_PLAIN, 8}, {AT_STING, AF_POISON_STR, 10}, AT_NO_ATK,
        AT_NO_ATK },
     { 8, 4, 5, 0 },
     3, 7, MST_NO_SPELLS, CE_NOCORPSE, Z_NOZOMBIE, S_SCREECH, I_NORMAL,
@@ -3798,7 +3798,7 @@ static monsterentry mondata[] = {
 },
 
 // major demons ('&')
-// random demon in pan - only one per level. stats are stored in ghost struct
+// random demon in pan - only one per level. Stats are stored in ghost struct.
 {
     MONS_PANDEMONIUM_DEMON, '&', BLACK, "pandemonium lord",
     M_FIGHTER | M_SPELLCASTER | M_SPEAKS | M_EVIL,

@@ -17,6 +17,7 @@ REVISION("$Rev$");
 
 #include "beam.h"
 #include "cio.h"
+#include "database.h"
 #include "dungeon.h"
 #include "effects.h"
 #include "files.h"
@@ -213,10 +214,10 @@ static void _shuffle_deck(item_def &deck)
     // Don't use std::shuffle(), since we want to apply exactly the
     // same shuffling to both the cards vector and the flags vector.
     std::vector<vec_size> pos;
-    for (unsigned long i = 0; i < cards.size(); i++)
+    for (unsigned long i = 0; i < cards.size(); ++i)
         pos.push_back(random2(cards.size()));
 
-    for (vec_size i = 0; i < pos.size(); i++)
+    for (vec_size i = 0; i < pos.size(); ++i)
     {
         std::swap(cards[i], cards[pos[i]]);
         std::swap(flags[i], flags[pos[i]]);
@@ -439,11 +440,6 @@ static void _push_top_card(item_def& deck, card_type card,
     flags.push_back((char) _flags);
 }
 
-static bool _wielding_deck()
-{
-    return (you.weapon() && is_deck(*you.weapon()));
-}
-
 static void _remember_drawn_card(item_def& deck, card_type card, bool allow_id)
 {
     ASSERT( is_deck(deck) );
@@ -452,11 +448,8 @@ static void _remember_drawn_card(item_def& deck, card_type card, bool allow_id)
     drawn.push_back( static_cast<char>(card) );
 
     // Once you've drawn two cards, you know the deck.
-    if (allow_id &&
-        (drawn.size() >= 2 || origin_is_god_gift(deck)))
-    {
+    if (allow_id && (drawn.size() >= 2 || origin_is_god_gift(deck)))
         _deck_ident(deck);
-    }
 }
 
 const std::vector<card_type> get_drawn_cards(const item_def& deck)
@@ -545,7 +538,7 @@ static bool _check_buggy_deck(item_def& deck)
     unsigned int num_buggy     = 0;
     unsigned int num_marked    = 0;
 
-    for (vec_size i = 0; i < num_cards; i++)
+    for (vec_size i = 0; i < num_cards; ++i)
     {
         unsigned char card   = cards[i].get_byte();
         unsigned char _flags = flags[i].get_byte();
@@ -618,7 +611,7 @@ static bool _check_buggy_deck(item_def& deck)
         strm << "More cards than flags.";
 #endif
         strm << std::endl;
-        for (unsigned int i = num_flags + 1; i <= num_cards; i++)
+        for (unsigned int i = num_flags + 1; i <= num_cards; ++i)
             flags[i] = static_cast<char>(0);
 
         problems = true;
@@ -632,7 +625,7 @@ static bool _check_buggy_deck(item_def& deck)
 #endif
         strm << std::endl;
 
-        for (unsigned int i = num_flags; i > num_cards; i--)
+        for (unsigned int i = num_flags; i > num_cards; --i)
             flags.erase(i);
 
         problems = true;
@@ -927,20 +920,45 @@ static void _redraw_stacked_cards(const std::vector<card_type>& draws,
     }
 }
 
+static void _describe_cards(std::vector<card_type> cards)
+{
+    ASSERT(!cards.empty());
+
+    std::ostringstream data;
+    for (unsigned int i = 0; i < cards.size(); ++i)
+    {
+        std::string name = card_name(cards[i]);
+        std::string desc = getLongDescription(name + " card");
+        if (desc.empty())
+            desc = "No description found.";
+
+        name = uppercase_first(name);
+        data << "<w>" << name << "</w>\n"
+             << get_linebreak_string(desc, get_number_of_cols())
+             << EOL;
+    }
+    formatted_string fs = formatted_string::parse_string(data.str());
+    clrscr();
+    fs.display();
+    if (getch() == 0)
+        getch();
+
+    redraw_screen();
+}
 
 // Stack a deck: look at the next five cards, put them back in any
 // order, discard the rest of the deck.
 // Return false if the operation was failed/aborted along the way.
 bool deck_stack()
 {
-    cursor_control con(false);
-    if (!_wielding_deck())
+    const int slot = _choose_inventory_deck("Stack which deck?");
+    if (slot == -1)
     {
-        mpr("You aren't wielding a deck!");
         crawl_state.zero_turns_taken();
         return (false);
     }
-    item_def& deck(*you.weapon());
+
+    item_def& deck(you.inv[slot]);
     if (_check_buggy_deck(deck))
         return (false);
 
@@ -952,6 +970,7 @@ bool deck_stack()
         return (false);
     }
 
+    _deck_ident(deck);
     const int num_cards    = cards_in_deck(deck);
     const int num_to_stack = (num_cards < 5 ? num_cards : 5);
 
@@ -985,20 +1004,26 @@ bool deck_stack()
 
     if (draws.size() > 1)
     {
+        bool need_prompt_redraw = true;
         unsigned int selected = draws.size();
-        clrscr();
-        cgotoxy(1,1);
-        textcolor(WHITE);
-        cprintf("Press a digit to select a card, "
-                "then another digit to swap it.");
-        cgotoxy(1,10);
-        cprintf("Press Enter to accept.");
-
-        _redraw_stacked_cards(draws, selected);
-
-        // Hand-hacked implementation, instead of using Menu. Oh well.
         while (true)
         {
+            if (need_prompt_redraw)
+            {
+                clrscr();
+                cgotoxy(1,1);
+                textcolor(WHITE);
+                cprintf("Press a digit to select a card, then another digit "
+                        "to swap it.");
+                cgotoxy(1,10);
+                cprintf("Press ? for the card descriptions, or Enter to "
+                        "accept.");
+
+                _redraw_stacked_cards(draws, selected);
+                need_prompt_redraw = false;
+            }
+
+            // Hand-hacked implementation, instead of using Menu. Oh well.
             const int c = getch();
             if (c == CK_ENTER)
             {
@@ -1013,7 +1038,12 @@ bool deck_stack()
                 continue;
             }
 
-            if (c >= '1' && c <= '0' + static_cast<int>(draws.size()))
+            if (c == '?')
+            {
+                _describe_cards(draws);
+                need_prompt_redraw = true;
+            }
+            else if (c >= '1' && c <= '0' + static_cast<int>(draws.size()))
             {
                 const unsigned int new_selected = c - '1';
                 if (selected < draws.size())
@@ -1088,17 +1118,27 @@ bool deck_triple_draw()
         flags.push_back(_flags);
     }
 
-    mpr("You draw... (choose one card)");
-    for (int i = 0; i < num_to_draw; ++i)
-    {
-        msg::streams(MSGCH_PROMPT) << (static_cast<char>(i + 'a')) << " - "
-                                   << card_name(draws[i]) << std::endl;
-    }
     int selected = -1;
+    bool need_prompt_redraw = true;
     while (true)
     {
+        if (need_prompt_redraw)
+        {
+            mpr("You draw... (choose one card, ? for their descriptions)");
+            for (int i = 0; i < num_to_draw; ++i)
+            {
+                msg::streams(MSGCH_PROMPT) << (static_cast<char>(i + 'a')) << " - "
+                                           << card_name(draws[i]) << std::endl;
+            }
+            need_prompt_redraw = false;
+        }
         const int keyin = tolower(get_ch());
-        if (keyin >= 'a' && keyin < 'a' + num_to_draw)
+        if (keyin == '?')
+        {
+            _describe_cards(draws);
+            need_prompt_redraw = true;
+        }
+        else if (keyin >= 'a' && keyin < 'a' + num_to_draw)
         {
             selected = keyin - 'a';
             break;
@@ -1346,8 +1386,8 @@ static void _portal_card(int power, deck_rarity_type rarity)
     }
 
     const bool was_controlled = player_control_teleport();
-    const bool short_control = (you.duration[DUR_CONTROL_TELEPORT] > 0)
-        && (you.duration[DUR_CONTROL_TELEPORT] < 6);
+    const bool short_control = (you.duration[DUR_CONTROL_TELEPORT] > 0
+                                && you.duration[DUR_CONTROL_TELEPORT] < 6);
 
     if (controlled && (!was_controlled || short_control))
         you.duration[DUR_CONTROL_TELEPORT] = 6; // Long enough to kick in.
@@ -1377,80 +1417,21 @@ static void _swap_monster_card(int power, deck_rarity_type rarity)
     if (!mon_to_swap)
         mpr("You spin around.");
     else
-    {
-        monsters& mon(*mon_to_swap);
-        const coord_def newpos = mon.pos();
-
-        // Be nice: no swapping into uninhabitable environments.
-        if (!you.is_habitable(newpos) || !mon.is_habitable(you.pos()))
-        {
-            mpr("You spin around.");
-            return;
-        }
-
-        const bool mon_caught = mons_is_caught(&mon);
-        const bool you_caught = you.attribute[ATTR_HELD];
-
-        // If it was submerged, it surfaces first.
-        mon.del_ench(ENCH_SUBMERGED);
-
-        // Pick the monster up.
-        mgrd(newpos) = NON_MONSTER;
-        mon.moveto(you.pos());
-
-        // Plunk it down.
-        mgrd(mon.pos()) = mon_to_swap->mindex();
-
-        if (you_caught)
-        {
-            check_net_will_hold_monster(&mon);
-            if (!mon_caught)
-                you.attribute[ATTR_HELD] = 0;
-        }
-
-        // Move you to its previous location.
-        move_player_to_grid(newpos, false, true, true, false);
-
-        if (mon_caught)
-        {
-            if (you.body_size(PSIZE_BODY) >= SIZE_GIANT)
-            {
-                mpr("The net rips apart!");
-                you.attribute[ATTR_HELD] = 0;
-                int net = get_trapping_net(you.pos());
-                if (net != NON_ITEM)
-                    destroy_item(net);
-            }
-            else
-            {
-                you.attribute[ATTR_HELD] = 10;
-                mpr("You become entangled in the net!");
-
-                // Xom thinks this is hilarious if you trap yourself this way.
-                if (you_caught)
-                    xom_is_stimulated(16);
-                else
-                    xom_is_stimulated(255);
-            }
-
-            if (!you_caught)
-                mon.del_ench(ENCH_HELD, true);
-        }
-    }
+        swap_with_monster(mon_to_swap);
 }
 
 static void _velocity_card(int power, deck_rarity_type rarity)
 {
     const int power_level = get_power_level(power, rarity);
     if (power_level >= 2)
-        potion_effect( POT_SPEED, random2(power / 4) );
+        potion_effect(POT_SPEED, random2(power / 4));
     else if (power_level == 1)
     {
-        cast_fly( random2(power/4) );
-        cast_swiftness( random2(power/4) );
+        cast_fly(random2(power / 4));
+        cast_swiftness(random2(power / 4));
     }
     else
-        cast_swiftness( random2(power/4) );
+        cast_swiftness(random2(power / 4));
 }
 
 static void _damnation_card(int power, deck_rarity_type rarity)
@@ -1501,7 +1482,7 @@ static void _warpwright_card(int power, deck_rarity_type rarity)
     int count = 0;
     coord_def f;
     for (adjacent_iterator ai; ai; ++ai)
-        if (grd(*ai) == DNGN_FLOOR && find_trap(*ai) && one_chance_in(++count))
+        if (grd(*ai) == DNGN_FLOOR && !find_trap(*ai) && one_chance_in(++count))
             f = *ai;
 
     if (count > 0)              // found a spot
@@ -1561,7 +1542,7 @@ static void _minefield_card(int power, deck_rarity_type rarity)
     const int radius = power_level * 2 + 2;
     for (radius_iterator ri(you.pos(), radius, false, false, false); ri; ++ri)
     {
-        if ( *ri == you.pos() )
+        if (*ri == you.pos())
             continue;
 
         if (grd(*ri) == DNGN_FLOOR && !find_trap(*ri)
@@ -1642,7 +1623,7 @@ static void _move_stair(coord_def stair_pos, bool away)
         // Stairs already at edge, can't move further away.
         return;
 
-    if ( !in_bounds(ray.pos()) || ray.pos() == you.pos() )
+    if (!in_bounds(ray.pos()) || ray.pos() == you.pos())
         ray.regress();
 
     while (!see_grid(ray.pos()) || grd(ray.pos()) != DNGN_FLOOR)
@@ -1685,10 +1666,14 @@ static void _move_stair(coord_def stair_pos, bool away)
     viewwindow(true, false);
 
     if (!swap_features(stair_pos, ray.pos(), false, false))
+    {
         mprf(MSGCH_ERROR, "_move_stair(): failed to move %s",
              stair_str.c_str());
+    }
 }
 
+// This does not describe an actual card. Instead, it only exists to test
+// the stair movement effect in wizard mode ("&c stairs").
 static void _stairs_card(int power, deck_rarity_type rarity)
 {
     UNUSED(power);
@@ -1698,14 +1683,13 @@ static void _stairs_card(int power, deck_rarity_type rarity)
     you.duration[DUR_REPEL_STAIRS_CLIMB] = 0;
 
     if (grid_stair_direction(grd(you.pos())) == CMD_NO_CMD)
-        you.duration[DUR_REPEL_STAIRS_MOVE] = 1000;
+        you.duration[DUR_REPEL_STAIRS_MOVE]  = 1000;
     else
-        you.duration[DUR_REPEL_STAIRS_CLIMB] = 1000;
+        you.duration[DUR_REPEL_STAIRS_CLIMB] =  500; // more annoying
 
     std::vector<coord_def> stairs_avail;
 
-    radius_iterator ri(you.pos(), LOS_RADIUS, false, true, true);
-    for (; ri; ++ri)
+    for (radius_iterator ri(you.pos(), LOS_RADIUS, false, true, true); ri; ++ri)
     {
         dungeon_feature_type feat = grd(*ri);
         if (grid_stair_direction(feat) != CMD_NO_CMD
@@ -1723,7 +1707,7 @@ static void _stairs_card(int power, deck_rarity_type rarity)
 
     std::random_shuffle(stairs_avail.begin(), stairs_avail.end());
 
-    for (unsigned int i = 0; i < stairs_avail.size(); i++)
+    for (unsigned int i = 0; i < stairs_avail.size(); ++i)
         _move_stair(stairs_avail[i], stair_draw_count % 2);
 
     stair_draw_count++;
@@ -2002,8 +1986,8 @@ static void _shadow_card(int power, deck_rarity_type rarity)
 
     if (power_level >= 1)
     {
-        mpr( you.duration[DUR_STEALTH] ? "You feel more catlike."
-                                       : "You feel stealthy.");
+        mpr(you.duration[DUR_STEALTH] ? "You feel more catlike."
+                                      : "You feel stealthy.");
         you.duration[DUR_STEALTH] += random2(power/4) + 1;
     }
 
@@ -2342,7 +2326,7 @@ static void _sage_card(int power, deck_rarity_type rarity)
 
 static void _create_pond(const coord_def& center, int radius, bool allow_deep)
 {
-    for ( radius_iterator ri(center, radius, false); ri; ++ri )
+    for (radius_iterator ri(center, radius, false); ri; ++ri)
     {
         const coord_def p = *ri;
         if (p != you.pos() && coinflip())
@@ -2364,7 +2348,7 @@ static void _create_pond(const coord_def& center, int radius, bool allow_deep)
 
 static void _deepen_water(const coord_def& center, int radius)
 {
-    for ( radius_iterator ri(center, radius, false); ri; ++ri )
+    for (radius_iterator ri(center, radius, false); ri; ++ri)
     {
         // FIXME The iteration shouldn't affect the later squares in the
         // same iteration, i.e., a newly-flooded square shouldn't count
@@ -2405,7 +2389,7 @@ static void _water_card(int power, deck_rarity_type rarity)
         mpr("Water floods your area!");
 
         // Flood all visible squares.
-        for ( radius_iterator ri( you.pos(), LOS_RADIUS, false ); ri; ++ri )
+        for (radius_iterator ri( you.pos(), LOS_RADIUS, false ); ri; ++ri)
         {
             coord_def p = *ri;
             destroy_trap(p);
@@ -2610,7 +2594,7 @@ static void _curse_card(int power, deck_rarity_type rarity)
     if (power_level >= 2)
     {
         // Curse (almost) everything + chance of decay.
-        while ( curse_an_item(one_chance_in(6), true) && !one_chance_in(1000) )
+        while (curse_an_item(one_chance_in(6), true) && !one_chance_in(1000))
             ;
     }
     else if (power_level == 1)
@@ -2620,7 +2604,7 @@ static void _curse_card(int power, deck_rarity_type rarity)
         {
             curse_an_item(false);
         }
-        while ( !one_chance_in(4) );
+        while (!one_chance_in(4));
     }
     else
     {
@@ -3066,7 +3050,7 @@ bool card_effect(card_type which_card, deck_rarity_type rarity,
     if (you.religion == GOD_XOM && !rc)
     {
         god_speaks(GOD_XOM, "\"How boring, let's spice things up a little.\"");
-        xom_acts(abs(you.piety - 100));
+        xom_acts(abs(you.piety - HALF_MAX_PIETY));
     }
 
     if (you.religion == GOD_NEMELEX_XOBEH && !rc)
@@ -3161,7 +3145,7 @@ void init_deck(item_def &item)
     props["card_flags"].new_vector(SV_BYTE).resize((vec_size)item.plus);
     props["drawn_cards"].new_vector(SV_BYTE);
 
-    for (int i = 0; i < item.plus; i++)
+    for (int i = 0; i < item.plus; ++i)
     {
         bool      was_odd = false;
         card_type card    = _random_card(item, was_odd);

@@ -94,7 +94,10 @@ int check_your_resists(int hurted, beam_type flavour)
         if (hurted < original)
             canned_msg(MSG_YOU_RESIST);
         else if (hurted > original)
+        {
             mpr("It scalds you terribly!");
+            xom_is_stimulated(200);
+        }
         break;
 
     case BEAM_FIRE:
@@ -440,12 +443,14 @@ static bool _expose_invent_to_element(beam_type flavour, int strength)
             || target_class == OBJ_FOOD
                && you.inv[i].base_type == OBJ_CORPSES)
         {
+            // Conservation doesn't help against harpies stealing food.
             if (flavour != BEAM_STEAL_FOOD
                 && player_item_conserve() && !one_chance_in(10))
             {
                 continue;
             }
 
+            // Loop through all items in the stack.
             for (int j = 0; j < you.inv[i].quantity; ++j)
             {
                 if (x_chance_in_y(strength, 100))
@@ -467,6 +472,7 @@ static bool _expose_invent_to_element(beam_type flavour, int strength)
     if (!num_dest)
         return (false);
 
+    // Message handled elsewhere.
     if (flavour == BEAM_STEAL_FOOD)
         return (true);
 
@@ -725,10 +731,16 @@ static void _xom_checks_damage(kill_method_type death_type,
     {
         if (death_type == KILLED_BY_TARGETTING
             || death_type == KILLED_BY_BOUNCE
-            || death_type == KILLED_BY_REFLECTION)
+            || death_type == KILLED_BY_REFLECTION
+            || death_type == KILLED_BY_SELF_AIMED
+               && player_in_a_dangerous_place())
         {
-            // Xom thinks the player hurting him/herself is funny.
-            xom_is_stimulated(255 * dam / (dam + you.hp));
+            // Xom thinks the player accidentally hurting him/herself is funny.
+            // Deliberate damage is only amusing if it's dangerous.
+            int amusement = 255 * dam / (dam + you.hp);
+            if (death_type == KILLED_BY_SELF_AIMED)
+                amusement /= 5;
+            xom_is_stimulated(amusement);
             return;
         }
         else if (death_type == KILLED_BY_FALLING_DOWN_STAIRS)
@@ -738,8 +750,8 @@ static void _xom_checks_damage(kill_method_type death_type,
             return;
         }
         else if (death_type != KILLED_BY_MONSTER
-                && death_type != KILLED_BY_BEAM
-                    || invalid_monster_index(death_source))
+                    && death_type != KILLED_BY_BEAM
+                 || invalid_monster_index(death_source))
         {
             return;
         }
@@ -881,7 +893,6 @@ void ouch(int dam, int death_source, kill_method_type death_type,
                 {
                     lose_piety(21 + random2(20));
                 }
-
                 return;
             }
         }
@@ -934,8 +945,8 @@ void ouch(int dam, int death_source, kill_method_type death_type,
         you.escaped_death_cause = death_type;
         you.escaped_death_aux   = aux == NULL ? "" : aux;
 
-        // Xom should only kill his worshippers if they're under penance or
-        // Xom is bored.
+        // Xom should only kill his worshippers if they're under penance
+        // or Xom is bored.
         if (you.religion == GOD_XOM && !you.penance[GOD_XOM]
             && you.gift_timeout > 0)
         {
@@ -944,7 +955,7 @@ void ouch(int dam, int death_source, kill_method_type death_type,
 
         // Also don't kill wizards testing Xom acts.
         if ((crawl_state.repeat_cmd == CMD_WIZARD
-             || crawl_state.prev_cmd == CMD_WIZARD)
+                || crawl_state.prev_cmd == CMD_WIZARD)
             && you.religion != GOD_XOM)
         {
             return;
@@ -953,7 +964,7 @@ void ouch(int dam, int death_source, kill_method_type death_type,
         // Okay, you *didn't* escape death.
         you.reset_escaped_death();
 
-        // Ensure some minimal informfullness about Xom's involvment.
+        // Ensure some minimal information about Xom's involvment.
         if (aux == NULL || strlen(aux) == 0)
         {
             if (death_type != KILLED_BY_XOM)
@@ -1070,9 +1081,7 @@ void end_game( scorefile_entry &se )
     for (int i = 0; i < ENDOFPACK; i++)
     {
         if (you.inv[i].base_type != 0)
-        {
             set_ident_type( you.inv[i], ID_KNOWN_TYPE );
-        }
     }
 
     if (!dump_char( morgue_name(se.death_time), !dead, true, &se ))
@@ -1083,9 +1092,9 @@ void end_game( scorefile_entry &se )
         clrscr();
     }
 
-    if (se.death_type == KILLED_BY_LEAVING  ||
-        se.death_type == KILLED_BY_QUITTING ||
-        se.death_type == KILLED_BY_WINNING)
+    if (se.death_type == KILLED_BY_LEAVING
+        || se.death_type == KILLED_BY_QUITTING
+        || se.death_type == KILLED_BY_WINNING)
     {
         dead = false;
     }
@@ -1138,6 +1147,8 @@ void end_game( scorefile_entry &se )
     if (dead)
     {
         mpr("You die...");      // insert player name here? {dlb}
+        xom_death_message((kill_method_type) se.death_type);
+        flush_prev_message();
         viewwindow(true, false); // don't do for leaving/winning characters
 
         if (Options.tutorial_left)
@@ -1146,9 +1157,9 @@ void end_game( scorefile_entry &se )
 
 #ifdef DGL_WHEREIS
     whereis_record( se.death_type == KILLED_BY_QUITTING? "quit" :
-                    se.death_type == KILLED_BY_WINNING? "won"  :
-                    se.death_type == KILLED_BY_LEAVING? "bailed out" :
-                    "dead" );
+                    se.death_type == KILLED_BY_WINNING ? "won"  :
+                    se.death_type == KILLED_BY_LEAVING ? "bailed out"
+                                                       : "dead" );
 #endif
 
     if (!crawl_state.seen_hups)

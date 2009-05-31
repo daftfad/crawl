@@ -434,7 +434,7 @@ void mpr(const char *inf, msg_channel_type channel, int param)
 
     if (crawl_state.arena)
     {
-        switch(channel)
+        switch (channel)
         {
         case MSGCH_PROMPT:
         case MSGCH_GOD:
@@ -991,6 +991,9 @@ void mesclr( bool force )
     if (!any_messages() && !force)
         return;
 
+    if (crawl_state.doing_prev_cmd_again && !force)
+        return;
+
     if (!force && Options.delay_message_clear)
     {
         need_prefix = true;
@@ -1069,7 +1072,7 @@ void more(bool user_forced)
             autoclear_more = true;
     }
     mesclr(true);
-}                               // end more()
+}
 
 static bool is_channel_dumpworthy(msg_channel_type channel)
 {
@@ -1185,6 +1188,7 @@ void load_messages(reader& inf)
         for (int k = 0; k < repeats; k++)
              mpr_store_messages(text, channel, param, colour);
     }
+    mesclr(true);
 }
 
 void replay_messages(void)

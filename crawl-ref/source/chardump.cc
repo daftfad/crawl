@@ -56,6 +56,7 @@ REVISION("$Rev$");
 #include "transfor.h"
 #include "version.h"
 #include "view.h"
+#include "xom.h"
 
 struct dump_params;
 
@@ -181,7 +182,11 @@ bool dump_char(const std::string &fname, bool show_prices, bool full_id,
 
 static void _sdump_header(dump_params &par)
 {
-    par.text += " " CRAWL " version " VERSION " character file.\n\n";
+    par.text += " " CRAWL " version " VERSION;
+#ifdef DISPLAY_BUILD_REVISION
+    par.text += " r" + number_to_string(svn_revision());
+#endif
+    par.text += " character file.\n\n";
 }
 
 static void _sdump_stats(dump_params &par)
@@ -281,7 +286,7 @@ static void _sdump_visits(dump_params &par)
 
     text += make_stringf("You %svisited %ld branch",
                          have.c_str(), branches_visited.size());
-    if (branches_visited.size() > 1)
+    if (branches_visited.size() != 1)
         text += "es";
     text += make_stringf(" of the dungeon, and %s %ld of its levels.\n",
                          seen.c_str(), branches_total.levels_seen);
@@ -648,6 +653,15 @@ static void _sdump_religion(dump_params &par)
                 text += god_name(you.religion);
                 text += " " + verb + " demanding penance.\n";
             }
+        }
+        else
+        {
+            if (par.se)
+                text += "You were ";
+            else
+                text += "You are ";
+            text += describe_xom_favour(false);
+            text += "\n";
         }
     }
 }

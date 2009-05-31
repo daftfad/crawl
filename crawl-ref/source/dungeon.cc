@@ -1018,9 +1018,9 @@ static void _build_layout_skeleton(int level_number, int level_type,
 static int _num_items_wanted(int level_number)
 {
     if (level_number > 5 && one_chance_in(500 - 5 * level_number))
-        return 10 + random2avg( 90, 2 );  // rich level!
+        return (10 + random2avg(90, 2)); // rich level!
     else
-        return 3 + roll_dice( 3, 11 );
+        return (3 + roll_dice(3, 11));
 }
 
 
@@ -1051,14 +1051,14 @@ static void _fixup_walls()
     // If part of vaults -> walls depend on level.
     // If part of crypt -> all walls stone.
 
-    if (player_in_branch( BRANCH_DIS )
-        || player_in_branch( BRANCH_VAULTS )
-        || player_in_branch( BRANCH_CRYPT ))
+    if (player_in_branch(BRANCH_DIS)
+        || player_in_branch(BRANCH_VAULTS)
+        || player_in_branch(BRANCH_CRYPT))
     {
         // Always the case with Dis {dlb}
         dungeon_feature_type vault_wall = DNGN_METAL_WALL;
 
-        if (player_in_branch( BRANCH_VAULTS ))
+        if (player_in_branch(BRANCH_VAULTS))
         {
             vault_wall = DNGN_ROCK_WALL;
             const int bdepth = player_branch_depth();
@@ -1072,10 +1072,8 @@ static void _fixup_walls()
             if (bdepth > 6 && one_chance_in(10))
                 vault_wall = DNGN_GREEN_CRYSTAL_WALL;
         }
-        else if (player_in_branch( BRANCH_CRYPT ))
-        {
+        else if (player_in_branch(BRANCH_CRYPT))
             vault_wall = DNGN_STONE_WALL;
-        }
 
         _replace_area(0,0,GXM-1,GYM-1,DNGN_ROCK_WALL,vault_wall,MMT_NO_WALL);
     }
@@ -1089,7 +1087,7 @@ static void _fixup_misplaced_items()
     {
         item_def& item(mitm[i]);
         if (!is_valid_item(item) || (item.pos.x == 0)
-            || held_by_monster(item))
+            || item.held_by_monster())
         {
             continue;
         }
@@ -1131,17 +1129,17 @@ static void _fixup_branch_stairs()
         && you.level_type == LEVEL_DUNGEON)
     {
         const dungeon_feature_type exit = your_branch().exit_stairs;
-        for ( rectangle_iterator ri(1); ri; ++ri )
+        for (rectangle_iterator ri(1); ri; ++ri)
         {
-                if (grd(*ri) >= DNGN_STONE_STAIRS_UP_I
-                    && grd(*ri) <= DNGN_ESCAPE_HATCH_UP)
-                {
-                    if (grd(*ri) == DNGN_STONE_STAIRS_UP_I)
-                        env.markers.add(new map_feature_marker(*ri, grd(*ri)));
+            if (grd(*ri) >= DNGN_STONE_STAIRS_UP_I
+                && grd(*ri) <= DNGN_ESCAPE_HATCH_UP)
+            {
+                if (grd(*ri) == DNGN_STONE_STAIRS_UP_I)
+                    env.markers.add(new map_feature_marker(*ri, grd(*ri)));
 
-                    grd(*ri) = exit;
-                }
+                grd(*ri) = exit;
             }
+        }
     }
 
     // Branches that consist of only 1 level (Hall of Blades).
@@ -3254,7 +3252,7 @@ static monster_type _choose_unique_by_depth(int step)
         break;
     case 1: // depth <= 7
         ret = random_choose(MONS_IJYB, MONS_SIGMUND, MONS_BLORK_THE_ORC,
-                            MONS_EDMUND, -1);
+                            MONS_EDMUND, MONS_PRINCE_RIBBIT, -1);
         break;
     case 2: // depth <= 9
         ret = random_choose(MONS_BLORK_THE_ORC, MONS_EDMUND, MONS_PSYCHE,
@@ -3262,27 +3260,27 @@ static monster_type _choose_unique_by_depth(int step)
         break;
     case 3: // depth <= 13
         ret = random_choose(MONS_PSYCHE, MONS_EROLCHA, MONS_DONALD, MONS_URUG,
-                            MONS_MICHAEL, MONS_PRINCE_RIBBIT, -1);
+                            MONS_MICHAEL, MONS_EUSTACHIO, MONS_SONJA, -1);
         break;
     case 4: // depth <= 16
         ret = random_choose(MONS_URUG, MONS_MICHAEL, MONS_JOSEPH, MONS_SNORG,
                             MONS_ERICA, MONS_JOSEPHINE, MONS_HAROLD,
-                            MONS_NORBERT, MONS_JOZEF, MONS_AZRAEL,
-                            MONS_EUSTACHIO, MONS_SONJA, MONS_NESSOS, -1);
+                            MONS_NORBERT, MONS_JOZEF, MONS_EUSTACHIO,
+                            MONS_SONJA, MONS_AZRAEL, MONS_NESSOS, -1);
         break;
     case 5: // depth <= 19
         ret = random_choose(MONS_SNORG, MONS_ERICA, MONS_JOSEPHINE,
                             MONS_HAROLD, MONS_NORBERT, MONS_JOZEF, MONS_AGNES,
                             MONS_MAUD, MONS_LOUISE, MONS_FRANCIS, MONS_FRANCES,
-                            MONS_AZRAEL, MONS_EUSTACHIO, MONS_NERGALLE,
-                            MONS_SONJA, MONS_NESSOS, -1);
+                            MONS_AZRAEL, MONS_NESSOS, MONS_NERGALLE,
+                            MONS_ROXANNE, MONS_SAINT_ROKA, -1);
         break;
     case 6: // depth > 19
     default:
         ret = random_choose(MONS_LOUISE, MONS_FRANCIS, MONS_FRANCES,
                             MONS_RUPERT, MONS_WAYNE, MONS_DUANE, MONS_XTAHUA,
                             MONS_NORRIS, MONS_FREDERICK, MONS_MARGERY,
-                            MONS_BORIS, MONS_ROXANNE, MONS_NERGALLE,
+                            MONS_BORIS, MONS_NERGALLE, MONS_ROXANNE,
                             MONS_SAINT_ROKA, MONS_KIRKE, -1);
     }
 
@@ -3569,7 +3567,7 @@ static void _builder_items(int level_number, char level_type, int items_wanted)
             {
                 mitm[item_no].plus    = 0;
                 mitm[item_no].plus2   = 0;
-                mitm[item_no].flags   = 0;   // no id, no race/desc, no curse
+                mitm[item_no].flags   = 0; // no id, no race/desc, no curse
                 mitm[item_no].special = 0; // no ego type
             }
         }
@@ -4420,7 +4418,11 @@ static void _dgn_place_item_explicit(const item_spec &spec,
         item_def &item(mitm[item_made]);
         item.pos = where;
         if (is_stackable_item(item) && spec.qty > 0)
+        {
             item.quantity = spec.qty;
+            if (is_blood_potion(item))
+                init_stack_blood_potions(item);
+        }
 
         if (spec.plus >= 0 && item.base_type == OBJ_BOOKS
             && item.sub_type == BOOK_MANUAL)
@@ -4529,7 +4531,7 @@ static void _dgn_give_mon_spec_items(mons_spec &mspec,
             item_level = spec.level;
         else
         {
-            switch(spec.level)
+            switch (spec.level)
             {
             case ISPEC_GOOD:
                 item_level = 5 + item_level * 2;
@@ -7415,7 +7417,7 @@ static void _roguey_level(int level_number, spec_room &sr, bool make_stairs)
     if ((sroom = random_map_for_tag("special_room", true)) != NULL)
 #else
     if (one_chance_in(10)
-	    && (sroom = random_map_for_tag("special_room", true)) != NULL)
+        && (sroom = random_map_for_tag("special_room", true)) != NULL)
 #endif
     {
         int spec_room_done = random2(25);

@@ -685,8 +685,11 @@ screen_buffer_t colour_code_map( const coord_def& p, bool item_colour,
         return (BLACK);
 
 #ifdef WIZARD
-    if (travel_colour && testbits(env.map(p).property, FPROP_HIGHLIGHT))
+    if (travel_colour && you.wizard
+        && testbits(env.map(p).property, FPROP_HIGHLIGHT))
+    {
         return (LIGHTGREEN);
+    }
 #endif
 
     dungeon_feature_type grid_value = grd(p);
@@ -962,7 +965,7 @@ void beogh_follower_convert(monsters *monster, bool orc_hit)
     }
 }
 
-static void _handle_seen_interrupt(monsters* monster)
+void handle_seen_interrupt(monsters* monster)
 {
     if (mons_is_unknown_mimic(monster))
         return;
@@ -978,7 +981,7 @@ static void _handle_seen_interrupt(monsters* monster)
     if (!mons_is_safe(monster)
         && !mons_class_flag(monster->type, M_NO_EXP_GAIN))
     {
-        interrupt_activity( AI_SEE_MONSTER, aid );
+        interrupt_activity(AI_SEE_MONSTER, aid);
     }
     seen_monster( monster );
 }
@@ -999,7 +1002,7 @@ void flush_comes_into_view()
         return;
     }
 
-    _handle_seen_interrupt(mon);
+    handle_seen_interrupt(mon);
 }
 
 void handle_monster_shouts(monsters* monster, bool force)
@@ -1179,8 +1182,7 @@ void handle_monster_shouts(monsters* monster, bool force)
         else if (param == "SOUND")
             channel = MSGCH_SOUND;
 
-        // Monster must come up from being submerged if it wants to
-        // shout.
+        // Monster must come up from being submerged if it wants to shout.
         if (mons_is_submerged(monster))
         {
             if (!monster->del_ench(ENCH_SUBMERGED))
@@ -1193,7 +1195,7 @@ void handle_monster_shouts(monsters* monster, bool force)
             {
                 monster->seen_context = "bursts forth shouting";
                 // Give interrupt message before shout message.
-                _handle_seen_interrupt(monster);
+                handle_seen_interrupt(monster);
             }
         }
 
@@ -1204,13 +1206,19 @@ void handle_monster_shouts(monsters* monster, bool force)
 
             // Otherwise it can move away with no feedback.
             if (you.can_see(monster))
+            {
+                if (!(monster->flags & MF_WAS_IN_VIEW))
+                    handle_seen_interrupt(monster);
                 seen_monster(monster);
+            }
         }
     }
 
-    const int noise_level = get_shout_noise_level(s_type);
-    if (noise_level > 0)
-        noisy(noise_level, monster->pos());
+    const int  noise_level = get_shout_noise_level(s_type);
+    const bool heard       = noisy(noise_level, monster->pos());
+
+    if (Options.tutorial_left && (heard || you.can_see(monster)))
+        learned_something_new(TUT_MONSTER_SHOUT, monster->pos());
 }
 
 #ifdef WIZARD
@@ -1262,7 +1270,8 @@ void monster_grid(bool do_updates)
                                || mons_is_wandering(monster))
                 && check_awaken(monster))
             {
-                behaviour_event(monster, ME_ALERT, MHITYOU);
+                behaviour_event(monster, ME_ALERT, MHITYOU, you.pos(), false);
+                handle_monster_shouts(monster);
             }
 
             // [enne] - It's possible that mgrd and monster->x/y are out of
@@ -1319,9 +1328,7 @@ void update_monsters_in_view()
             }
             else if (player_monster_visible(monster))
             {
-                if (!(monster->flags & MF_WAS_IN_VIEW) && you.turn_is_over)
-                    _handle_seen_interrupt(monster);
-
+                handle_seen_interrupt(monster);
                 seen_monster(monster);
             }
             else
@@ -1458,7 +1465,7 @@ static int _get_item_dngn_code(const item_def &item)
 inline static void _update_item_grid(const coord_def &gp, const coord_def &ep)
 {
     const item_def &eitem = mitm[igrd(gp)];
-    unsigned short &ecol = env.show_col(ep);
+    unsigned short &ecol  = env.show_col(ep);
 
     const dungeon_feature_type grid = grd(gp);
     if (Options.feature_item_brand && is_critical_feature(grid))
@@ -1487,11 +1494,12 @@ inline static void _update_item_grid(const coord_def &gp, const coord_def &ep)
 void item_grid()
 {
     const coord_def c(crawl_view.glosc());
+    const coord_def offset(ENV_SHOW_OFFSET, ENV_SHOW_OFFSET);
     for (radius_iterator ri(c, LOS_RADIUS, true, false); ri; ++ri)
     {
         if (igrd(*ri) != NON_ITEM)
         {
-            const coord_def ep = *ri - c + coord_def(9, 9);
+            const coord_def ep = *ri - c + offset;
             if (env.show(ep))
                 _update_item_grid(*ri, ep);
         }
@@ -1617,6 +1625,9 @@ void cloud_grid(void)
 bool noisy(int loudness, const coord_def& where, const char *msg, bool mermaid)
 {
     bool ret = false;
+
+    if (loudness <= 0)
+        return (false);
 
     // If the origin is silenced there is no noise.
     if (silenced(where))
@@ -2850,6 +2861,7 @@ void losight(env_show_grid &sh,
 
         // kill all blocked rays
         const unsigned long* inptr = los_blockrays;
+
         for (int xdiff = 0; xdiff <= LOS_MAX_RANGE_X; ++xdiff)
             for (int ydiff = 0; ydiff <= LOS_MAX_RANGE_Y;
                  ++ydiff, inptr += num_words)
@@ -3466,9 +3478,9 @@ void show_map( coord_def &spec_place, bool travel_mode )
         redraw_map = true;
 
         c_input_reset(true);
-        int key = unmangle_direction_keys(getchm(KC_LEVELMAP), KC_LEVELMAP,
+        int key = unmangle_direction_keys(getchm(KMC_LEVELMAP), KMC_LEVELMAP,
                                           false, false);
-        command_type cmd = key_to_command(key, KC_LEVELMAP);
+        command_type cmd = key_to_command(key, KMC_LEVELMAP);
         if (cmd < CMD_MIN_OVERMAP || cmd > CMD_MAX_OVERMAP)
             cmd = CMD_NO_CMD;
 
@@ -3835,9 +3847,6 @@ bool magic_mapping(int map_radius, int proportion, bool suppress_msg,
         return (false);
     }
 
-    if (!suppress_msg)
-        mpr( "You feel aware of your surroundings." );
-
     if (map_radius > 50 && map_radius != 1000)
         map_radius = 50;
     else if (map_radius < 5)
@@ -3847,8 +3856,10 @@ bool magic_mapping(int map_radius, int proportion, bool suppress_msg,
     const int pfar = (map_radius * 7) / 10;
     const int very_far = (map_radius * 9) / 10;
 
-    const bool wizard_map = map_radius == 1000 && you.wizard;
-    for ( radius_iterator ri(you.pos(), map_radius, true, false); ri; ++ri )
+    const bool wizard_map = (you.wizard && map_radius == 1000);
+
+    bool did_map = false;
+    for (radius_iterator ri(you.pos(), map_radius, true, false); ri; ++ri)
     {
         if (proportion < 100 && random2(100) >= proportion)
             continue;       // note that proportion can be over 100
@@ -3874,7 +3885,7 @@ bool magic_mapping(int map_radius, int proportion, bool suppress_msg,
         }
 #endif
 
-        if (!wizard_map && is_terrain_known(*ri))
+        if (!wizard_map && (is_terrain_known(*ri) || is_terrain_seen(*ri)))
             continue;
 
         bool open = true;
@@ -3882,7 +3893,7 @@ bool magic_mapping(int map_radius, int proportion, bool suppress_msg,
         if (grid_is_solid(grd(*ri)) && grd(*ri) != DNGN_CLOSED_DOOR)
         {
             open = false;
-            for ( adjacent_iterator ai(*ri); ai; ++ai )
+            for (adjacent_iterator ai(*ri); ai; ++ai)
             {
                 if (map_bounds(*ai) && (!grid_is_opaque(grd(*ai))
                                         || grd(*ai) == DNGN_CLOSED_DOOR))
@@ -3893,7 +3904,7 @@ bool magic_mapping(int map_radius, int proportion, bool suppress_msg,
             }
         }
 
-        if (open > 0)
+        if (open)
         {
             if (wizard_map || !get_envmap_obj(*ri))
                 set_envmap_obj(*ri, grd(*ri));
@@ -3902,10 +3913,18 @@ bool magic_mapping(int map_radius, int proportion, bool suppress_msg,
                 set_terrain_seen(*ri);
             else
                 set_terrain_mapped(*ri);
+
+            did_map = true;
         }
     }
 
-    return (true);
+    if (!suppress_msg)
+    {
+        mpr(did_map ? "You feel aware of your surroundings."
+                    : "You feel momentarily disoriented.");
+    }
+
+    return (did_map);
 }
 
 // Realize that this is simply a repackaged version of
@@ -3921,7 +3940,7 @@ bool mons_near(const monsters *monster, unsigned short foe)
         if (crawl_state.arena || crawl_state.arena_suspended)
             return (true);
 
-        if ( grid_distance(monster->pos(), you.pos()) <= LOS_RADIUS )
+        if (grid_distance(monster->pos(), you.pos()) <= LOS_RADIUS)
         {
             const coord_def diff = grid2show(monster->pos());
             if (show_bounds(diff) && env.show(diff))
@@ -3984,8 +4003,8 @@ bool see_grid( const env_show_grid &show,
 bool see_grid( const coord_def &p )
 {
     return ((crawl_state.arena || crawl_state.arena_suspended)
-            && crawl_view.in_grid_los(p))
-        || see_grid(env.show, you.pos(), p);
+                && crawl_view.in_grid_los(p))
+            || see_grid(env.show, you.pos(), p);
 }
 
 // Answers the question: "Would a grid be within character's line of sight,
@@ -4139,7 +4158,7 @@ void init_feature_table( void )
         Feature[i].seen_colour    = BLACK;   // -> no special seen map handling
         Feature[i].seen_em_colour = BLACK;
         Feature[i].em_colour      = BLACK;
-        Feature[i].minimap = MF_UNSEEN;
+        Feature[i].minimap        = MF_UNSEEN;
 
         switch (i)
         {
@@ -4473,9 +4492,6 @@ void init_feature_table( void )
         case DNGN_ENTER_TOMB:
         case DNGN_ENTER_SWAMP:
         case DNGN_ENTER_SHOALS:
-        case DNGN_ENTER_RESERVED_2:
-        case DNGN_ENTER_RESERVED_3:
-        case DNGN_ENTER_RESERVED_4:
             Feature[i].colour      = YELLOW;
             Feature[i].dchar       = DCHAR_STAIRS_DOWN;
             Feature[i].flags      |= FFT_NOTABLE;
@@ -4506,9 +4522,6 @@ void init_feature_table( void )
         case DNGN_RETURN_FROM_TOMB:
         case DNGN_RETURN_FROM_SWAMP:
         case DNGN_RETURN_FROM_SHOALS:
-        case DNGN_RETURN_RESERVED_2:
-        case DNGN_RETURN_RESERVED_3:
-        case DNGN_RETURN_RESERVED_4:
             Feature[i].colour      = YELLOW;
             Feature[i].dchar       = DCHAR_STAIRS_UP;
             Feature[i].map_colour  = GREEN;
@@ -4865,10 +4878,10 @@ std::string screenshot( bool fullscreen )
             const coord_def gc = view2grid(coord_def(count_x, count_y));
 
             int ch =
-                (!map_bounds(gc)) ? 0
-                : (!crawl_view.in_grid_los(gc)) ? get_envmap_char(gc.x, gc.y)
-                : (gc == you.pos()) ? you.symbol
-                : get_screen_glyph(gc.x, gc.y);
+                  (!map_bounds(gc))             ? 0 :
+                  (!crawl_view.in_grid_los(gc)) ? get_envmap_char(gc.x, gc.y) :
+                  (gc == you.pos())             ? you.symbol
+                                                : get_screen_glyph(gc.x, gc.y);
 
             if (ch && !isprint(ch))
             {
@@ -5348,6 +5361,16 @@ void viewwindow(bool draw_it, bool do_updates)
                     buffy[bufcount + 1] =
                         see_grid(gc) ? real_colour(flash_colour)
                                      : DARKGREY;
+                }
+                else if (Options.target_range > 0 && buffy[bufcount]
+                         && (grid_distance(you.pos(), gc) > Options.target_range
+                             || !see_grid(gc)))
+                {
+                    buffy[bufcount + 1] = DARKGREY;
+#ifdef USE_TILE
+                    if (see_grid(gc))
+                        tileb[bufcount + 1] |= TILE_FLAG_OOR;
+#endif
                 }
 
                 bufcount += 2;

@@ -249,7 +249,7 @@ const char* god_gain_power_messages[NUM_GODS][MAX_GOD_ABILITIES] =
       "" },
     // Trog
     { "go berserk at will",
-      "call upon Trog for regeneration",
+      "call upon Trog for regeneration and magic resistance",
       "",
       "call in reinforcements",
       "" },
@@ -260,10 +260,10 @@ const char* god_gain_power_messages[NUM_GODS][MAX_GOD_ABILITIES] =
       "mark four cards in a deck",
       "order the top five cards of a deck, losing the rest" },
     // Elyvilon
-    { "call upon Elyvilon for lesser healing",
-      "call upon Elyvilon for purification",
-      "call upon Elyvilon for greater healing",
-      "call upon Elyvilon to restore your abilities",
+    { "provide lesser healing for yourself and others",
+      "purify yourself",
+      "provide greater healing for yourself and others",
+      "restore your abilities",
       "call upon Elyvilon for divine vigour" },
     // Lugonu
     { "depart the Abyss",
@@ -335,7 +335,7 @@ const char* god_lose_power_messages[NUM_GODS][MAX_GOD_ABILITIES] =
       "" },
     // Trog
     { "go berserk at will",
-      "call upon Trog for regeneration",
+      "call upon Trog for regeneration and magic resistance",
       "",
       "call in reinforcements",
       "" },
@@ -346,10 +346,10 @@ const char* god_lose_power_messages[NUM_GODS][MAX_GOD_ABILITIES] =
       "mark decks",
       "stack decks" },
     // Elyvilon
-    { "call upon Elyvilon for minor healing",
-      "call upon Elyvilon for purification",
-      "call upon Elyvilon for major healing",
-      "call upon Elyvilon to restore your abilities",
+    { "provide lesser healing",
+      "purify yourself",
+      "provide greater healing",
+      "restore your abilities",
       "call upon Elyvilon for divine vigour" },
     // Lugonu
     { "depart the Abyss at will",
@@ -530,7 +530,7 @@ std::string get_god_likes(god_type which_god, bool verbose)
 
     case GOD_BEOGH:
         snprintf(info, INFO_SIZE, "you bless dead orcs%s",
-                 verbose ? " (by standing over their corpses and <w>p</w>raying)" : "");
+                 verbose ? " (by standing over their remains and <w>p</w>raying)" : "");
 
         likes.push_back(info);
         break;
@@ -664,7 +664,7 @@ std::string get_god_likes(god_type which_god, bool verbose)
     switch (which_god)
     {
     case GOD_ZIN:
-        really_likes.push_back("you kill monsters which cause mutation or rotting");
+        really_likes.push_back("you kill chaotic monsters");
         break;
 
     case GOD_YREDELEMNUL:
@@ -725,8 +725,8 @@ std::string get_god_dislikes(god_type which_god, bool /*verbose*/)
         dislikes.push_back("you drink blood");
         dislikes.push_back("you use necromancy");
         dislikes.push_back("you use unholy magic or items");
-        dislikes.push_back("you attack holy beings");
-        dislikes.push_back("you or your allies kill holy beings");
+        dislikes.push_back("you attack non-hostile holy beings");
+        dislikes.push_back("you or your allies kill non-hostile holy beings");
         dislikes.push_back("you attack neutral beings");
     }
 
@@ -784,6 +784,7 @@ std::string get_god_dislikes(god_type which_god, bool /*verbose*/)
         break;
 
     case GOD_BEOGH:
+        dislikes.push_back("you desecrate orcish remains");
         dislikes.push_back("you destroy orcish idols");
         break;
 
@@ -878,6 +879,14 @@ static void _inc_penance(god_type god, int val)
         // Orcish bonuses don't apply under penance.
         if (god == GOD_BEOGH)
             you.redraw_armour_class = true;
+        // Neither does Trog's regeneration or magic resistance.
+        else if (god == GOD_TROG)
+        {
+            if (you.attribute[ATTR_DIVINE_REGENERATION])
+                remove_regen(true);
+
+            _make_god_gifts_disappear(); // only on level
+        }
         // Neither does Zin's divine stamina.
         else if (god == GOD_ZIN)
         {
@@ -2184,10 +2193,11 @@ void pray()
     else if (!_god_accepts_prayer(you.religion))
     {
         simple_god_message(" ignores your prayer.");
+        you.turn_is_over = false;
         return;
     }
 
-    // Beoghites and Nemelexites can abort out now instead of offering
+    // Beoghites and Nemelexites can abort now instead of offering
     // something they don't want to lose.
     if (altar_god == GOD_NO_GOD
         && (you.religion == GOD_BEOGH ||  you.religion == GOD_NEMELEX_XOBEH)
@@ -2445,13 +2455,17 @@ bool did_god_conduct(conduct_type thing_done, int level, bool known,
                                        "just this once.");
                     break;
                 }
-                piety_change = -level;
-                if (known || thing_done == DID_ATTACK_HOLY
-                    && victim->attitude != ATT_HOSTILE)
+
+                if (thing_done == DID_ATTACK_HOLY
+                    && !testbits(victim->flags, MF_CREATED_FRIENDLY)
+                    && !testbits(victim->flags, MF_WAS_NEUTRAL))
                 {
-                    penance = level * ((you.religion == GOD_SHINING_ONE) ? 2
-                                                                         : 1);
+                    break;
                 }
+
+                piety_change = -level;
+                penance = level * ((you.religion == GOD_SHINING_ONE) ? 2
+                                                                     : 1);
                 retval = true;
                 break;
             default:
@@ -2666,7 +2680,9 @@ bool did_god_conduct(conduct_type thing_done, int level, bool known,
                 // Holy gods are easier to please this way
                 if (random2(level + 18 - (is_good_god(you.religion) ? 0 :
                                           you.experience_level / 2)) > 3)
+                {
                     piety_change = 1;
+                }
                 break;
 
             default:
@@ -2730,13 +2746,14 @@ bool did_god_conduct(conduct_type thing_done, int level, bool known,
             case GOD_ZIN:
             case GOD_SHINING_ONE:
             case GOD_ELYVILON:
-                if (testbits(victim->flags, MF_CREATED_FRIENDLY)
-                    || testbits(victim->flags, MF_WAS_NEUTRAL))
+                if (!testbits(victim->flags, MF_CREATED_FRIENDLY)
+                    && !testbits(victim->flags, MF_WAS_NEUTRAL))
                 {
-                    level *= 3;
-                    penance = level;
+                    break;
                 }
-                piety_change = -level;
+
+                penance = level * 3;
+                piety_change = -level * 3;
                 retval = true;
                 break;
 
@@ -2796,13 +2813,14 @@ bool did_god_conduct(conduct_type thing_done, int level, bool known,
             case GOD_ZIN:
             case GOD_SHINING_ONE:
             case GOD_ELYVILON:
-                if (testbits(victim->flags, MF_CREATED_FRIENDLY)
-                    || testbits(victim->flags, MF_WAS_NEUTRAL))
+                if (!testbits(victim->flags, MF_CREATED_FRIENDLY)
+                    && !testbits(victim->flags, MF_WAS_NEUTRAL))
                 {
-                    level *= 3;
-                    penance = level;
+                    break;
                 }
-                piety_change = -level;
+
+                penance = level * 3;
+                piety_change = -level * 3;
                 retval = true;
                 break;
 
@@ -3074,6 +3092,14 @@ bool did_god_conduct(conduct_type thing_done, int level, bool known,
             }
             break;
 
+        case DID_DESECRATE_ORCISH_REMAINS:
+            if (you.religion == GOD_BEOGH)
+            {
+                piety_change = -level;
+                retval = true;
+            }
+            break;
+
         case DID_DESTROY_ORCISH_IDOL:
             if (you.religion == GOD_BEOGH)
             {
@@ -3116,7 +3142,8 @@ bool did_god_conduct(conduct_type thing_done, int level, bool known,
                 "Spell Practise", "Spell Nonutility", "Cards", "Stimulants",
                 "Drink Blood", "Cannibalism", "Eat Meat", "Eat Souled Being",
                 "Deliberate Mutation", "Cause Glowing", "Use Chaos",
-                "Destroy Orcish Idol", "Create Life"
+                "Desecrate Orcish Remains", "Destroy Orcish Idol",
+                "Create Life"
             };
 
             COMPILE_CHECK(ARRAYSZ(conducts) == NUM_CONDUCTS, c1);
@@ -3236,7 +3263,7 @@ static void _dock_piety(int piety_loss, int penance)
                   (piety_loss == 1) ? " a little " :
                   (piety_loss <  5) ? " " :
                   (piety_loss < 10) ? " very "
-                  : " extremely " );
+                                    : " extremely " );
         }
 
         last_piety_lecture = you.num_turns;
@@ -3354,7 +3381,7 @@ void gain_piety(int pgn)
                                make_stringf("You can now %s.", pmsg).c_str());
                 }
 
-                learned_something_new(TUT_NEW_ABILITY);
+                learned_something_new(TUT_NEW_ABILITY_GOD);
             }
 
             if (you.religion == GOD_SHINING_ONE)
@@ -3703,8 +3730,11 @@ bool god_hates_item_handling(const item_def &item)
         break;
     }
 
-    if (god_hates_spellbook(item) || god_hates_rod(item))
+    if (item_type_known(item)
+        && (god_hates_spellbook(item) || god_hates_rod(item)))
+    {
         return (true);
+    }
 
     return (false);
 }
@@ -3837,14 +3867,14 @@ bool god_dislikes_spell_discipline(int discipline, god_type god)
 // Evil weapons are handled specially.
 static bool _destroyed_valuable_weapon(int value, int type)
 {
-    // Artefacts (incl. most randarts).
+    // Artefacts, including most randarts.
     if (random2(value) >= random2(250))
         return (true);
 
-    // Medium valuable items are more likely to net piety at low piety.
-    // This includes missiles in sufficiently large quantities.
-    if (random2(value) >= random2(100)
-        && one_chance_in(1 + you.piety/50))
+    // Medium valuable items are more likely to net piety at low piety,
+    // more so for missiles, since they're worth less as single items.
+    if (random2(value) >= random2((type == OBJ_MISSILES) ? 10 : 100)
+        && one_chance_in(1 + you.piety / 50))
     {
         return (true);
     }
@@ -3853,8 +3883,9 @@ static bool _destroyed_valuable_weapon(int value, int type)
     if (type == OBJ_MISSILES)
         return (false);
 
-    // Weapons, on the other hand, are always acceptable to boost low piety.
-    if (you.piety < 30 || player_under_penance())
+    // Weapons, on the other hand, are always acceptable to boost low
+    // piety.
+    if (you.piety < piety_breakpoint(0) || player_under_penance())
         return (true);
 
     return (false);
@@ -3884,24 +3915,22 @@ bool ely_destroy_weapons()
             continue;
         }
 
-        const int value = item_value( item, true );
+        // item_value() multiplies by quantity.
+        const int value = item_value(item, true) / item.quantity;
 #ifdef DEBUG_DIAGNOSTICS
         mprf(MSGCH_DIAGNOSTICS, "Destroyed weapon value: %d", value);
 #endif
 
         piety_gain_t pgain = PIETY_NONE;
         const bool is_evil_weapon = is_evil_item(item);
+
         if (is_evil_weapon || _destroyed_valuable_weapon(value, item.base_type))
-        {
             pgain = PIETY_SOME;
-            gain_piety(1);
-        }
 
         if (get_weapon_brand(item) == SPWPN_HOLY_WRATH)
         {
             // Weapons blessed by TSO don't get destroyed but are instead
             // returned whence they came. (jpeg)
-//            _print_sacrifice_message(GOD_SHINING_ONE, item, pgain);
             simple_god_message(
                 make_stringf(" %sreclaims %s.",
                              pgain == PIETY_SOME ? "gladly " : "",
@@ -3916,10 +3945,17 @@ bool ely_destroy_weapons()
             if (is_evil_weapon)
             {
                 // Print this is addition to the above!
-                simple_god_message(" welcomes the destruction of this evil "
-                                   "weapon.", GOD_ELYVILON);
+                simple_god_message(
+                    make_stringf(" welcomes the destruction of %s evil "
+                                 "weapon%s.",
+                                 item.quantity == 1 ? "this" : "these",
+                                 item.quantity == 1 ? ""     : "s").c_str(),
+                    GOD_ELYVILON);
             }
         }
+
+        if (pgain == PIETY_SOME)
+            gain_piety(1);
 
         destroy_item(si.link());
         success = true;
@@ -4011,8 +4047,9 @@ bool trog_burn_spellbooks()
             const int duration = std::min(4 + count + random2(rarity/2), 23);
             place_cloud(CLOUD_FIRE, *ri, duration, KC_YOU);
 
-            mpr(count == 1 ? "The book bursts into flames."
-                           : "The books burst into flames.", MSGCH_GOD);
+            mprf(MSGCH_GOD, "The book%s burst%s into flames.",
+                 count == 1 ? ""  : "s",
+                 count == 1 ? "s" : "");
         }
     }
 
@@ -4026,6 +4063,7 @@ bool trog_burn_spellbooks()
          simple_god_message(" is delighted!", GOD_TROG);
          gain_piety(totalpiety);
     }
+
     return (true);
 }
 
@@ -4343,7 +4381,7 @@ static void _ely_dull_inventory_weapons()
 
         simple_god_message(
             make_stringf(" dulls %syour weapons.",
-                         num_dulled > 1 ? "" : "one of ").c_str(),
+                         num_dulled == 1 ? "one of " : "").c_str(),
             GOD_ELYVILON);
     }
 }
@@ -4691,7 +4729,7 @@ static bool _beogh_retribution()
         {
             std::ostringstream msg;
             msg << " throws "
-                << (num_created > 1 ? "implements" : "an implement")
+                << (num_created == 1 ? "an implement" : "implements")
                 << " of " << (am_orc ? "orc slaying" : "electrocution")
                 << " at you.";
             simple_god_message(msg.str().c_str(), god);
@@ -5021,8 +5059,9 @@ static bool _evil_beings_on_level_attitude_change()
             && mons_is_evil_or_unholy(monster))
         {
 #ifdef DEBUG_DIAGNOSTICS
-            mprf(MSGCH_DIAGNOSTICS, "Evil attitude changing: %s on level %d, branch %d",
-                 monster->name(DESC_PLAIN).c_str(),
+            mprf(MSGCH_DIAGNOSTICS, "Evil attitude changing: %s "
+                 "on level %d, branch %d",
+                 monster->name(DESC_PLAIN, true).c_str(),
                  static_cast<int>(you.your_level),
                  static_cast<int>(you.where_are_you));
 #endif
@@ -5376,8 +5415,7 @@ static bool _yred_slaves_abandon_you()
     int num_slaves = 0;
 
     if (you.religion != GOD_YREDELEMNUL)
-        reclaim =
-            apply_to_all_dungeons(_yred_slaves_on_level_abandon_you);
+        reclaim = apply_to_all_dungeons(_yred_slaves_on_level_abandon_you);
     else
     {
         for (radius_iterator ri(you.pos(), 9); ri; ++ri)
@@ -5394,8 +5432,8 @@ static bool _yred_slaves_abandon_you()
                 const int hd = monster->hit_dice;
 
                 // During penance, followers get a saving throw.
-                if (random2((you.piety-you.penance[GOD_YREDELEMNUL])/18) +
-                    random2(you.skills[SK_INVOCATIONS]-6)
+                if (random2((you.piety - you.penance[GOD_YREDELEMNUL])/18)
+                    + random2(you.skills[SK_INVOCATIONS]-6)
                     > random2(hd) + hd + random2(5))
                 {
                     continue;
@@ -5478,8 +5516,8 @@ static bool _beogh_followers_abandon_you()
                     const int hd = monster->hit_dice;
 
                     // During penance, followers get a saving throw.
-                    if (random2((you.piety-you.penance[GOD_BEOGH])/18) +
-                        random2(you.skills[SK_INVOCATIONS]-6)
+                    if (random2((you.piety - you.penance[GOD_BEOGH])/18)
+                        + random2(you.skills[SK_INVOCATIONS]-6)
                         > random2(hd) + hd + random2(5))
                     {
                         continue;
@@ -6181,7 +6219,7 @@ bool god_hates_attacking_friend(god_type god, const actor *fr)
     if (!fr || fr->kill_alignment() != KC_FRIENDLY)
         return (false);
 
-    return god_hates_attacking_friend(god, fr->mons_species());
+    return (god_hates_attacking_friend(god, fr->mons_species()));
 }
 
 bool god_hates_attacking_friend(god_type god, int species)
@@ -6230,11 +6268,10 @@ static bool _god_likes_item(god_type god, const item_def& item)
 
     case GOD_BEOGH:
         return (item.base_type == OBJ_CORPSES
-                   && item.sub_type == CORPSE_BODY
                    && mons_species(item.plus) == MONS_ORC);
 
     case GOD_NEMELEX_XOBEH:
-        return !is_deck(item);
+        return (!is_deck(item));
 
     default:
         return (false);
@@ -6272,7 +6309,8 @@ static void _give_sac_group_feedback(int which)
 static piety_gain_t _sacrifice_one_item_noncount(const item_def& item)
 {
     piety_gain_t relative_piety_gain = PIETY_NONE;
-    // item_value() multiplies by quantity
+
+    // item_value() multiplies by quantity.
     const int value = item_value(item) / item.quantity;
 
     switch (you.religion)
@@ -6286,10 +6324,21 @@ static piety_gain_t _sacrifice_one_item_noncount(const item_def& item)
     {
         const int item_orig = item.orig_monnum - 1;
 
-        if ((item_orig == MONS_SAINT_ROKA && !one_chance_in(5))
-            || (item_orig == MONS_ORC_HIGH_PRIEST && x_chance_in_y(3, 5))
-            || (item_orig == MONS_ORC_PRIEST && x_chance_in_y(2, 5))
-            || one_chance_in(5))
+        int chance = 4;
+
+        if (item_orig == MONS_SAINT_ROKA)
+            chance += 12;
+        else if (item_orig == MONS_ORC_HIGH_PRIEST)
+            chance += 8;
+        else if (item_orig == MONS_ORC_PRIEST)
+            chance += 4;
+
+        if (food_is_rotten(item))
+            chance--;
+        else if (item.sub_type == CORPSE_SKELETON)
+            chance -= 2;
+
+        if (x_chance_in_y(chance, 20))
         {
             gain_piety(1);
             relative_piety_gain = PIETY_SOME;
@@ -6525,7 +6574,7 @@ void offer_items()
         if (you.religion == GOD_SHINING_ONE)
             simple_god_message(" only cares about evil items!");
         else if (you.religion == GOD_BEOGH)
-            simple_god_message(" only cares about orc corpses!");
+            simple_god_message(" only cares about orcish remains!");
         else if (you.religion == GOD_NEMELEX_XOBEH)
             simple_god_message(" expects you to use your decks, not offer them!");
     }
@@ -6604,7 +6653,7 @@ void god_pitch(god_type which_god)
     if (you.religion == GOD_XOM)
     {
         // Xom uses piety and gift_timeout differently.
-        you.piety = (MAX_PIETY / 2);
+        you.piety = HALF_MAX_PIETY;
         you.gift_timeout = random2(40) + random2(40);
     }
     else
@@ -7074,15 +7123,16 @@ bool tso_unchivalric_attack_safe_monster(const monsters *mon)
     const mon_holy_type holiness = mon->holiness();
     return (mons_intel(mon) < I_NORMAL
             || mons_is_evil(mon)
-            || (holiness != MH_NATURAL && holiness != MH_HOLY));
+            || holiness != MH_NATURAL && holiness != MH_HOLY);
 }
 
-int get_tension(god_type god)
+int get_tension(god_type god, bool count_travelling)
 {
     ASSERT(god != GOD_NO_GOD);
 
     int total = 0;
 
+    bool nearby_monster = false;
     for (int midx = 0; midx < MAX_MONSTERS; ++midx)
     {
         const monsters* mons = &menv[midx];
@@ -7091,12 +7141,20 @@ int get_tension(god_type god)
             continue;
 
         if (see_grid(mons->pos()))
-            ; // Monster is nearby.
-        else
+        {
+            // Monster is nearby.
+            if (!nearby_monster && !mons_wont_attack(mons))
+                nearby_monster = true;
+        }
+        else if (count_travelling)
         {
             // Is the monster trying to get somewhere nearby?
             coord_def    target;
             unsigned int travel_size = mons->travel_path.size();
+
+            // If the monster is too far away, it doesn't count.
+            if (travel_size > 3)
+                continue;
 
             if (travel_size > 0)
                 target = mons->travel_path[travel_size - 1];
@@ -7172,6 +7230,11 @@ int get_tension(god_type god)
 
         total += exper;
     }
+
+    // At least one monster has to be nearby, for tension to count.
+    if (!nearby_monster)
+        return (0);
+
     const int scale = 1;
 
     int tension = total;
@@ -7295,10 +7358,10 @@ static void _place_delayed_monsters()
                 msg = replace_all(msg, " @an@", "");
             }
 
-            if (placed > 1)
-                msg = replace_all(msg, "@s@", "s");
-            else
+            if (placed == 1)
                 msg = replace_all(msg, "@s@", "");
+            else
+                msg = replace_all(msg, "@s@", "s");
 
             prev_god = GOD_NO_GOD;
             _delayed_done_trigger_pos.pop_front();
@@ -7313,7 +7376,7 @@ static void _place_delayed_monsters()
                 continue;
             }
 
-            // Fake it coming from simple_god_message().
+            // Fake its coming from simple_god_message().
             if (msg[0] == ' ' || msg[0] == '\'')
                 msg = god_name(mg.god) + msg;
 

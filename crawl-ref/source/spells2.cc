@@ -248,7 +248,7 @@ void corpse_rot()
 
 bool brand_weapon(brand_type which_brand, int power)
 {
-    if ( !you.weapon() )
+    if (!you.weapon())
         return (false);
 
     const bool temp_brand = you.duration[DUR_WEAPON_BRAND];
@@ -385,10 +385,9 @@ bool restore_stat(unsigned char which_stat, unsigned char stat_gain,
     if (which_stat == STAT_ALL)
     {
         for (unsigned char loopy = STAT_STRENGTH; loopy < NUM_STATS; ++loopy)
-        {
             if (restore_stat(loopy, stat_gain, suppress_msg))
                 stat_restored = true;
-        }
+
         return (stat_restored);                // early return {dlb}
     }
 
@@ -674,7 +673,7 @@ void drain_life(int pow)
 
     int hp_gain = 0;
 
-    for (int i = 0; i < MAX_MONSTERS; i++)
+    for (int i = 0; i < MAX_MONSTERS; ++i)
     {
         monsters* monster = &menv[i];
 
@@ -781,8 +780,7 @@ bool vampiric_drain(int pow, const dist &vmove)
 
         if (hp_gain)
         {
-            mprf("You feel life coursing from %s into your body!",
-                 monster->name(DESC_NOCAP_THE).c_str());
+            mpr("You feel life coursing into your body.");
             inc_hp(hp_gain, false);
         }
     }
@@ -1058,10 +1056,9 @@ bool cast_sticks_to_snakes(int pow, god_type god)
             || wpn.sub_type == WPN_BLOWGUN))
     {
         // Upsizing Snakes to Brown Snakes as the base class for using
-        // the really big sticks (so bonus applies really only to trolls,
-        // ogres, and most importantly ogre magi).  Still it's unlikely
-        // any character is strong enough to bother lugging a few of
-        // these around.  -- bwr
+        // the really big sticks (so bonus applies really only to trolls
+        // and ogres).  Still, it's unlikely any character is strong
+        // enough to bother lugging a few of these around. - bwr
 
         if (item_mass(wpn) < 300)
             mon = MONS_SNAKE;
@@ -1100,7 +1097,6 @@ bool cast_sticks_to_snakes(int pow, god_type god)
         mprf("You create %s snake%s!",
              count > 1 ? "some" : "a",
              count > 1 ? "s" : "");
-
         return (true);
     }
 
@@ -1259,7 +1255,7 @@ bool cast_summon_elemental(int pow, god_type god,
 
     while (true)
     {
-        mpr("Summon from material in which direction?", MSGCH_PROMPT);
+        mpr("Summon from material in which direction? ", MSGCH_PROMPT);
 
         direction(smove, DIR_DIR, TARG_ANY);
 
@@ -1483,7 +1479,7 @@ bool summon_berserker(int pow, god_type god, int spell,
     else if (pow <= 180)
     {
         // trolls
-        switch(random2(8))
+        switch (random2(8))
         {
         case 0:
             mon = MONS_DEEP_TROLL;
@@ -1590,8 +1586,7 @@ bool summon_holy_warrior(int pow, god_type god, int spell,
                                       !force_hostile, quiet);
 }
 
-bool cast_tukimas_dance(int pow, god_type god,
-                        bool force_hostile)
+bool cast_tukimas_dance(int pow, god_type god, bool force_hostile)
 {
     bool success = true;
 
@@ -1614,10 +1609,12 @@ bool cast_tukimas_dance(int pow, god_type god,
     if (i == NON_ITEM)
         success = false;
     else if (success)
+    {
         // Copy item now so that mitm[i] is occupied and doesn't get picked
         // by get_item_slot() when giving the dancing weapon its item
         // during create_monster().
         mitm[i] = you.inv[wpn];
+    }
 
     int monster;
 

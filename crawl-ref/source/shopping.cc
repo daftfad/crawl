@@ -105,13 +105,12 @@ static void _list_shop_keys(const std::string &purchasable, bool viewing)
                 + (viewing ? "Examine" : "Buy");
     }
     snprintf(buf, sizeof buf,
+            "[<w>x</w>/<w>Esc</w>"
 #ifdef USE_TILE
-            "[<w>x</w>/<w>Esc</w>/<w>R-Click</w>] Exit"
-#else
-            "[<w>x</w>/<w>Esc</w>] Exit"
+            "/<w>R-Click</w>"
 #endif
-            "       [<w>!</w>] %s  %s",
-            (viewing ? "Select Items " : "Examine Items"),
+            "] exit            [<w>!</w>] %s   %s",
+            (viewing ? "to select items " : "to examine items"),
             pkeys.c_str());
 
     formatted_string fs = formatted_string::parse_string(buf);
@@ -120,13 +119,13 @@ static void _list_shop_keys(const std::string &purchasable, bool viewing)
     cgotoxy(1, numlines, GOTO_CRT);
 
     fs = formatted_string::parse_string(
+            "[<w>Enter</w>"
 #ifdef USE_TILE
-            "[<w>?</w>/<w>*</w>]           Inventory  [<w>\\</w>] Known Items    "
-            "[<w>Enter</w>/<w>L-Click</w>] Make Purchase");
-#else
-            "[<w>?</w>/<w>*</w>]   Inventory  [<w>\\</w>] Known Items    "
-            "[<w>Enter</w>] Make Purchase");
+            "/<w>L-Click</w>"
 #endif
+            "] make purchase   [<w>\\</w>] list known items   "
+            "[<w>?</w>/<w>*</w>] inventory");
+
     fs.cprintf("%*s", get_number_of_cols() - fs.length() - 1, "");
     fs.display();
 }
@@ -292,30 +291,30 @@ static bool _in_a_shop( int shopidx )
 
         if (!total_cost)
         {
-            snprintf( info, INFO_SIZE, "You have %d gold piece%s.", you.gold,
-                      you.gold > 1 ? "s" : "" );
+            snprintf(info, INFO_SIZE, "You have %d gold piece%s.", you.gold,
+                     you.gold != 1 ? "s" : "");
 
             textcolor(YELLOW);
         }
         else if (total_cost > you.gold)
         {
-            snprintf( info, INFO_SIZE, "You now have %d gold piece%s. "
-                            "You are short %d gold piece%s for the purchase.",
-                      you.gold,
-                      you.gold > 1 ? "s" : "",
-                      total_cost - you.gold,
-                      (total_cost - you.gold > 1) ? "s" : "" );
+            snprintf(info, INFO_SIZE, "You now have %d gold piece%s. "
+                           "You are short %d gold piece%s for the purchase.",
+                     you.gold,
+                     you.gold != 1 ? "s" : "",
+                     total_cost - you.gold,
+                     (total_cost - you.gold != 1) ? "s" : "");
 
             textcolor(LIGHTRED);
         }
         else
         {
-            snprintf( info, INFO_SIZE, "You now have %d gold piece%s. "
-                      "After the purchase, you will have %d gold piece%s.",
-                      you.gold,
-                      you.gold > 1 ? "s" : "",
-                      you.gold - total_cost,
-                      (you.gold - total_cost > 1) ? "s" : "" );
+            snprintf(info, INFO_SIZE, "You now have %d gold piece%s. "
+                     "After the purchase, you will have %d gold piece%s.",
+                     you.gold,
+                     you.gold != 1 ? "s" : "",
+                     you.gold - total_cost,
+                     (you.gold - total_cost != 1) ? "s" : "");
 
             textcolor(YELLOW);
         }
@@ -808,7 +807,7 @@ unsigned int item_value( item_def item, bool ident )
 
         if (item_type_known(item))
         {
-            switch (get_weapon_brand( item ))
+            switch (get_weapon_brand(item))
             {
             case SPWPN_NORMAL:
             default:            // randart
@@ -865,7 +864,6 @@ unsigned int item_value( item_def item, bool ident )
             valued /= 10;
         }
 
-        // elf/dwarf
         if (get_equip_race(item) == ISFLAG_ELVEN
             || get_equip_race(item) == ISFLAG_DWARVEN)
         {
@@ -873,14 +871,13 @@ unsigned int item_value( item_def item, bool ident )
             valued /= 10;
         }
 
-        // value was "6" but comment read "orc", so I went with comment {dlb}
         if (get_equip_race(item) == ISFLAG_ORCISH)
         {
             valued *= 8;
             valued /= 10;
         }
 
-        if (item_ident( item, ISFLAG_KNOW_PLUSES ))
+        if (item_ident(item, ISFLAG_KNOW_PLUSES))
         {
             if (item.plus >= 0)
             {
@@ -903,7 +900,6 @@ unsigned int item_value( item_def item, bool ident )
 
                 if (valued < 1)
                     valued = 1;
-                //break;
             }
 
             if (item.plus2 < 0)
@@ -916,10 +912,10 @@ unsigned int item_value( item_def item, bool ident )
             }
         }
 
-        if (is_random_artefact( item ))
+        if (is_random_artefact(item))
         {
             if (item_type_known(item))
-                valued += (7 * randart_value( item ));
+                valued += (7 * randart_value(item));
             else
                 valued += 50;
         }
@@ -941,7 +937,6 @@ unsigned int item_value( item_def item, bool ident )
         {
         case MI_DART:
         case MI_STONE:
-        case MI_LARGE_ROCK:
         case MI_NONE:
             valued++;
             break;
@@ -949,6 +944,9 @@ unsigned int item_value( item_def item, bool ident )
         case MI_ARROW:
         case MI_BOLT:
             valued += 2;
+            break;
+        case MI_LARGE_ROCK:
+            valued += 7;
             break;
         case MI_JAVELIN:
             valued += 8;
@@ -963,7 +961,7 @@ unsigned int item_value( item_def item, bool ident )
 
         if (item_type_known(item))
         {
-            switch (get_ammo_brand( item ))
+            switch (get_ammo_brand(item))
             {
             case SPMSL_NORMAL:
             default:
@@ -1008,7 +1006,7 @@ unsigned int item_value( item_def item, bool ident )
             valued /= 10;
         }
 
-        if (item_ident( item, ISFLAG_KNOW_PLUSES ))
+        if (item_ident(item, ISFLAG_KNOW_PLUSES))
         {
             if (item.plus >= 0)
                 valued += (item.plus * 2);

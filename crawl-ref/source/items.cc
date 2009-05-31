@@ -114,7 +114,7 @@ void link_items(void)
     {
         // Don't mess with monster held items, since the index of the holding
         // monster is stored in the link field.
-        if (held_by_monster(mitm[i]))
+        if (mitm[i].held_by_monster())
             continue;
 
         if (!is_valid_item(mitm[i]))
@@ -154,7 +154,7 @@ static int _cull_items(void)
 
     // XXX: Not the prettiest of messages, but the player
     // deserves to know whenever this kicks in. -- bwr
-    mpr( "Too many items on level, removing some.", MSGCH_WARN );
+    mpr("Too many items on level, removing some.", MSGCH_WARN);
 
     // Rules:
     //  1. Don't cleanup anything nearby the player
@@ -170,12 +170,12 @@ static int _cull_items(void)
 
     // 2. Avoid shops by avoiding (0,5..9).
     // 3. Avoid monster inventory by iterating over the dungeon grid.
-    for ( rectangle_iterator ri(1); ri; ++ri )
+    for (rectangle_iterator ri(1); ri; ++ri)
     {
-        if ( grid_distance( you.pos(), *ri ) <= 9 )
+        if (grid_distance( you.pos(), *ri ) <= 9)
             continue;
 
-        for ( stack_iterator si(*ri); si; ++si )
+        for (stack_iterator si(*ri); si; ++si)
         {
             if (_item_ok_to_clean(si->index()) && x_chance_in_y(15, 100))
             {
@@ -260,7 +260,7 @@ bool dec_inv_item_quantity( int obj, int amount, bool suppress_burden )
         you.inv[obj].quantity -= amount;
     }
 
-    if ( !suppress_burden )
+    if (!suppress_burden)
         burden_change();
 
     return (ret);
@@ -301,7 +301,7 @@ void inc_inv_item_quantity( int obj, int amount, bool suppress_burden )
     you.m_quiver->on_inv_quantity_changed(obj, amount);
     you.inv[obj].quantity += amount;
 
-    if ( !suppress_burden )
+    if (!suppress_burden)
         burden_change();
 }
 
@@ -368,7 +368,7 @@ void unlink_item( int dest )
     if (dest == NON_ITEM || !is_valid_item( mitm[dest] ))
         return;
 
-    monsters* monster = holding_monster(mitm[dest]);
+    monsters* monster = mitm[dest].holding_monster();
 
     if (monster != NULL)
     {
@@ -490,7 +490,7 @@ void unlink_item( int dest )
         mpr("BUG WARNING: Item didn't seem to be linked at all.",
             MSGCH_ERROR);
 #endif
-}                               // end unlink_item()
+}
 
 void destroy_item( item_def &item, bool never_created )
 {
@@ -576,7 +576,7 @@ void item_was_destroyed(const item_def &item, int cause)
 
 void lose_item_stack( const coord_def& where )
 {
-    for ( stack_iterator si(where); si; ++si )
+    for (stack_iterator si(where); si; ++si)
     {
         if (is_valid_item( *si )) // FIXME is this check necessary?
         {
@@ -589,7 +589,7 @@ void lose_item_stack( const coord_def& where )
 
 void destroy_item_stack( int x, int y, int cause )
 {
-    for ( stack_iterator si(coord_def(x,y)); si; ++si )
+    for (stack_iterator si(coord_def(x,y)); si; ++si)
     {
         if (is_valid_item( *si )) // FIXME is this check necessary?
         {
@@ -609,7 +609,7 @@ static int _count_nonsquelched_items( int obj )
 {
     int result = 0;
 
-    for ( stack_iterator si(obj); si; ++si )
+    for (stack_iterator si(obj); si; ++si)
         if (!_invisible_to_player(*si))
             ++result;
 
@@ -628,10 +628,10 @@ void item_list_on_square( std::vector<const item_def*>& items,
                                     || _count_nonsquelched_items(obj));
 
     // Loop through the items.
-    for ( stack_iterator si(obj); si; ++si )
+    for (stack_iterator si(obj); si; ++si)
     {
         // Add them to the items list if they qualify.
-        if ( !have_nonsquelched || !_invisible_to_player(*si) )
+        if (!have_nonsquelched || !_invisible_to_player(*si))
             items.push_back( & (*si) );
     }
 }
@@ -704,7 +704,7 @@ int item_name_specialness(const item_def& item)
     // You can tell something is an artefact, because it'll have a
     // description which rules out anything else.
     // XXX: Fixedarts and unrandarts might upset the apple-cart, though.
-    if ( is_artefact(item) )
+    if (is_artefact(item))
         return 2;
 
     return 0;
@@ -731,8 +731,7 @@ void item_check(bool verbose)
     if (items.size() == 1 )
     {
         item_def it(*items[0]);
-        std::string name = get_message_colour_tags(it, DESC_NOCAP_A,
-                                                   MSGCH_FLOOR_ITEMS);
+        std::string name = get_menu_colour_prefix_tags(it, DESC_NOCAP_A);
         strm << "You see here " << name << '.' << std::endl;
         return;
     }
@@ -787,8 +786,7 @@ void item_check(bool verbose)
         for (unsigned int i = 0; i < items.size(); ++i)
         {
             item_def it(*items[i]);
-            std::string name = get_message_colour_tags(it, DESC_NOCAP_A,
-                                                       MSGCH_FLOOR_ITEMS);
+            std::string name = get_menu_colour_prefix_tags(it, DESC_NOCAP_A);
             strm << name << std::endl;
         }
     }
@@ -1239,7 +1237,7 @@ void pickup()
         int next;
         mpr("There are several objects here.");
         std::string pickup_warning;
-        while ( o != NON_ITEM )
+        while (o != NON_ITEM)
         {
             // Must save this because pickup can destroy the item.
             next = mitm[o].link;
@@ -1256,11 +1254,11 @@ void pickup()
 #ifdef USE_TILE
                                      "Left-click to enter menu, or press "
 #endif
-                                     "y/n/a/*?g,/q)";
+                                     "y/n/a/*?g,/q/o)";
 
                 mprf(MSGCH_PROMPT, prompt.c_str(),
-                     get_message_colour_tags(mitm[o], DESC_NOCAP_A,
-                                             MSGCH_PROMPT).c_str());
+                     get_menu_colour_prefix_tags(mitm[o],
+                                                 DESC_NOCAP_A).c_str());
 
                 mouse_control mc(MOUSE_MODE_MORE);
                 keyin = getch();
@@ -1273,7 +1271,7 @@ void pickup()
                 break;
             }
 
-            if (keyin == 'q' || keyin == ESCAPE)
+            if (keyin == 'q' || keyin == ESCAPE || keyin == 'o')
                 break;
 
             if (keyin == 'y' || keyin == 'a')
@@ -1299,8 +1297,11 @@ void pickup()
 
         if (!pickup_warning.empty())
             mpr(pickup_warning.c_str());
+
+        if (keyin == 'o')
+            start_explore(Options.explore_greedy);
     }
-}                               // end pickup()
+}
 
 bool is_stackable_item( const item_def &item )
 {
@@ -1519,7 +1520,7 @@ int move_item_to_player( int obj, int quant_got, bool quiet,
     {
         mpr("You cannot pick up the net that holds you!");
         // Fake a successful pickup (return 1), so we can continue to pick up
-        // anything that might be on this square.
+        // anything else that might be on this square.
         return (1);
     }
 
@@ -1615,8 +1616,10 @@ int move_item_to_player( int obj, int quant_got, bool quiet,
                 _got_item(mitm[obj], quant_got);
 
                 if (!quiet)
-                    mpr( you.inv[m].name(DESC_INVENTORY).c_str() );
-
+                {
+                    mpr(get_menu_colour_prefix_tags(you.inv[m],
+                                                    DESC_INVENTORY).c_str());
+                }
                 you.turn_is_over = true;
 
                 return (retval);
@@ -1624,7 +1627,7 @@ int move_item_to_player( int obj, int quant_got, bool quiet,
         }
     }
 
-    // can't combine, check for slot space
+    // Can't combine, check for slot space.
     if (inv_count() >= ENDOFPACK)
         return (-1);
 
@@ -1681,8 +1684,10 @@ int move_item_to_player( int obj, int quant_got, bool quiet,
     burden_change();
 
     if (!quiet)
-        mpr( you.inv[freeslot].name(DESC_INVENTORY).c_str() );
-
+    {
+        mpr(get_menu_colour_prefix_tags(you.inv[freeslot],
+                                        DESC_INVENTORY).c_str());
+    }
     if (Options.tutorial_left)
     {
         taken_new_item(item.base_type);
@@ -1710,7 +1715,7 @@ int move_item_to_player( int obj, int quant_got, bool quiet,
     you.turn_is_over = true;
 
     return (retval);
-}                               // end move_item_to_player()
+}
 
 void mark_items_non_pickup_at(const coord_def &pos)
 {
@@ -1893,7 +1898,7 @@ bool copy_item_to_grid( const item_def &item, const coord_def& p,
     }
 
     return (true);
-}                               // end copy_item_to_grid()
+}
 
 
 //---------------------------------------------------------------
@@ -1978,7 +1983,7 @@ bool drop_item( int item_dropped, int quant_drop, bool try_offer )
     if (item_dropped == you.equip[EQ_WEAPON]
         && quant_drop >= you.inv[item_dropped].quantity)
     {
-        if (!unwield_item())
+        if (!wield_weapon(true, PROMPT_GOT_SPECIAL))
             return (false);
         canned_msg( MSG_EMPTY_HANDED );
     }
@@ -1998,7 +2003,7 @@ bool drop_item( int item_dropped, int quant_drop, bool try_offer )
 
     if (grid_destroys_items(my_grid))
     {
-        if ( !silenced(you.pos()) )
+        if (!silenced(you.pos()))
             mprf(MSGCH_SOUND, grid_item_destruction_message(my_grid));
 
         item_was_destroyed(you.inv[item_dropped], NON_MONSTER);
@@ -2193,14 +2198,14 @@ void drop()
         // EVIL HACK: Fix item quantity to match the quantity we will drop,
         // in order to prevent misleading messages when dropping
         // 15 of 25 arrows inscribed with {!d}.
-        if ( si.quantity && si.quantity != item_quant )
+        if (si.quantity && si.quantity != item_quant)
             const_cast<item_def*>(si.item)->quantity = si.quantity;
 
         // Check if we can add it to the multidrop list.
         bool warning_ok = check_warning_inscriptions(*(si.item), OPER_DROP);
 
         // Restore the item quantity if we mangled it.
-        if ( item_quant != si.item->quantity )
+        if (item_quant != si.item->quantity)
             const_cast<item_def*>(si.item)->quantity = item_quant;
 
         if (warning_ok)
@@ -2229,16 +2234,16 @@ static void _autoinscribe_item( item_def& item )
 {
     // If there's an inscription already, do nothing - except
     // for automatically generated inscriptions
-    if ( !item.inscription.empty() && item.inscription != "god gift")
+    if (!item.inscription.empty() && item.inscription != "god gift")
         return;
     const std::string old_inscription = item.inscription;
     item.inscription.clear();
 
     std::string iname = _autopickup_item_name(item);
 
-    for ( unsigned i = 0; i < Options.autoinscriptions.size(); ++i )
+    for (unsigned i = 0; i < Options.autoinscriptions.size(); ++i)
     {
-        if ( Options.autoinscriptions[i].first.matches(iname) )
+        if (Options.autoinscriptions[i].first.matches(iname))
         {
             // Don't autoinscribe dropped items on ground with
             // "=g".  If the item matches a rule which adds "=g",
@@ -2254,9 +2259,9 @@ static void _autoinscribe_item( item_def& item )
             item.inscription += str;
         }
     }
-    if ( !old_inscription.empty() )
+    if (!old_inscription.empty())
     {
-        if ( item.inscription.empty() )
+        if (item.inscription.empty())
             item.inscription = old_inscription;
         else
             item.inscription = old_inscription + ", " + item.inscription;
@@ -2265,7 +2270,7 @@ static void _autoinscribe_item( item_def& item )
 
 static void _autoinscribe_floor_items()
 {
-    for ( stack_iterator si(you.pos()); si; ++si )
+    for (stack_iterator si(you.pos()); si; ++si)
         _autoinscribe_item( *si );
 }
 
@@ -2345,7 +2350,7 @@ bool can_autopickup()
     // [ds] Checking for autopickups == 0 is a bad idea because
     // autopickup is still possible with inscriptions and
     // pickup_thrown.
-    if (!Options.autopickup_on)
+    if (Options.autopickup_on <= 0)
         return (false);
 
     if (you.flight_mode() == FL_LEVITATE)
@@ -2457,8 +2462,8 @@ item_def *find_floor_item(object_class_type cls, int sub_type)
 {
     for (int y = 0; y < GYM; ++y)
         for (int x = 0; x < GXM; ++x)
-            for ( stack_iterator si(coord_def(x,y)); si; ++si )
-                if (is_valid_item( *si)
+            for (stack_iterator si(coord_def(x,y)); si; ++si)
+                if (is_valid_item(*si)
                     && si->base_type == cls && si->sub_type == sub_type)
                 {
                     return (& (*si));
@@ -2685,4 +2690,27 @@ int item_def::armour_rating() const
         return (0);
 
     return (property(*this, PARM_AC) + plus);
+}
+
+monsters* item_def::holding_monster() const
+{
+    if (!pos.equals(-2, -2))
+        return (NULL);
+    const int midx = link - NON_ITEM - 1;
+    if (invalid_monster_index(midx))
+        return (NULL);
+
+    return (&menv[midx]);
+}
+
+void item_def::set_holding_monster(int midx)
+{
+    ASSERT(midx != NON_MONSTER);
+    pos.set(-2, -2);
+    link = NON_ITEM + 1 + midx;
+}
+
+bool item_def::held_by_monster() const
+{
+    return (pos.equals(-2, -2) && !invalid_monster_index(link - NON_ITEM - 1));
 }

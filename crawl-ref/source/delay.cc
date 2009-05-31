@@ -13,6 +13,7 @@ REVISION("$Rev$");
 #include <stdio.h>
 #include <string.h>
 
+#include "abl-show.h"
 #include "clua.h"
 #include "command.h"
 #include "database.h"
@@ -359,7 +360,7 @@ void stop_delay( bool stop_stair_travel )
         bool butcher_swap_setup  = false;
         int  butcher_swap_weapon = 0;
 
-        for (unsigned int i = 1; i < you.delay_queue.size(); i++)
+        for (unsigned int i = 1; i < you.delay_queue.size(); ++i)
         {
             if (you.delay_queue[i].type == DELAY_BUTCHER
                 || you.delay_queue[i].type == DELAY_BOTTLE_BLOOD
@@ -408,26 +409,26 @@ void stop_delay( bool stop_stair_travel )
             if (!i_feel_safe())
                 handle_interrupted_swap(false, true);
         }
-
         break;
     }
     case DELAY_MEMORISE:
         // Losing work here is okay... having to start from
         // scratch is a reasonable behaviour. -- bwr
-        mpr( "Your memorisation is interrupted." );
+        mpr("Your memorisation is interrupted.");
         _pop_delay();
         break;
 
     case DELAY_MULTIDROP:
         // No work lost
         if (!items_for_multidrop.empty())
-            mpr( "You stop dropping stuff." );
+            mpr("You stop dropping stuff.");
         _pop_delay();
         break;
 
     case DELAY_RECITE:
         mprf(MSGCH_PLAIN, "You stop %s.",
-             _get_recite_speech("other", you.num_turns + delay.duration).c_str());
+             _get_recite_speech("other",
+                                you.num_turns + delay.duration).c_str());
         _pop_delay();
         break;
 
@@ -465,16 +466,22 @@ void stop_delay( bool stop_stair_travel )
     case DELAY_FEED_VAMPIRE:
     {
         mpr("You stop draining the corpse.");
+
+        did_god_conduct(DID_DRINK_BLOOD, 8);
+
         _xom_check_corpse_waste();
 
-        item_def &corpse = (delay.parm1 ? you.inv[delay.parm2]
-                                        : mitm[delay.parm2]);
+        item_def &item = (delay.parm1 ? you.inv[delay.parm2]
+                                      : mitm[delay.parm2]);
+
+        const bool was_orc = (mons_species(item.plus) == MONS_ORC);
 
         mpr("All blood oozes out of the corpse!");
-        bleed_onto_floor(you.pos(), corpse.plus, delay.duration, false);
 
-        if (mons_skeleton(corpse.plus) && one_chance_in(3))
-            turn_corpse_into_skeleton(corpse);
+        bleed_onto_floor(you.pos(), item.plus, delay.duration, false);
+
+        if (mons_skeleton(item.plus) && one_chance_in(3))
+            turn_corpse_into_skeleton(item);
         else
         {
             if (delay.parm1)
@@ -483,12 +490,15 @@ void stop_delay( bool stop_stair_travel )
                 dec_mitm_item_quantity(delay.parm2, 1);
         }
 
-        did_god_conduct(DID_DRINK_BLOOD, 8);
+        if (was_orc)
+            did_god_conduct(DID_DESECRATE_ORCISH_REMAINS, 2);
+
         delay.duration = 0;
         _pop_delay();
         handle_delay();
         return;
     }
+
     case DELAY_ARMOUR_ON:
     case DELAY_ARMOUR_OFF:
         // These two have the default action of not being interruptible,
@@ -504,14 +514,14 @@ void stop_delay( bool stop_stair_travel )
 
     case DELAY_ASCENDING_STAIRS:  // short... and probably what people want
     case DELAY_DESCENDING_STAIRS: // short... and probably what people want
-         if (stop_stair_travel)
-         {
-             mprf("You stop %s the stairs.",
-                  delay.type == DELAY_ASCENDING_STAIRS ? "ascending"
-                                                       : "descending");
-             _pop_delay();
-         }
-         break;
+        if (stop_stair_travel)
+        {
+            mprf("You stop %s the stairs.",
+                 delay.type == DELAY_ASCENDING_STAIRS ? "ascending"
+                                                      : "descending");
+            _pop_delay();
+        }
+        break;
 
     case DELAY_WEAPON_SWAP:       // one turn... too much trouble
     case DELAY_DROP_ITEM:         // one turn... only used for easy armour drops
@@ -537,11 +547,21 @@ void stop_butcher_delay()
         stop_delay();
 }
 
+void maybe_clear_weapon_swap()
+{
+    if (transformation_can_wield(static_cast<transformation_type>(
+                                    you.attribute[ATTR_TRANSFORMATION])))
+    {
+        you.attribute[ATTR_WEAPON_SWAP_INTERRUPTED] = 0;
+    }
+}
+
 void handle_interrupted_swap(bool swap_if_safe, bool force_unsafe,
                              bool transform)
 {
     if (!you.attribute[ATTR_WEAPON_SWAP_INTERRUPTED]
-        || !you_tran_can_wear(EQ_WEAPON) || you.cannot_act())
+        || !you_tran_can_wear(EQ_WEAPON) || you.cannot_act()
+        || you.duration[DUR_BERSERKER])
     {
         return;
     }
@@ -582,7 +602,8 @@ void handle_interrupted_swap(bool swap_if_safe, bool force_unsafe,
         // Turn is over, set up a delay to do swapping next turn.
         if (prompt && yesno(prompt_str, true, 'n') || safe && swap_if_safe)
         {
-            start_delay(DELAY_WEAPON_SWAP, 1, weap);
+            if (weap == -1 || check_warning_inscriptions(you.inv[weap], OPER_WIELD))
+                start_delay(DELAY_WEAPON_SWAP, 1, weap);
             you.attribute[ATTR_WEAPON_SWAP_INTERRUPTED] = 0;
         }
         return;
@@ -594,7 +615,8 @@ void handle_interrupted_swap(bool swap_if_safe, bool force_unsafe,
         if (_is_butcher_delay(delay)
             && (safe || prompt && yesno(prompt_str, true, 'n')))
         {
-            start_delay(DELAY_WEAPON_SWAP, 1, weap);
+            if (weap == -1 || check_warning_inscriptions(you.inv[weap], OPER_WIELD))
+                start_delay(DELAY_WEAPON_SWAP, 1, weap);
             you.attribute[ATTR_WEAPON_SWAP_INTERRUPTED] = 0;
         }
         return;
@@ -610,9 +632,11 @@ void handle_interrupted_swap(bool swap_if_safe, bool force_unsafe,
         return;
     }
 
-    weapon_switch(weap);
-    print_stats();
-
+    if (weap == -1 || check_warning_inscriptions(you.inv[weap], OPER_WIELD))
+    {
+        weapon_switch(weap);
+        print_stats();
+    }
     you.attribute[ATTR_WEAPON_SWAP_INTERRUPTED] = 0;
 }
 
@@ -637,7 +661,7 @@ bool is_being_butchered(const item_def &item, bool just_first)
     if (!you_are_delayed())
         return (false);
 
-    for (unsigned int i = 0; i < you.delay_queue.size(); i++)
+    for (unsigned int i = 0; i < you.delay_queue.size(); ++i)
     {
         if (you.delay_queue[i].type == DELAY_BUTCHER
             || you.delay_queue[i].type == DELAY_BOTTLE_BLOOD
@@ -666,6 +690,16 @@ bool is_vampire_feeding()
     return (delay.type == DELAY_FEED_VAMPIRE);
 }
 
+bool player_stair_delay()
+{
+    if (!you_are_delayed())
+        return (false);
+
+    const delay_queue_item &delay = you.delay_queue.front();
+    return (delay.type == DELAY_ASCENDING_STAIRS
+            || delay.type == DELAY_DESCENDING_STAIRS);
+}
+
 // Check whether there are monsters who might be influenced by Recite.
 // Returns 0, if no monsters found
 // Returns 1, if eligible audience found
@@ -674,7 +708,7 @@ int check_recital_audience()
 {
     bool found_monsters = false;
 
-    for ( radius_iterator ri(you.pos(), 8); ri; ++ri )
+    for (radius_iterator ri(you.pos(), 8); ri; ++ri)
     {
         monsters* mons = monster_at(*ri);
         if (mons == NULL)
@@ -795,8 +829,7 @@ void handle_delay( void )
     if (delay.type == DELAY_FEED_VAMPIRE)
     {
         if (you.hunger_state == HS_ENGORGED
-            || you.hunger_state > HS_SATIATED
-               && you.attribute[ATTR_TRANSFORMATION] == TRAN_BAT)
+            || you.hunger_state > HS_SATIATED && player_in_bat_form())
         {
             // Messages handled in _food_change() in food.cc.
             stop_delay();
@@ -851,7 +884,14 @@ void handle_delay( void )
                     // Only give the rotting message if the corpse wasn't
                     // previously rotten. (special < 100 is the rottenness check).
                     if (delay.parm2 >= 100)
+                    {
                         mpr("The corpse rots.", MSGCH_ROTTEN_MEAT);
+                        if (you.is_undead != US_UNDEAD
+                            && player_mutation_level(MUT_SAPROVOROUS) < 3)
+                        {
+                            _xom_check_corpse_waste();
+                        }
+                    }
 
                     if (delay.type == DELAY_OFFER_CORPSE)
                     {
@@ -865,11 +905,6 @@ void handle_delay( void )
 
                     delay.parm2 = 99; // Don't give the message twice.
 
-                    if (you.is_undead != US_UNDEAD
-                        && player_mutation_level(MUT_SAPROVOROUS) < 3)
-                    {
-                        _xom_check_corpse_waste();
-                    }
                     // Vampires won't continue bottling rotting corpses.
                     if (delay.type == DELAY_BOTTLE_BLOOD)
                     {
@@ -950,19 +985,22 @@ void handle_delay( void )
         // fun with valgrind.
         delay.duration--;
 
-        switch ( delay.type )
+        switch (delay.type)
         {
         case DELAY_ARMOUR_ON:
             mprf(MSGCH_MULTITURN_ACTION, "You continue putting on %s.",
                  you.inv[delay.parm1].name(DESC_NOCAP_YOUR).c_str());
             break;
+
         case DELAY_ARMOUR_OFF:
             mprf(MSGCH_MULTITURN_ACTION, "You continue taking off %s.",
                  you.inv[delay.parm1].name(DESC_NOCAP_YOUR).c_str());
             break;
+
         case DELAY_BUTCHER:
             mprf(MSGCH_MULTITURN_ACTION, "You continue butchering the corpse.");
             break;
+
         case DELAY_BOTTLE_BLOOD:
             mprf(MSGCH_MULTITURN_ACTION, "You continue bottling blood from "
                                          "the corpse.");
@@ -979,26 +1017,30 @@ void handle_delay( void )
         case DELAY_MEMORISE:
             mpr("You continue memorising.", MSGCH_MULTITURN_ACTION);
             break;
+
         case DELAY_PASSWALL:
             mpr("You continue meditating on the rock.",
                 MSGCH_MULTITURN_ACTION);
             break;
+
         case DELAY_RECITE:
             mprf(MSGCH_MULTITURN_ACTION, "You continue %s.",
                  _get_recite_speech("other", you.num_turns + delay.duration+1).c_str());
-
             if (apply_area_visible(_recite_to_monsters, delay.parm1))
                 viewwindow(true, false);
             break;
+
         case DELAY_MULTIDROP:
-            drop_item( items_for_multidrop[0].slot,
-                       items_for_multidrop[0].quantity,
-                       items_for_multidrop.size() == 1 );
-            items_for_multidrop.erase( items_for_multidrop.begin() );
+            drop_item(items_for_multidrop[0].slot,
+                      items_for_multidrop[0].quantity,
+                      items_for_multidrop.size() == 1);
+            items_for_multidrop.erase(items_for_multidrop.begin());
             break;
+
         case DELAY_EAT:
             mpr("You continue eating.", MSGCH_MULTITURN_ACTION);
             break;
+
         case DELAY_FEED_VAMPIRE:
         {
             item_def &corpse = (delay.parm1 ? you.inv[delay.parm2]
@@ -1014,14 +1056,13 @@ void handle_delay( void )
             vampire_nutrition_per_turn(corpse, 0);
             break;
         }
+
         default:
             break;
         }
     }
     else
-    {
         _finish_delay(delay);
-    }
 }
 
 static void _finish_delay(const delay_queue_item &delay)
@@ -1033,7 +1074,7 @@ static void _finish_delay(const delay_queue_item &delay)
         break;
 
     case DELAY_JEWELLERY_ON:
-        puton_ring(delay.parm1, false);
+        puton_ring(delay.parm1);
         break;
 
     case DELAY_ARMOUR_ON:
@@ -1088,15 +1129,18 @@ static void _finish_delay(const delay_queue_item &delay)
     case DELAY_FEED_VAMPIRE:
     {
         mprf("You finish drinking.");
+
         did_god_conduct(DID_DRINK_BLOOD, 8);
 
-        item_def &corpse = (delay.parm1 ? you.inv[delay.parm2]
-                                        : mitm[delay.parm2]);
+        item_def &item = (delay.parm1 ? you.inv[delay.parm2]
+                                      : mitm[delay.parm2]);
 
-        vampire_nutrition_per_turn(corpse, 1);
+        const bool was_orc = (mons_species(item.plus) == MONS_ORC);
 
-        if (mons_skeleton(corpse.plus) && one_chance_in(3))
-            turn_corpse_into_skeleton(corpse);
+        vampire_nutrition_per_turn(item, 1);
+
+        if (mons_skeleton(item.plus) && one_chance_in(3))
+            turn_corpse_into_skeleton(item);
         else
         {
             if (delay.parm1)
@@ -1104,11 +1148,14 @@ static void _finish_delay(const delay_queue_item &delay)
             else
                 dec_mitm_item_quantity(delay.parm2, 1);
         }
+
+        if (was_orc)
+            did_god_conduct(DID_DESECRATE_ORCISH_REMAINS, 2);
         break;
     }
     case DELAY_MEMORISE:
-        mpr( "You finish memorising." );
-        add_spell_to_memory( static_cast<spell_type>( delay.parm1 ) );
+        mpr("You finish memorising.");
+        add_spell_to_memory(static_cast<spell_type>(delay.parm1));
         break;
 
     case DELAY_RECITE:
@@ -1118,7 +1165,7 @@ static void _finish_delay(const delay_queue_item &delay)
 
     case DELAY_PASSWALL:
     {
-        mpr( "You finish merging with the rock." );
+        mpr("You finish merging with the rock.");
         more();  // or the above message won't be seen
 
         const coord_def pass(delay.parm1, delay.parm2);
@@ -1143,7 +1190,7 @@ static void _finish_delay(const delay_queue_item &delay)
             if (m)
             {
                 // One square, a few squares, anywhere...
-                if (!shift_monster(m) && !monster_blink(m))
+                if (!shift_monster(m) && !monster_blink(m, true))
                     monster_teleport(m, true, true);
             }
 
@@ -1161,7 +1208,7 @@ static void _finish_delay(const delay_queue_item &delay)
     case DELAY_BUTCHER:
     case DELAY_BOTTLE_BLOOD:
     {
-        const item_def &item = mitm[delay.parm1];
+        item_def &item = mitm[delay.parm1];
         if (is_valid_item(item) && item.base_type == OBJ_CORPSES)
         {
             if (item.sub_type == CORPSE_SKELETON)
@@ -1183,12 +1230,15 @@ static void _finish_delay(const delay_queue_item &delay)
             {
                 mpr("You finish bottling this corpse's blood.");
 
-                item_def &corpse = mitm[delay.parm1];
+                const bool was_orc = (mons_species(item.plus) == MONS_ORC);
 
-                if (mons_skeleton(corpse.plus) && one_chance_in(3))
-                    turn_corpse_into_skeleton_and_blood_potions(corpse);
+                if (mons_skeleton(item.plus) && one_chance_in(3))
+                    turn_corpse_into_skeleton_and_blood_potions(item);
                 else
-                    turn_corpse_into_blood_potions(corpse);
+                    turn_corpse_into_blood_potions(item);
+
+                if (was_orc)
+                    did_god_conduct(DID_DESECRATE_ORCISH_REMAINS, 2);
             }
             else
             {
@@ -1221,12 +1271,12 @@ static void _finish_delay(const delay_queue_item &delay)
                     mpr("What a waste.");
                 }
 
-                item_def &corpse = mitm[delay.parm1];
+                const bool was_orc = (mons_species(item.plus) == MONS_ORC);
 
-                if (mons_skeleton(corpse.plus) && one_chance_in(3))
-                    turn_corpse_into_skeleton_and_chunks(corpse);
+                if (mons_skeleton(item.plus) && one_chance_in(3))
+                    turn_corpse_into_skeleton_and_chunks(item);
                 else
-                    turn_corpse_into_chunks(corpse);
+                    turn_corpse_into_chunks(item);
 
                 if (you.duration[DUR_BERSERKER]
                     && you.berserk_penalty != NO_BERSERK_PENALTY)
@@ -1234,23 +1284,34 @@ static void _finish_delay(const delay_queue_item &delay)
                     mpr("You enjoyed that.");
                     you.berserk_penalty = 0;
                 }
+
+                if (was_orc)
+                    did_god_conduct(DID_DESECRATE_ORCISH_REMAINS, 2);
             }
 
             // Don't autopickup chunks/potions if there's still another
             // delay (usually more corpses to butcher or a weapon-swap)
             // waiting to happen.
+            // Also, don't waste time picking up chunks if you're already
+            // starving. (jpeg)
             if ((Options.chunks_autopickup
                     || delay.type == DELAY_BOTTLE_BLOOD)
                 && you.delay_queue.size() == 1)
             {
-                autopickup();
+                if (you.hunger_state > HS_STARVING || you.species == SP_VAMPIRE)
+                    autopickup();
             }
 
             // If we were interrupted while butchering (by poisoning, for
             // example) then resumed butchering and finished, swap back from
             // butchering tool if appropriate.
-            if (you.delay_queue.size() == 1)
+            // Again, not if starving. (jpeg)
+            if (you.delay_queue.size() == 1
+                && (you.hunger_state > HS_STARVING
+                    || you.species == SP_VAMPIRE))
+            {
                 handle_interrupted_swap(true);
+            }
         }
         else
         {
@@ -1339,7 +1400,7 @@ static void _finish_delay(const delay_queue_item &delay)
         break;
 
     default:
-        mpr( "You finish doing something." );
+        mpr("You finish doing something.");
         break;
     }
 
@@ -1357,6 +1418,8 @@ static void _finish_delay(const delay_queue_item &delay)
 
 void armour_wear_effects(const int item_slot)
 {
+    const unsigned int old_talents = your_talents(false).size();
+
     item_def &arm = you.inv[item_slot];
 
     const bool was_known = item_type_known(arm);
@@ -1371,7 +1434,7 @@ void armour_wear_effects(const int item_slot)
 
     if (!was_known)
     {
-        if (Options.autoinscribe_randarts && is_random_artefact( arm ))
+        if (Options.autoinscribe_randarts && is_random_artefact(arm))
             add_autoinscription( arm, randart_auto_inscription(arm));
     }
     if (!melded)
@@ -1383,7 +1446,7 @@ void armour_wear_effects(const int item_slot)
 
         if (you.duration[DUR_ICY_ARMOUR] != 0)
         {
-            mpr( "Your icy armour melts away.", MSGCH_DURATION );
+            mpr("Your icy armour melts away.", MSGCH_DURATION);
             you.redraw_armour_class = true;
             you.duration[DUR_ICY_ARMOUR] = 0;
         }
@@ -1501,27 +1564,39 @@ void armour_wear_effects(const int item_slot)
         }
     }
 
-    if (is_random_artefact( arm ))
-        use_randart( arm, melded );
+    if (is_random_artefact(arm))
+        use_randart(arm, melded);
 
-    if (item_cursed( arm ) && !melded)
+    if (item_cursed(arm) && !melded)
     {
-        mpr( "Oops, that feels deathly cold." );
+        mpr("Oops, that feels deathly cold.");
         learned_something_new(TUT_YOU_CURSED);
 
-        // Cursed cloaks prevent you from removing body armour
-        int cloak_mult = 1;
-        if (get_armour_slot(arm) == EQ_CLOAK)
-            cloak_mult = 2;
+        if (!known_cursed)
+        {
+            int amusement = 64;
 
-        if (known_cursed)
-            xom_is_stimulated(32 * cloak_mult);
-        else
-            xom_is_stimulated(64 * cloak_mult);
+            // Cursed cloaks prevent you from removing body armour.
+            // Cursed gloves prevent switching of rings.
+            if (get_armour_slot(arm) == EQ_CLOAK
+                || get_armour_slot(arm) == EQ_GLOVES)
+            {
+                amusement *= 2;
+            }
+
+            god_type god;
+            if (origin_is_god_gift(arm, &god) && god == GOD_XOM)
+                amusement *= 2;
+
+            xom_is_stimulated(amusement);
+        }
     }
 
     if (eq_slot == EQ_SHIELD)
         warn_shield_penalties();
+
+    if (Options.tutorial_left && your_talents(false).size() > old_talents)
+        learned_something_new(TUT_NEW_ABILITY_ITEM);
 
     you.redraw_armour_class = true;
     you.redraw_evasion = true;
@@ -1732,11 +1807,8 @@ static bool _should_stop_activity(const delay_queue_item &item,
 
     delay_type curr = current_delay_action();
 
-    if (ai == AI_SEE_MONSTER && (curr == DELAY_ASCENDING_STAIRS
-                                 || curr == DELAY_DESCENDING_STAIRS))
-    {
+    if (ai == AI_SEE_MONSTER && player_stair_delay())
         return (false);
-    }
 
     if (ai == AI_FULL_HP || ai == AI_FULL_MP)
     {
@@ -1780,10 +1852,7 @@ inline static bool _monster_warning(activity_interrupt_type ai,
             if (need_auto_exclude(mon) && !is_exclude_root(mon->pos()))
                 toggle_exclude(mon->pos());
 
-            std::string text = mon->name(DESC_CAP_A);
-            // For named monsters also mention the base type.
-            if (!(mon->mname).empty() && mon->type != MONS_PLAYER_GHOST)
-                text += " the " + mon->name(DESC_BASENAME);
+            std::string text = mon->full_name(DESC_CAP_A);
 
             if (starts_with(at.context, "open"))
                 text += " " + at.context;
@@ -1816,8 +1885,10 @@ inline static bool _monster_warning(activity_interrupt_type ai,
             else if (at.context.find("leaps out") != std::string::npos)
             {
                 if (mon->type == MONS_TRAPDOOR_SPIDER)
+                {
                     text += " leaps out from its hiding place under the "
                             "floor!";
+                }
                 else
                     text += " leaps out from hiding!";
             }
@@ -1845,6 +1916,33 @@ inline static bool _monster_warning(activity_interrupt_type ai,
     return (false);
 }
 
+// Turns autopickup off if we ran into an invisible monster or saw a monster
+// turn invisible.
+// Turns autopickup on if we saw an invisible monster become visible or
+// killed an invisible monster.
+void autotoggle_autopickup(bool off)
+{
+    if (off)
+    {
+        if (Options.autopickup_on > 0)
+        {
+            Options.autopickup_on = -1;
+            mprf(MSGCH_WARN,
+                "Deactivating autopickup; reactivate with <w>Ctrl+A</w>.");
+        }
+        if (Options.tutorial_left)
+        {
+            learned_something_new(TUT_INVISIBLE_DANGER);
+            Options.tut_seen_invisible = you.num_turns;
+        }
+    }
+    else if (Options.autopickup_on < 0) // was turned off automatically
+    {
+        Options.autopickup_on = 1;
+        mprf(MSGCH_WARN, "Reactivating autopickup.");
+    }
+}
+
 static bool _paranoid_option_disable( activity_interrupt_type ai,
                                       const activity_interrupt_data &at )
 {
@@ -1852,34 +1950,7 @@ static bool _paranoid_option_disable( activity_interrupt_type ai,
     {
         const monsters* mon = static_cast<const monsters*>(at.data);
         if (mon && !player_monster_visible(mon) && !mons_is_submerged(mon))
-        {
-            // Now that autoprayer has been removed the vectors aren't
-            // really needed anymore, but let's keep them "just in case".
-            std::vector<std::string> deactivatees;
-            std::vector<std::string> restart;
-
-            if (Options.autopickup_on)
-            {
-                deactivatees.push_back("autopickup");
-                Options.autopickup_on = false;
-                restart.push_back("Ctrl+A");
-            }
-
-            if (!deactivatees.empty())
-            {
-                mprf(MSGCH_WARN, "Deactivating %s; reactivate with %s.",
-                      comma_separated_line(deactivatees.begin(),
-                                           deactivatees.end()).c_str(),
-                      comma_separated_line(restart.begin(),
-                                           restart.end()).c_str());
-            }
-
-            if (Options.tutorial_left)
-            {
-                learned_something_new(TUT_INVISIBLE_DANGER);
-                Options.tut_seen_invisible = you.num_turns;
-            }
-        }
+            autotoggle_autopickup(true);
         return (true);
     }
     return (false);
@@ -1920,8 +1991,8 @@ bool interrupt_activity( activity_interrupt_type ai,
 
     if (_should_stop_activity(item, ai, at))
     {
-        // no monster will attack you inside a sanctuary,
-        // so presence of monsters won't matter
+        // No monster will attack you inside a sanctuary,
+        // so presence of monsters won't matter.
         if (is_sanctuary(you.pos()))
             return (false);
 
@@ -1949,9 +2020,8 @@ bool interrupt_activity( activity_interrupt_type ai,
             {
                 if (is_run_delay( you.delay_queue[j].type ))
                 {
-                    was_monst =
-                        _monster_warning(ai, at, you.delay_queue[j].type)
-                        || was_monst;
+                    was_monst = was_monst ||
+                            _monster_warning(ai, at, you.delay_queue[j].type);
 
                     stop_delay(ai == AI_TELEPORT);
                     if (was_monst)

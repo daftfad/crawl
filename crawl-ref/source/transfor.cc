@@ -17,6 +17,7 @@ REVISION("$Rev$");
 #include "externs.h"
 
 #include "delay.h"
+#include "invent.h"
 #include "it_use2.h"
 #include "item_use.h"
 #include "itemprop.h"
@@ -26,8 +27,10 @@ REVISION("$Rev$");
 #include "player.h"
 #include "randart.h"
 #include "skills2.h"
+#include "state.h"
 #include "stuff.h"
 #include "traps.h"
+#include "xom.h"
 
 static void _extra_hp(int amount_extra);
 
@@ -153,7 +156,7 @@ static void _unwear_equipment_slot(equipment_type eqslot)
 }
 
 static void _remove_equipment(const std::set<equipment_type>& removed,
-                              bool meld = true)
+                              bool meld = true, bool mutation = false)
 {
     // Meld items into you in (reverse) order. (std::set is a sorted container)
     std::set<equipment_type>::const_iterator iter;
@@ -166,13 +169,24 @@ static void _remove_equipment(const std::set<equipment_type>& removed,
 
         bool unequip = (e == EQ_WEAPON || !meld);
 
-        mprf("%s %s", equip->name(DESC_CAP_YOUR).c_str(),
-             (unequip ? "falls away!" : "melds into your body."));
+        mprf("%s %s%s %s", equip->name(DESC_CAP_YOUR).c_str(),
+             unequip ? "fall" : "meld",
+             equip->quantity > 1 ? "" : "s",
+             unequip ? "away!" : "into your body.");
 
         _unwear_equipment_slot(e);
 
         if (unequip)
+        {
             you.equip[e] = -1;
+
+            if (mutation)
+            {
+                // A mutation made us not only lose an equipment slot
+                // but actually removed a worn item: Funny!
+                xom_is_stimulated(is_artefact(*equip) ? 255 : 128);
+            }
+        }
     }
 }
 
@@ -261,11 +275,11 @@ void unmeld_one_equip(equipment_type eq)
     _unmeld_equipment(e);
 }
 
-void remove_one_equip(equipment_type eq, bool meld)
+void remove_one_equip(equipment_type eq, bool meld, bool mutation)
 {
     std::set<equipment_type> r;
     r.insert(eq);
-    _remove_equipment(r, meld);
+    _remove_equipment(r, meld, mutation);
 }
 
 static bool _tran_may_meld_cursed(int transformation)
@@ -356,7 +370,7 @@ bool check_transformation_stat_loss(const std::set<equipment_type> &remove,
         return (true);
     }
 
-    // Check over all items to be removed.
+    // Check over all items to be removed or melded.
     std::set<equipment_type>::const_iterator iter;
     for (iter = remove.begin(); iter != remove.end(); ++iter)
     {
@@ -366,15 +380,14 @@ bool check_transformation_stat_loss(const std::set<equipment_type> &remove,
 
         const item_def& item = you.inv[you.equip[e]];
 
-        // Wielding a stat-boosting non-weapon/non-staff won't hinder
-        // transformations.
+        // There are no stat-boosting non-weapons/non-staves.
         if (e == EQ_WEAPON
             && item.base_type != OBJ_WEAPONS && item.base_type != OBJ_STAVES)
         {
             continue;
         }
 
-        // Currently, the only nonartefacts which have stat-changing
+        // Currently, the only non-artefacts which have stat-changing
         // effects are rings.
         if (item.base_type == OBJ_JEWELLERY)
         {
@@ -417,6 +430,34 @@ bool check_transformation_stat_loss(const std::set<equipment_type> &remove,
     return (false);
 }
 
+// Returns true if the player got prompted by an inscription warning and
+// chose to opt out.
+bool _check_transformation_inscription_warning(
+            const std::set<equipment_type> &remove)
+{
+    // Check over all items to be removed or melded.
+    std::set<equipment_type>::const_iterator iter;
+    for (iter = remove.begin(); iter != remove.end(); ++iter)
+    {
+        equipment_type e = *iter;
+        if (you.equip[e] == -1)
+            continue;
+
+        const item_def& item = you.inv[you.equip[e]];
+
+        operation_types op = OPER_WEAR;
+        if (e == EQ_WEAPON)
+            op = OPER_WIELD;
+        else if (item.base_type == OBJ_JEWELLERY)
+            op = OPER_PUTON;
+
+        if (!check_old_item_warning(item, op))
+            return (true);
+    }
+
+    return (false);
+}
+
 // FIXME: Switch to 4.1 transforms handling.
 size_type transform_size(int psize)
 {
@@ -442,7 +483,7 @@ size_type player::transform_size(int psize) const
     }
 }
 
-static void _transformation_expiration_warning()
+void transformation_expiration_warning()
 {
     if (you.duration[DUR_TRANSFORMATION]
             <= get_expiration_threshold(DUR_TRANSFORMATION))
@@ -451,10 +492,26 @@ static void _transformation_expiration_warning()
     }
 }
 
-// Transforms you into the specified form. If quiet is true, fails silently
-// (if it fails).
-bool transform(int pow, transformation_type which_trans, bool quiet)
+static bool _abort_or_fizzle(bool just_check)
 {
+    if (!just_check && you.turn_is_over)
+    {
+        canned_msg(MSG_SPELL_FIZZLES);
+        return (true); // pay the necessary costs
+    }
+    return (false); // SPRET_ABORT
+}
+
+// Transforms you into the specified form. If force is true, checks for
+// inscription warnings are skipped, and the transformation fails silently
+// (if it fails). If just_check is true the transformation doesn't actually
+// happen, but the method returns whether it would be successful.
+bool transform(int pow, transformation_type which_trans, bool force,
+               bool just_check)
+{
+    if (!force && crawl_state.is_god_acting())
+        force = true;
+
     if (you.species == SP_MERFOLK && player_is_swimming()
         && which_trans != TRAN_DRAGON && which_trans != TRAN_BAT)
     {
@@ -464,7 +521,7 @@ bool transform(int pow, transformation_type which_trans, bool quiet)
         // form is completely over-riding any other... goes well with
         // the forced transform when entering water)... but merfolk can
         // transform into flying forms.
-        if (!quiet)
+        if (!force)
             mpr("You cannot transform out of your normal form while in water.");
         return (false);
     }
@@ -475,6 +532,9 @@ bool transform(int pow, transformation_type which_trans, bool quiet)
     {
         if (you.duration[DUR_TRANSFORMATION] < 100)
         {
+            if (just_check)
+                return (true);
+            
             if (which_trans==TRAN_PIG)
                 mpr("You feel you'll be a pig longer.");
             else
@@ -488,39 +548,56 @@ bool transform(int pow, transformation_type which_trans, bool quiet)
         }
         else
         {
-            if (!quiet && which_trans!=TRAN_PIG)
+            if (!force && which_trans!=TRAN_PIG)
                 mpr("You cannot extend your transformation any further!");
             return (false);
         }
     }
 
-    if (you.attribute[ATTR_TRANSFORMATION] != TRAN_NONE)
-        untransform();
+    // The actual transformation may still fail later (e.g. due to cursed
+    // equipment). Ideally, untransforming should cost a turn but nothing
+    // else (as does the "End Transformation" ability). As it is, you
+    // pay with mana and hunger if you already untransformed.
+    if (!just_check && you.attribute[ATTR_TRANSFORMATION] != TRAN_NONE)
+    {
+        bool skip_wielding = false;
+        switch (which_trans)
+        {
+        case TRAN_STATUE:
+        case TRAN_LICH:
+            break;
+        default:
+            skip_wielding = true;
+            break;
+        }
+        // Skip wielding weapon if it gets unwielded again right away.
+        untransform(skip_wielding);
+    }
 
     // Catch some conditions which prevent transformation.
     if (you.is_undead
         && (you.species != SP_VAMPIRE
             || which_trans != TRAN_BAT && you.hunger_state <= HS_SATIATED))
     {
-        if (!quiet)
+        if (!force)
             mpr("Your unliving flesh cannot be transformed in this way.");
-        return (false);
+        return (_abort_or_fizzle(just_check));
     }
 
     if (which_trans == TRAN_LICH && you.duration[DUR_DEATHS_DOOR])
     {
-        if (!quiet)
+        if (!force)
         {
             mpr("The transformation conflicts with an enchantment "
                 "already in effect.");
         }
-        return (false);
+        return (_abort_or_fizzle(just_check));
     }
 
     std::set<equipment_type> rem_stuff = _init_equipment_removal(which_trans);
 
-    if (_check_for_cursed_equipment(rem_stuff, which_trans, quiet) && which_trans!=TRAN_PIG)
-        return (false);
+    if (_check_for_cursed_equipment(rem_stuff, which_trans, force) && which_trans!=TRAN_PIG)
+        return (_abort_or_fizzle(just_check));
 
     int str = 0, dex = 0, symbol = '@', colour = LIGHTGREY, xhp = 0, dur = 0;
     const char* tran_name = "buggy";
@@ -575,7 +652,7 @@ bool transform(int pow, transformation_type which_trans, bool quiet)
         if (you.species == SP_MERFOLK && player_is_swimming())
         {
             msg = "You fly out of the water as you turn into "
-                "a fearsome dragon!";
+                  "a fearsome dragon!";
         }
         else
             msg = "You turn into a fearsome dragon!";
@@ -616,7 +693,7 @@ bool transform(int pow, transformation_type which_trans, bool quiet)
         break;
     }
 
-    if (check_transformation_stat_loss(rem_stuff, quiet || which_trans == TRAN_PIG,
+    if (check_transformation_stat_loss(rem_stuff, force || which_trans == TRAN_PIG,
                                        std::max(-str, 0), std::max(-dex,0)))
     {   // would have died to stat loss
         if (which_trans == TRAN_PIG)
@@ -625,13 +702,20 @@ bool transform(int pow, transformation_type which_trans, bool quiet)
             if (you.duration[DUR_PARALYSIS]<10)
                 you.duration[DUR_PARALYSIS]=10;
         }
-        return (false);
+        return (_abort_or_fizzle(just_check));
     }
 
+    // If we're just pretending return now.
+    if (just_check)
+        return (true);
+
+    if (!force && _check_transformation_inscription_warning(rem_stuff))
+        return (_abort_or_fizzle(just_check));
+
     // All checks done, transformation will take place now.
-    you.redraw_evasion = true;
+    you.redraw_evasion      = true;
     you.redraw_armour_class = true;
-    you.wield_change = true;
+    you.wield_change        = true;
 
     // Most transformations conflict with stone skin.
     if (which_trans != TRAN_NONE
@@ -713,8 +797,13 @@ bool transform(int pow, transformation_type which_trans, bool quiet)
         break;
     }
 
+    // This only has an effect if the transformation happens passively,
+    // for example if Xom decides to transform you while you're busy
+    // running around or butchering corpses.
+    stop_delay();
+
     if (you.species != SP_VAMPIRE || which_trans != TRAN_BAT)
-        _transformation_expiration_warning();
+        transformation_expiration_warning();
 
     return (true);
 }
@@ -724,13 +813,13 @@ bool transform_can_butcher_barehanded(transformation_type tt)
     return (tt == TRAN_BLADE_HANDS || tt == TRAN_DRAGON);
 }
 
-void untransform(void)
+void untransform(bool skip_wielding)
 {
     const flight_type old_flight = you.flight_mode();
 
-    you.redraw_evasion = true;
+    you.redraw_evasion      = true;
     you.redraw_armour_class = true;
-    you.wield_change = true;
+    you.wield_change        = true;
 
     you.symbol = '@';
     you.colour = LIGHTGREY;
@@ -743,7 +832,7 @@ void untransform(void)
     std::set<equipment_type> melded = _init_equipment_removal(old_form);
 
     you.attribute[ATTR_TRANSFORMATION] = TRAN_NONE;
-    you.duration[DUR_TRANSFORMATION] = 0;
+    you.duration[DUR_TRANSFORMATION]   = 0;
 
     int hp_downscale = 10;
 
@@ -784,7 +873,6 @@ void untransform(void)
             you.duration[DUR_STONESKIN] = 1;
 
         hp_downscale = 15;
-
         break;
 
     case TRAN_ICE_BEAST:
@@ -796,7 +884,6 @@ void untransform(void)
             you.duration[DUR_ICY_ARMOUR] = 1;
 
         hp_downscale = 12;
-
         break;
 
     case TRAN_DRAGON:
@@ -855,7 +942,10 @@ void untransform(void)
     }
     calc_hp();
 
-    handle_interrupted_swap(true, false, true);
+    if (!skip_wielding)
+        handle_interrupted_swap(true, false, true);
+
+    you.turn_is_over = true;
 }
 
 // XXX: This whole system is a mess as it still relies on special

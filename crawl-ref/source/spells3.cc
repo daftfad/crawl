@@ -283,25 +283,42 @@ int airstrike(int power, dist &beam)
 
 bool cast_bone_shards(int power, bolt &beam)
 {
+    if (!you.weapon() || you.weapon()->base_type != OBJ_CORPSES)
+    {
+        canned_msg(MSG_SPELL_FIZZLES);
+        return (false);
+    }
+
     bool success = false;
 
-    if (!you.weapon() || you.weapon()->base_type != OBJ_CORPSES)
-        canned_msg(MSG_SPELL_FIZZLES);
-    else if (you.weapon()->sub_type != CORPSE_SKELETON)
-        mpr("The corpse collapses into a mass of pulpy flesh.");
+    const bool was_orc = (mons_species(you.weapon()->plus) == MONS_ORC);
+
+    if (you.weapon()->sub_type != CORPSE_SKELETON)
+    {
+        mpr("The corpse collapses into a pulpy mess.");
+
+        dec_inv_item_quantity(you.equip[EQ_WEAPON], 1);
+
+        if (was_orc)
+            did_god_conduct(DID_DESECRATE_ORCISH_REMAINS, 2);
+    }
     else
     {
         // Practical max of 100 * 15 + 3000 = 4500.
         // Actual max of    200 * 15 + 3000 = 6000.
         power *= 15;
-        power += mons_weight( you.weapon()->plus );
+        power += mons_weight(you.weapon()->plus);
 
         if (!player_tracer(ZAP_BONE_SHARDS, power, beam))
             return (false);
 
         mpr("The skeleton explodes into sharp fragments of bone!");
 
-        dec_inv_item_quantity( you.equip[EQ_WEAPON], 1 );
+        dec_inv_item_quantity(you.equip[EQ_WEAPON], 1);
+
+        if (was_orc)
+            did_god_conduct(DID_DESECRATE_ORCISH_REMAINS, 2);
+
         zapping(ZAP_BONE_SHARDS, power, beam);
 
         success = true;
@@ -328,6 +345,9 @@ bool cast_sublimation_of_blood(int pow)
             inc_mp(7 + random2(7), false);
 
             dec_inv_item_quantity(wielded, 1);
+
+            if (mons_species(you.inv[wielded].plus) == MONS_ORC)
+                did_god_conduct(DID_DESECRATE_ORCISH_REMAINS, 2);
         }
         else if (is_blood_potion(you.inv[wielded]))
         {
@@ -349,8 +369,8 @@ bool cast_sublimation_of_blood(int pow)
     {
         if (you.duration[DUR_DEATHS_DOOR])
         {
-            mpr( "A conflicting enchantment prevents the spell from "
-                 "coming into effect." );
+            mpr("A conflicting enchantment prevents the spell from "
+                "coming into effect.");
         }
         else if (you.species == SP_VAMPIRE && you.hunger_state <= HS_SATIATED)
         {
@@ -555,6 +575,7 @@ bool cast_shadow_creatures(god_type god)
     }
 
     player_angers_monster(&menv[monster]);
+
     return (true);
 }
 
@@ -563,7 +584,7 @@ bool cast_summon_horrible_things(int pow, god_type god)
     if (one_chance_in(3)
         && !lose_stat(STAT_INTELLIGENCE, 1, true, "summoning horrible things"))
     {
-        mpr("Your call goes unanswered.");
+        canned_msg(MSG_NOTHING_HAPPENS);
         return (false);
     }
 
@@ -587,41 +608,44 @@ bool cast_summon_horrible_things(int pow, god_type god)
 
     while (how_many_big > 0)
     {
-        if (create_monster(
+        const int monster =
+            create_monster(
                mgen_data(MONS_TENTACLED_MONSTROSITY, BEH_FRIENDLY,
                          6, SPELL_SUMMON_HORRIBLE_THINGS,
                          you.pos(), MHITYOU,
-                         0, god)) != -1)
+                         MG_FORCE_BEH, god));
+
+        if (monster != -1)
         {
             count++;
-        }
+            how_many_big--;
 
-        how_many_big--;
+            player_angers_monster(&menv[monster]);
+        }
     }
 
     while (how_many_small > 0)
     {
-        if (create_monster(
+        const int monster =
+            create_monster(
                mgen_data(MONS_ABOMINATION_LARGE, BEH_FRIENDLY,
                          6, SPELL_SUMMON_HORRIBLE_THINGS,
                          you.pos(), MHITYOU,
-                         0, god)) != -1)
+                         MG_FORCE_BEH, god));
+
+        if (monster != -1)
         {
             count++;
+            how_many_small--;
+
+            player_angers_monster(&menv[monster]);
         }
-
-        how_many_small--;
     }
 
-    if (count > 0)
-    {
-        mprf("Some thing%s answered your call!",
-             count > 1 ? "s" : "");
-        return (true);
-    }
+    if (count == 0)
+        canned_msg(MSG_NOTHING_HAPPENS);
 
-    mpr("Your call goes unanswered.");
-    return (false);
+    return (count > 0);
 }
 
 static bool _animatable_remains(const item_def& item)
@@ -901,7 +925,11 @@ int animate_remains(const coord_def &a, corpse_type class_allowed,
             {
                 // Ignore quiet.
                 if (was_butchering)
-                    mpr("The corpse you are butchering rises to attack!");
+                {
+                    mprf("The corpse you are butchering rises to %s!",
+                         beha == BEH_FRIENDLY ? "join your ranks"
+                                              : "attack");
+                }
 
                 if (!quiet && see_grid(a))
                     mpr("The dead are walking!");
@@ -977,7 +1005,8 @@ int animate_dead(actor *caster, int pow, beh_type beha, unsigned short hitting,
 // reforming the original monster out of ice anyways.
 bool cast_simulacrum(int pow, god_type god)
 {
-    bool rc = false;
+    int count = 0;
+
     const item_def* weapon = you.weapon();
 
     if (weapon
@@ -985,37 +1014,35 @@ bool cast_simulacrum(int pow, god_type god)
             || (weapon->base_type == OBJ_FOOD
                 && weapon->sub_type == FOOD_CHUNK)))
     {
-        const monster_type mon = static_cast<monster_type>(weapon->plus);
+        const monster_type type = static_cast<monster_type>(weapon->plus);
+        const monster_type sim_type = mons_zombie_size(type) == Z_BIG ?
+            MONS_SIMULACRUM_LARGE : MONS_SIMULACRUM_SMALL;
 
         // Can't create more than the available chunks.
         int how_many = std::min(8, 4 + random2(pow) / 20);
         how_many = std::min<int>(how_many, weapon->quantity);
 
-        dec_inv_item_quantity(you.equip[EQ_WEAPON], how_many);
-
-        int count = 0;
-
         for (int i = 0; i < how_many; ++i)
         {
-            if (create_monster(
-                    mgen_data(MONS_SIMULACRUM_SMALL, BEH_FRIENDLY,
+            const int monster =
+                create_monster(
+                    mgen_data(sim_type, BEH_FRIENDLY,
                               6, SPELL_SIMULACRUM,
                               you.pos(), MHITYOU,
-                              0, god, mon)) != -1)
+                              MG_FORCE_BEH, god, type));
+
+            if (monster != -1)
             {
                 count++;
+
+                dec_inv_item_quantity(you.equip[EQ_WEAPON], 1);
+
+                player_angers_monster(&menv[monster]);
             }
         }
 
-        if (count > 0)
-        {
-            mprf("%s icy figure%s form%s before you!",
-                count > 1 ? "Some" : "An", count > 1 ? "s" : "",
-                count > 1 ? "" : "s");
-            rc = true;
-        }
-        else
-            mpr("You feel cold for a second.");
+        if (count == 0)
+            canned_msg(MSG_NOTHING_HAPPENS);
     }
     else
     {
@@ -1023,12 +1050,13 @@ bool cast_simulacrum(int pow, god_type god)
             "effective!");
     }
 
-    return (rc);
+    return (count > 0);
 }
 
 bool cast_twisted_resurrection(int pow, god_type god)
 {
     int how_many_corpses = 0;
+    int how_many_orcs = 0;
     int total_mass = 0;
     int rotted = 0;
 
@@ -1038,6 +1066,8 @@ bool cast_twisted_resurrection(int pow, god_type god)
         {
             total_mass += mons_weight(si->plus);
             how_many_corpses++;
+            if (mons_species(si->plus) == MONS_ORC)
+                how_many_orcs++;
             if (food_is_rotten(*si))
                 rotted++;
             destroy_item(si->index());
@@ -1070,6 +1100,10 @@ bool cast_twisted_resurrection(int pow, god_type god)
     {
         mprf("The corpse%s collapse%s into a pulpy mess.",
              how_many_corpses > 1 ? "s": "", how_many_corpses > 1 ? "": "s");
+
+        if (how_many_orcs > 0)
+            did_god_conduct(DID_DESECRATE_ORCISH_REMAINS, 2 * how_many_orcs);
+
         return (false);
     }
 
@@ -1084,7 +1118,7 @@ bool cast_twisted_resurrection(int pow, god_type god)
     const int monster =
         create_monster(
             mgen_data(mon, BEH_FRIENDLY,
-                      0, SPELL_TWISTED_RESURRECTION,
+                      0, 0,
                       you.pos(), MHITYOU,
                       MG_FORCE_BEH, god,
                       MONS_PROGRAM_BUG, 0, colour));
@@ -1092,6 +1126,10 @@ bool cast_twisted_resurrection(int pow, god_type god)
     if (monster == -1)
     {
         mpr("The corpses collapse into a pulpy mess.");
+
+        if (how_many_orcs > 0)
+            did_god_conduct(DID_DESECRATE_ORCISH_REMAINS, 2 * how_many_orcs);
+
         return (false);
     }
 
@@ -1099,6 +1137,9 @@ bool cast_twisted_resurrection(int pow, god_type god)
     menv[monster].flags |= MF_HONORARY_UNDEAD;
 
     mpr("The heap of corpses melds into an agglomeration of writhing flesh!");
+
+    if (how_many_orcs > 0)
+        did_god_conduct(DID_DESECRATE_ORCISH_REMAINS, 2 * how_many_orcs);
 
     if (mon == MONS_ABOMINATION_LARGE)
     {
@@ -1259,12 +1300,14 @@ static bool _teleport_player( bool allow_control, bool new_abyss_area )
     }
 
     coord_def pos(1, 0);
-    bool      large_change = false;
+    bool      large_change  = false;
+    bool      check_ring_TC = false;
 
     if (is_controlled)
     {
         mpr("You may choose your destination (press '.' or delete to select).");
         mpr("Expect minor deviation.");
+        check_ring_TC = true;
         more();
 
         while (true)
@@ -1403,6 +1446,10 @@ static bool _teleport_player( bool allow_control, bool new_abyss_area )
 
     if (large_change)
         handle_interrupted_swap(true);
+
+    // Might identify unknown ring of teleport control.
+    if (check_ring_TC)
+        maybe_id_ring_TC();
 
     return !is_controlled;
 }
@@ -1963,7 +2010,7 @@ int portal()
         return 1;
     }
 
-    mpr("Which direction ('<' for up, '>' for down, 'x' to quit)?",
+    mpr("Which direction ('<' for up, '>' for down, 'x' to quit)? ",
         MSGCH_PROMPT);
 
     int dir_sign = 0;
@@ -1995,7 +2042,7 @@ int portal()
         }
     }
 
-    mpr("How many levels (1 - 9, 'x' to quit)?", MSGCH_PROMPT);
+    mpr("How many levels (1 - 9, 'x' to quit)? ", MSGCH_PROMPT);
 
     int amount = 0;
     while (amount == 0)

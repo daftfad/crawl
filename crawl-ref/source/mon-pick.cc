@@ -54,7 +54,7 @@ struct global_level_info
 
 static int _mons_misc_level(int mcls)
 {
-    switch(mons_char(mcls))
+    switch (mons_char(mcls))
     {
     case '&':
         return 35;
@@ -78,7 +78,7 @@ static int _mons_misc_level(int mcls)
     if (mons_is_unique(mcls))
         return (mons_type_hit_dice(mcls) * 14 / 10 + 1);
 
-    switch(mcls)
+    switch (mcls)
     {
     case MONS_HUMAN:
     case MONS_ELF:
@@ -544,6 +544,7 @@ bool mons_pan(int mcls)
     case MONS_BALRUG:
     case MONS_BLUE_DEATH:
     case MONS_CACODEMON:
+    case MONS_CHAOS_SPAWN:
     case MONS_EXECUTIONER:
     case MONS_GREEN_DEATH:
     case MONS_HELLWING:
@@ -2341,68 +2342,6 @@ int mons_hallzot_rare(int mcls)
         return 15;
     default:
         return 0;
-    }
-}
-
-// The Caverns (unused)
-int mons_caverns_level( int mcls )
-{
-    int mlev = absdungeon_depth(BRANCH_CAVERNS, 1);
-
-    switch (mcls)
-    {
-    case MONS_YELLOW_DRACONIAN:
-    case MONS_BLACK_DRACONIAN:
-    case MONS_WHITE_DRACONIAN:
-    case MONS_RED_DRACONIAN:
-    case MONS_PURPLE_DRACONIAN:
-    case MONS_PALE_DRACONIAN:
-    case MONS_GREEN_DRACONIAN:
-    case MONS_MOTTLED_DRACONIAN:
-        mlev++;
-        break;
-
-    case MONS_DRACONIAN_CALLER:
-    case MONS_DRACONIAN_MONK:
-    case MONS_DRACONIAN_SCORCHER:
-    case MONS_DRACONIAN_KNIGHT:
-    case MONS_DRACONIAN_ANNIHILATOR:
-    case MONS_DRACONIAN_ZEALOT:
-    case MONS_DRACONIAN_SHIFTER:
-        mlev += 3;
-        break;
-
-    default:
-        mlev += 99;
-        break;
-    }
-
-    return (mlev);
-}
-
-int mons_caverns_rare( int mcls )
-{
-    switch (mcls)
-    {
-    case MONS_YELLOW_DRACONIAN:
-    case MONS_BLACK_DRACONIAN:
-    case MONS_WHITE_DRACONIAN:
-    case MONS_RED_DRACONIAN:
-    case MONS_PURPLE_DRACONIAN:
-    case MONS_PALE_DRACONIAN:
-    case MONS_GREEN_DRACONIAN:
-    case MONS_MOTTLED_DRACONIAN:
-    case MONS_DRACONIAN_CALLER:
-    case MONS_DRACONIAN_MONK:
-    case MONS_DRACONIAN_SCORCHER:
-    case MONS_DRACONIAN_KNIGHT:
-    case MONS_DRACONIAN_ANNIHILATOR:
-    case MONS_DRACONIAN_ZEALOT:
-    case MONS_DRACONIAN_SHIFTER:
-        return (500);
-
-    default:
-        return (0);
     }
 }
 

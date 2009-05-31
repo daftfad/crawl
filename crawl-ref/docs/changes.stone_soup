@@ -3,23 +3,24 @@ Stone Soup 0.5.0 (2009????)
 
 Disclaimer: The code and this list are very much a work in progress.
 
-Breaks saves compatibility.
+Breaks saves and bones compatibility.
 
 
 0.5 Highlights
 --------------
-* New species and class: Deep Dwarf, Artificer.
-* Removed three species: Gnome, Grey Elf, Ogre.
+* New species and job: Deep Dwarf, Artificer.
+* Removed three species: Gnome, Grey Elf, Ogre-Mage.
 * Several cool new uniques and other monsters.
 * Several great new portal vaults.
-* Cooler labyrinths.
+* Zombies and skeletons can no longer use stairs.
+* Transformations meld equipment instead of removing it.
+* Many spell ranges shortened.
 * Much more useful monster descriptions.
-* Much more convenient tiles version.
-* Arena mode for inter-monster fights.
+* More convenient tiles version.
 
 Levels
 ------
-* New portal vaults (Sewer, Ice Cave, Minitomb), and many new vaults.
+* New portal vaults (Sewer, Ice Cave, Minitomb, Ziggurat), and many new vaults.
 * Self-changing labyrinths (mappable but subject to map rot).
 * Teleporting within a labyrinth always sends you away from the exit.
 * The Orcish Mines are now completely interconnected via the branch bottom.
@@ -30,129 +31,162 @@ Levels
 * Fixed KMONS not accepting comma-separated list of alternative monsters.
 * Tweaked most of the oklob vaults to make them less dangerous.
 * Allow bazaars outside of the main dungeon.
+* For timed portal vault alerts, give directional feedback.
 
 Characters
 ----------
 * Removed Grey Elf and Gnome species.
 * Merged Ogre-Mages into Ogres with completely new aptitudes.
 * Added non-healing species: Deep Dwarves.
-* Added Artificer class.
-* Transformations now cause worn equipment to be melded rather than removed.
-* Vampires can no longer heal via potions of blood or non-fresh corpses.
+* Swapped Kobolds' aptitudes for Long Blades and Maces & Flails.
+* Added Artificer job.
+* Transformations cause worn equipment to be melded rather than removed.
 * Overhaul nutrition values and duration for Vampires feeding on corpses.
-* Vampires recover lost attributes depending on blood level.
+* Vampires can no longer heal via potions of blood or non-fresh corpses.
+* Vampires recover lost stats depending on blood level.
 * Draining of the experience pool is now reduced by life protection.
+* Merfolk can swim in heavy armour, albeit with doubled armour penalty.
 * Player and monster nagas no longer flounder or lose stealth in shallow water.
 * Secondary unarmed attacks now wake sleeping monsters.
 * Pure spellcasters don't start with a weapon anymore.
 * Tweak starting choice restrictions.
+* Going into berserk rage doubles Health, ending it halves Health.
+* Added the slow healing mutation, affecting hitpoints and stat regeneration.
 
 Monsters
 --------
 * Disallow zombified monsters' use of stairs.
 * New monsters: trapdoor spider, rock worm, flaming corpse, chaos spawn.
 * Several cool new uniques.
-* Monster descriptions now list resistances and some other attributes.
+* Monster descriptions list resistances and some other attributes.
 * Polymorphed uniques retain their spells and speech.
 * Reintroduce chance of orc wizards and priests in early orc bands.
-* Most monsters of the same genus will now attempt to surround the player.
+* Most monsters of the same genus will attempt to surround the player.
 * Implemented monster miscasts caused by Zot traps or mummy curses.
 * Make all allies (including zombies) avoid Zot traps known to the player.
 * Ghosts don't get holy wrath branded attacks anymore.
-* Monsters will now drink !healing to cure confusion, etc.
+* Monsters will shout when woken, unless stabbed.
+* Monsters will drink !healing to cure confusion, etc.
 * Allies no longer mind being teleported by the player.
+* Causing fear will make permanent allies flee but does not anger them.
 * Retain the teleportation enchantment on polymorphed monsters.
-* Make vampiric draining alert and anger its target.
+* Make vampiric draining and torment alert and anger its target.
 * Fixed draconians being able to strike 3 times per turn with their weapons.
 * Account for randart shields when scanning monsters' inventories for randarts.
 * Fixed monsters getting stuck in deep water after entering it while confused.
 * Monsters behind glass but with a path to the player interrupt rest/travel.
-* Monsters raised from the dead are now equipped with their original equipment.
+* Monsters raised from the dead are equipped with their original equipment.
 * Zombies/skeletons no longer drown, but will still avoid water.
 * Fixed summoned monsters taking non-summoned items with them.
+* Summoned monsters are no longer susceptible to Vampiric Draining.
 * Make abominations resist poison.
 * Butchered corpses sometimes leave skeletons.
+* Finally fixed monsters acting before being announced as "coming into view".
 
 Interface
 ---------
+* New command for evoking inventory items ('V'), replaces wand zapping ('Z').
+* Casting spells with 'z' aborts without prompt if no monsters are in range.
+* Casting spells with the new 'Z' allows casting in any case.
+* Changed quick save command to 'Ctrl-S' (was Ctrl-X).
+* Change exclusion commands to e, E, Ctrl-E (was Ctrl-X, x, Ctrl-E).
+* New monster/item view command ('Ctrl-X'), allowing travel to items, features.
 * Store message history across saves.
+* Some message condensation for identical messages.
+* Added stat_colour option to highlight dangerously low stats.
 * New option: Automatically set travel exclusions for statues and oklob plants.
 * Limit travel exclusions to line of sight.
-* Change exclusion commands to e, E, Ctrl-E (was Ctrl-X, x, Ctrl-E).
 * Switch off autopickup and autoswap if you see a monster turn invisible.
-* Shops now use shopping cart behaviour.
-* Wizard commands can now be used from the wizard help screen.
+* Killing an invisible monster reactivates autopickup.
+* Added ally pickup mode for items dropped by player and allies.
+* Shops use shopping cart behaviour.
+* Wizard commands can be used from the wizard help screen.
+* Allow quivering/firing of wielded missiles and wielded weapons of returning.
 * With a full pack, check entire list of selected items to allow for merging.
+* Eating prompts for chunks sorted by age and side effects.
 * Added an option to make menu colours apply to shops.
-* Added stat_colour option to highlight dangerously low stats.
+* Use menu colours for announcements of items found while travelling.
 * Pressing Esc at -More- automatically clears all queued -More- prompts.
-* Greatly improved the monster view command ('V').
 * Add FAQ to help screen ('?Q').
-* Purchases and donations are now noted.
-* The database search now also prints armour base AC/EV and weapon plusses.
+* Purchases and donations are noted.
+* The database search also prints armour base AC/EV and weapon plusses.
 * Add spells and books to book/spell descriptions when searching the database.
+* Ability and card descriptions are searchable in the database ('?/').
 * Allow wishing for specific fixed and randarts in wizard mode ('o' command).
 * Add food item based hunger descriptions to spells.
+* "Glow" status now appears as soon as contamination effects become possible.
 
 Items
 -----
 * New scroll: ?vulnerability, applying to all creatures in LoS including you.
+* New weapon brand: chaos, available only via Xom and pandemonium lords.
 * Introduce randart spellbooks with random spell selections.
-* Book acquirements are now much more random and may yield manuals.
+* Book acquirements are much more random and may yield manuals.
 * Missile enchantment decreases chance of destruction on impact.
-* Freezing weapons can now slow cold-blooded monsters.
-* The staff of channeling now trains Evocations.
-* Item descriptions now mention enchantment/charging limits.
-* Randarts now get their known properties autoinscribed.
-* Randarts are now noted as identified even if the plusses are still unknown.
-* Eliminate RAP_ANGRY and RAP_BERSERK for missile weapons.
-* Ammo that IDs through throwing now merges in your pack instantaneously.
+* Freezing weapons can slow cold-blooded monsters.
+* The staff of channeling trains Evocations.
+* Potions of magic no longer increase maximal magic points and are less rare.
+* Item descriptions mention enchantment/charging limits.
+* Randarts get their known properties autoinscribed.
+* Randarts are noted as identified even if the plusses are still unknown.
+* Eliminate RAP_ANGRY and RAP_BERSERK for launcher weapons.
+* Ammo that IDs through throwing merges in your pack instantaneously.
 * ?immolation doesn't burn scrolls anymore.
 * ?summoning creates a permanent abomination.
-* ?random uselessness now autoIDs.
-* ?vorpalise weapon now fixes temporary brands instead of EWIII.
-* Nemelex-gifted decks now ID after drawing one card.
+* ?random uselessness autoidentifies.
+* ?vorpalise weapon fixes temporary brands instead of Enchant Weapon III.
+* Nemelex-gifted decks identify after drawing one card.
 * Decks of punishment are no longer randomly generated.
 * Removing rings of levitation or invisibility no longer cancels the effect.
 * Identify the Horn of Geryon when wielding it.
+* Skeletons rot away in inventory at the same rate as on the floor.
 
 Gods
 ----
 * Greatly improved Yredelemnul.
-* Nerfed TSO/Beogh blessings of followers.
-* Xom is much more interesting.
+* Nerfed TSO/Beogh's blessings of followers.
+* Xom is more active and more useful in combat.
 * Cleansing Flame centers on the player and deals less damage.
-* Killing a holy being is now sometimes avenged by TSO.
+* Killing a holy being is sometimes avenged by TSO.
+* Split Elyvilon's healing powers in "heal self" and "heal other" versions.
+* Evyvilon's Lesser Healing Other does not cost piety anymore.
 * Move Divine Robustness from Zin to Elyvilon, replacing Incredible Healing.
 * Make Zin's retribution-summoned plagues permanent.
-* Allow Trog to accept kills of demons.
-* Sif Muna no longer gifts Kiku/Vehumet specific books.
+* Sif Muna no longer gifts Kiku/Vehumet specific books, spells still possible.
+* Trog accepts kills of demons.
+* Trog's Hand now provides magic resistance as well as regeneration.
 * Vehumet accepts undead killing for you.
-* Disallow shapeshifters in orc form to become Beoghites' followers.
-* Beogh no longer accepts butcher but likes prayer over orc corpses.
+* Beogh no longer accepts butchery but likes prayer over orcish remains.
 * Beogh accepts more kinds of kills.
 * Beogh has a non-cannibalism conduct.
+* Disallow shapeshifters in orc form to become Beoghites' followers.
+* Offer card descriptions when using Nemelex's Triple Draw or Stack Five.
+* Enable automatic note taking for Xom effects.
 
 Tiles
 -----
 * Overhauled and improved tiles code, now using SDL.
 * Added auto-sizing for font, map, and window sizes.
-* Graphical menu improvements: some menus are now clickable and show icons.
-* Mouse clicks on the map when unsafe now travel one square in that direction.
-* Improved a number of tiles, and added some new ones. (Pandemonium lords!)
-* Monster tiles now include health bars.
-* Added type specific icons for jewellery, shops, and weapon brands.
+* Support for full screen mode and for small resolutions (800x480).
+* Graphical menu improvements: some menus are clickable and show icons.
+* Mouse clicks on the map when unsafe travel one square in that direction.
+* Added new and improved tiles: Pandemonium lords, draconians, randart books.
+* Monster tiles include health bars.
+* Added type-specific icons for jewellery, shops, and weapon brands.
+* Vaults can specify floor and wall tiles in their description.
 
 Miscellaneous
 -------------
-* Greatly reduced ranges (both player and monster), now mostly capped by LOS.
+* Greatly reduced spell ranges (both player and monster).
+* For most bolts, hitting a monster reduces range by one.
 * Added arena mode to watch monsters fighting other monsters.
-* Crashes now leave highly informative crash dumps.
-* Poison Weapon is now a level 2 spell.
-* Extension will now also extend temporary weapon brands.
-* Lua errors now report the line numbers of the actual code.
-* Flying can now be cancelled.
-* Petrify is now an Enchantment/Earth spell.
+* Fixed crashes involving "invisible/unmoving" monsters.
+* Crashes leave highly informative crash dumps.
+* Poison Weapon is a level 2 spell.
+* Extension will also extend temporary weapon brands.
+* Lua errors report the line numbers of the actual code.
+* Flying can be cancelled.
+* Petrify is an Enchantment/Earth spell.
 * Lee's Rapid Deconstruction deals great damage to petrified monsters.
 * Rewrite and clean up of (among others) beam, trap, and mutations code.
 * Store code revision in save files for easier bug tracking.

@@ -48,6 +48,15 @@ bool potion_effect(potion_type pot_eff, int pow, bool drank_it, bool was_known)
                         && you.hunger_state < HS_SATIATED
                         && drank_it ? 2 : 1);
 
+    // Knowingly drinking bad potions is much less amusing.
+    int xom_factor = factor;
+    if (drank_it && was_known)
+    {
+        xom_factor *= 2;
+        if (!player_in_a_dangerous_place())
+            xom_factor *= 3;
+    }
+
     switch (pot_eff)
     {
     case POT_HEALING:
@@ -75,7 +84,7 @@ bool potion_effect(potion_type pot_eff, int pow, bool drank_it, bool was_known)
         // only fix rot when healed to full
         if (you.hp == you.hp_max)
         {
-            unrot_hp( (2 + random2avg(5, 2)) / factor );
+            unrot_hp((2 + random2avg(5, 2)) / factor);
             set_hp(you.hp_max, false);
         }
         break;
@@ -112,12 +121,12 @@ bool potion_effect(potion_type pot_eff, int pow, bool drank_it, bool was_known)
             }
             else
             {
-                mpr("Blech - this tastes like blood!");
+                mpr("Yuck - this tastes like blood.");
                 if (x_chance_in_y(herbivorous + 1, 4))
                 {
                     // Full herbivores always become ill from blood.
                     disease_player(50 + random2(100));
-                    xom_is_stimulated(32);
+                    xom_is_stimulated(32 / xom_factor);
                 }
                 else
                     lessen_hunger(value, true);
@@ -127,7 +136,7 @@ bool potion_effect(potion_type pot_eff, int pow, bool drank_it, bool was_known)
         break;
 
     case POT_SPEED:
-        haste_player( (40 + random2(pow)) / factor );
+        haste_player((40 + random2(pow)) / factor);
         break;
 
     case POT_MIGHT:
@@ -214,24 +223,24 @@ bool potion_effect(potion_type pot_eff, int pow, bool drank_it, bool was_known)
 
             poison_player( ((pot_eff == POT_POISON) ? 1 + random2avg(5, 2)
                                                     : 3 + random2avg(13, 2)) );
-            xom_is_stimulated(128);
+            xom_is_stimulated(128 / xom_factor);
         }
         break;
 
     case POT_SLOWING:
         if (slow_player((10 + random2(pow)) / factor))
-            xom_is_stimulated(64 / factor);
+            xom_is_stimulated(64 / xom_factor);
         break;
 
     case POT_PARALYSIS:
         you.paralyse(NULL,
                      (2 + random2( 6 + you.duration[DUR_PARALYSIS] )) / factor);
-        xom_is_stimulated(64 / factor);
+        xom_is_stimulated(64 / xom_factor);
         break;
 
     case POT_CONFUSION:
         if (confuse_player((3 + random2(8)) / factor))
-            xom_is_stimulated(128 / factor);
+            xom_is_stimulated(128 / xom_factor);
         break;
 
     case POT_INVISIBILITY:
@@ -274,14 +283,14 @@ bool potion_effect(potion_type pot_eff, int pow, bool drank_it, bool was_known)
         if (lose_stat(STAT_RANDOM, (1 + random2avg(4, 2)) / factor, false,
                       "drinking a potion of degeneration"))
         {
-            xom_is_stimulated(64 / factor);
+            xom_is_stimulated(64 / xom_factor);
         }
         break;
 
     // Don't generate randomly - should be rare and interesting.
     case POT_DECAY:
         if (rot_player((10 + random2(10)) / factor))
-            xom_is_stimulated(64 / factor);
+            xom_is_stimulated(64 / xom_factor);
         break;
 
     case POT_WATER:
@@ -299,7 +308,7 @@ bool potion_effect(potion_type pot_eff, int pow, bool drank_it, bool was_known)
         {
             mpr("You feel more experienced!");
 
-            you.experience = 1 + exp_needed( 2 + you.experience_level );
+            you.experience = 1 + exp_needed(2 + you.experience_level);
             level_change();
         }
         else

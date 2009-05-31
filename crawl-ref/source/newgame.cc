@@ -596,7 +596,7 @@ static void _pick_random_species_and_class( bool unrestricted_only )
                                      unrestricted_only))
             {
                 job_count++;
-                if (one_chance_in( job_count ))
+                if (one_chance_in(job_count))
                 {
                     species = static_cast<species_type>(sp);
                     job = static_cast<job_type>(cl);
@@ -606,7 +606,7 @@ static void _pick_random_species_and_class( bool unrestricted_only )
     }
 
     // At least one job must exist in the game, else we're in big trouble.
-    ASSERT( species != SP_UNKNOWN && job != JOB_UNKNOWN );
+    ASSERT(species != SP_UNKNOWN && job != JOB_UNKNOWN);
 
     // Return draconian variety here.
     if (species == SP_RED_DRACONIAN)
@@ -712,28 +712,47 @@ static void _initialise_branch_depths()
     branches[BRANCH_TOMB].startdepth           = random_range(2, 3);
 }
 
+static int _get_random_porridge_desc()
+{
+    return PDESCQ(PDQ_GLUGGY, one_chance_in(3) ? PDC_BROWN
+                                               : PDC_WHITE);
+}
+
 static int _get_random_coagulated_blood_desc()
 {
     potion_description_qualifier_type qualifier = PDQ_NONE;
-    switch (random2(4))
+    while (true)
     {
-    case 0:
-        qualifier = PDQ_GLUGGY;
-        break;
-    case 1:
-        qualifier = PDQ_LUMPY;
-        break;
-    case 2:
-        qualifier = PDQ_SEDIMENTED;
-        break;
-    case 3:
-        qualifier = PDQ_VISCOUS;
-        break;
+        switch (random2(4))
+        {
+        case 0:
+            qualifier = PDQ_GLUGGY;
+            break;
+        case 1:
+            qualifier = PDQ_LUMPY;
+            break;
+        case 2:
+            qualifier = PDQ_SEDIMENTED;
+            break;
+        case 3:
+            qualifier = PDQ_VISCOUS;
+            break;
+        }
+        potion_description_colour_type colour = (coinflip() ? PDC_RED
+                                                            : PDC_BROWN);
+
+        int desc = PDESCQ(qualifier, colour);
+
+        if (you.item_description[IDESC_POTIONS][POT_BLOOD] != desc)
+            return desc;
     }
+}
 
-    potion_description_colour_type colour = (coinflip() ? PDC_RED : PDC_BROWN);
-
-    return PDESCQ(qualifier, colour);
+static int _get_random_blood_desc()
+{
+    return PDESCQ(coinflip() ? PDQ_NONE :
+                  coinflip() ? PDQ_VISCOUS
+                             : PDQ_SEDIMENTED, PDC_RED);
 }
 
 void initialise_item_descriptions()
@@ -741,20 +760,20 @@ void initialise_item_descriptions()
     // Must remember to check for already existing colours/combinations.
     you.item_description.init(255);
 
-    you.item_description[IDESC_POTIONS][POT_PORRIDGE]
-        = PDESCQ(PDQ_GLUGGY, PDC_WHITE);
-
     you.item_description[IDESC_POTIONS][POT_WATER] = PDESCS(PDC_CLEAR);
-    you.item_description[IDESC_POTIONS][POT_BLOOD] = PDESCS(PDC_RED);
+    you.item_description[IDESC_POTIONS][POT_PORRIDGE]
+        = _get_random_porridge_desc();
+    you.item_description[IDESC_POTIONS][POT_BLOOD]
+        = _get_random_blood_desc();
     you.item_description[IDESC_POTIONS][POT_BLOOD_COAGULATED]
         = _get_random_coagulated_blood_desc();
 
     // The order here must match that of IDESC in describe.h
-    // (I don't really know about scrolls, which is why I left the height value.)
-    const int max_item_number[6] = { NUM_WANDS, NUM_POTIONS,
-                                     you.item_description.height(),
+    const int max_item_number[6] = { NUM_WANDS,
+                                     NUM_POTIONS,
+                                     NUM_SCROLLS,
                                      NUM_JEWELLERY,
-                                     you.item_description.height(),
+                                     NUM_SCROLLS,
                                      NUM_STAVES };
 
     for (int i = 0; i < NUM_IDESC; i++)
@@ -769,8 +788,8 @@ void initialise_item_descriptions()
             // Pick a new description until it's good.
             while (true)
             {
-                // The numbers below are always secondary * primary.
-                // (See itemname.cc.)
+                // The numbers below are always secondary * primary,
+                // except for scrolls. (See itemname.cc.)
                 switch (i)
                 {
                 case IDESC_WANDS: // wands
@@ -783,7 +802,7 @@ void initialise_item_descriptions()
                     you.item_description[i][j] = _random_potion_description();
                     break;
 
-                case IDESC_SCROLLS: // scrolls
+                case IDESC_SCROLLS: // scrolls: random seed for the name
                 case IDESC_SCROLLS_II:
                     you.item_description[i][j] = random2(151);
                     break;
@@ -803,7 +822,7 @@ void initialise_item_descriptions()
 
                 // Test whether we've used this description before.
                 // Don't have p < j because some are preassigned.
-                for (int p = 0; p < you.item_description.height(); p++)
+                for (int p = 0; p < max_item_number[i]; p++)
                 {
                     if (p == j)
                         continue;
@@ -844,7 +863,7 @@ static void _give_starting_food()
     {
         item.base_type = OBJ_FOOD;
         if (you.species == SP_HILL_ORC || you.species == SP_KOBOLD
-            || you.species == SP_OGRE || you.species == SP_TROLL)
+            || player_genus(GENPC_OGRE) || you.species == SP_TROLL)
         {
             item.sub_type = FOOD_MEAT_RATION;
         }
@@ -1069,7 +1088,7 @@ static bool _species_is_undead( const species_type speci )
 
 undead_state_type get_undead_state(const species_type sp)
 {
-    switch(sp)
+    switch (sp)
     {
     case SP_MUMMY:
         return US_UNDEAD;
@@ -1217,7 +1236,7 @@ game_start:
 
         if (_check_saved_game())
         {
-            cprintf(EOL "Do you really want to overwrite your old game?");
+            cprintf(EOL "Do you really want to overwrite your old game? ");
             char c = getch();
             if (c != 'Y' && c != 'y')
             {
@@ -1400,7 +1419,9 @@ static char_choice_restriction _class_allowed(species_type speci,
         case SP_SPRIGGAN:
         case SP_NAGA:
         case SP_CENTAUR:
+        case SP_TROLL:
         case SP_RED_DRACONIAN:
+        case SP_GHOUL:
         case SP_MUMMY:
             return (CC_RESTRICTED);
         default:
@@ -1420,8 +1441,6 @@ static char_choice_restriction _class_allowed(species_type speci,
         case SP_KOBOLD:
         case SP_SPRIGGAN:
         case SP_NAGA:
-        case SP_OGRE:
-        case SP_KENKU:
         case SP_RED_DRACONIAN:
         case SP_DEMIGOD:
         case SP_DEMONSPAWN:
@@ -1465,11 +1484,11 @@ static char_choice_restriction _class_allowed(species_type speci,
             return (CC_BANNED);
         case SP_DEEP_ELF:
         case SP_SLUDGE_ELF:
-        case SP_DEEP_DWARF:
         case SP_HALFLING:
         case SP_KOBOLD:
         case SP_SPRIGGAN:
         case SP_NAGA:
+        case SP_OGRE:
         case SP_TROLL:
         case SP_KENKU:
             return (CC_RESTRICTED);
@@ -1538,7 +1557,6 @@ static char_choice_restriction _class_allowed(species_type speci,
         case SP_HALFLING:
         case SP_SPRIGGAN:
         case SP_NAGA:
-        case SP_OGRE:
         case SP_TROLL:
             return (CC_RESTRICTED);
         default:
@@ -1551,6 +1569,7 @@ static char_choice_restriction _class_allowed(species_type speci,
         case SP_DEEP_ELF:
         case SP_SLUDGE_ELF:
         case SP_MOUNTAIN_DWARF:
+        case SP_DEEP_DWARF:
         case SP_HILL_ORC:
         case SP_SPRIGGAN:
         case SP_NAGA:
@@ -1645,6 +1664,7 @@ static char_choice_restriction _class_allowed(species_type speci,
         case SP_MINOTAUR:
         case SP_KENKU:
         case SP_RED_DRACONIAN:
+        case SP_DEMONSPAWN:
         case SP_GHOUL:
         case SP_MUMMY:
             return (CC_RESTRICTED);
@@ -1686,6 +1706,7 @@ static char_choice_restriction _class_allowed(species_type speci,
         case SP_CENTAUR:
         case SP_TROLL:
         case SP_MINOTAUR:
+        case SP_GHOUL:
             return (CC_RESTRICTED);
         default:
             return (CC_UNRESTRICTED);
@@ -1703,7 +1724,6 @@ static char_choice_restriction _class_allowed(species_type speci,
         case SP_MERFOLK:
         case SP_HALFLING:
         case SP_KOBOLD:
-        case SP_NAGA:
         case SP_CENTAUR:
         case SP_OGRE:
         case SP_TROLL:
@@ -1883,11 +1903,8 @@ static char_choice_restriction _class_allowed(species_type speci,
         switch (speci)
         {
         case SP_DEEP_DWARF:
-        case SP_HALFLING:
         case SP_KOBOLD:
-        case SP_SPRIGGAN:
         case SP_NAGA:
-        case SP_OGRE:
         case SP_RED_DRACONIAN:
         case SP_MUMMY:
         case SP_GHOUL:
@@ -2002,6 +2019,7 @@ static char_choice_restriction _book_restriction(startup_book_type booktype)
         case SP_HILL_ORC:
         case SP_KOBOLD:
         case SP_NAGA:
+        case SP_OGRE:
         case SP_KENKU:
         case SP_DEMIGOD:
         case SP_DEMONSPAWN:
@@ -2026,6 +2044,7 @@ static char_choice_restriction _book_restriction(startup_book_type booktype)
         case SP_MERFOLK:
         case SP_KOBOLD:
         case SP_NAGA:
+        case SP_OGRE:
         case SP_KENKU:
         case SP_DEMIGOD:
         case SP_DEMONSPAWN:
@@ -2046,6 +2065,7 @@ static char_choice_restriction _book_restriction(startup_book_type booktype)
         case SP_SLUDGE_ELF:
         case SP_KOBOLD:
         case SP_NAGA:
+        case SP_OGRE:
         case SP_KENKU:
         case SP_MUMMY:
         case SP_VAMPIRE:
@@ -2266,7 +2286,6 @@ static char_choice_restriction _weapon_restriction(weapon_type wpn)
         case SP_MUMMY:
         case SP_CENTAUR:
         case SP_NAGA:
-        case SP_OGRE:
         case SP_MINOTAUR:
         case SP_KENKU:
         case SP_DEMIGOD:
@@ -2376,16 +2395,27 @@ static bool _choose_weapon()
     for (int i = 0; i < num_choices; i++)
         startwep_restrictions[i] = _weapon_restriction(startwep[i]);
 
-    if (Options.weapon != WPN_UNKNOWN && Options.weapon != WPN_RANDOM
-        && (Options.weapon != WPN_UNARMED || claws_allowed))
+    if (Options.weapon == WPN_UNARMED && claws_allowed)
     {
-        if (Options.weapon == WPN_UNARMED)
-            you.inv[0].quantity = 0; // no weapon
-        else
-            you.inv[0].sub_type = Options.weapon;
-
+        you.inv[0].quantity = 0; // no weapon
         ng_weapon = Options.weapon;
         return (true);
+    }
+
+    if (Options.weapon != WPN_UNKNOWN && Options.weapon != WPN_RANDOM
+        && Options.weapon != WPN_UNARMED)
+    {
+        // If Options.weapon is available, then use it.
+        for (int i = 0; i < num_choices; i++)
+        {
+            if (startwep[i] == Options.weapon
+                && startwep_restrictions[i] != CC_BANNED)
+            {
+                you.inv[0].sub_type = Options.weapon;
+                ng_weapon = Options.weapon;
+                return (true);
+            }
+        }
     }
 
     int keyin = 0;
@@ -2540,8 +2570,10 @@ static char_choice_restriction _religion_restriction(god_type god)
             return (CC_BANNED);
         case SP_SLUDGE_ELF:
         case SP_MOUNTAIN_DWARF:
+        case SP_SPRIGGAN:
         case SP_CENTAUR:
         case SP_MINOTAUR:
+        case SP_OGRE:
             return (CC_UNRESTRICTED);
         default:
             return (CC_RESTRICTED);
@@ -2694,17 +2726,17 @@ static void _give_last_paycheck(job_type which_job)
     {
     case JOB_HEALER:
     case JOB_THIEF:
-        you.gold = roll_dice( 2, 100 );
+        you.gold = roll_dice(2, 100);
         break;
 
     case JOB_WANDERER:
     case JOB_WARPER:
     case JOB_ASSASSIN:
-        you.gold = roll_dice( 2, 50 );
+        you.gold = roll_dice(2, 50);
         break;
 
     default:
-        you.gold = roll_dice( 2, 20 );
+        you.gold = roll_dice(2, 20);
         break;
 
     case JOB_PALADIN:
@@ -3016,7 +3048,7 @@ static void _opening_screen(void)
 #ifdef USE_TILE
     // More grand... Like this? ;)
     if (Options.tile_title_screen)
-        TileDrawTitle();
+        tiles.draw_title();
 #endif
 
     std::string msg =
@@ -3212,7 +3244,7 @@ static void _enter_player_name(bool blankOK)
              formatted_string::parse_string(
                 "  If you've never been here before, you might want to try out" EOL
                 "  the Dungeon Crawl tutorial. To do this, press "
-                "<white>T</white> on the next" EOL
+                "<white>Ctrl-T</white> on the next" EOL
                 "  screen.").display();
         }
         else
@@ -3262,12 +3294,17 @@ static void _enter_player_name(bool blankOK)
 
 static bool _validate_player_name(bool verbose)
 {
+    return validate_player_name(you.your_name, verbose);
+}
+
+bool validate_player_name(const char* name, bool verbose)
+{
 #if defined(DOS) || defined(WIN32CONSOLE) || defined(WIN32TILES)
     // Quick check for CON -- blows up real good under DOS/Windows.
-    if (stricmp(you.your_name, "con") == 0
-        || stricmp(you.your_name, "nul") == 0
-        || stricmp(you.your_name, "prn") == 0
-        || strnicmp(you.your_name, "LPT", 3) == 0)
+    if (stricmp(name, "con") == 0
+        || stricmp(name, "nul") == 0
+        || stricmp(name, "prn") == 0
+        || strnicmp(name, "LPT", 3) == 0)
     {
         if (verbose)
             cprintf(EOL "Sorry, that name gives your OS a headache." EOL);
@@ -3275,7 +3312,7 @@ static bool _validate_player_name(bool verbose)
     }
 #endif
 
-    for (const char *pn = you.your_name; *pn; ++pn)
+    for (const char *pn = name; *pn; ++pn)
     {
         char c = *pn;
         // Note that this includes systems which may be using the
@@ -3445,7 +3482,7 @@ static void _make_rod(item_def &item, stave_type rod_type, int ncharges)
 }
 
 // Creates an item of a given base and sub type.
-// replacement is used when handing out armour that is not be wearable for
+// replacement is used when handing out armour that is not wearable for
 // some species; otherwise use -1.
 static void _newgame_make_item(int slot, equipment_type eqslot,
                                object_class_type base,
@@ -3486,12 +3523,13 @@ static void _newgame_make_item(int slot, equipment_type eqslot,
     item.plus2     = plus2;
     item.special   = 0;
 
-    // If the character is restricted in wearing armour of equipment slot
-    // eqslot, hand out replacement instead.
+    // If the character is restricted in wearing armour of equipment
+    // slot eqslot, hand out replacement instead.
     if (item.base_type == OBJ_ARMOUR && replacement != -1
         && !you_can_wear(eqslot))
     {
-        // Don't replace shields with bucklers for large races or draconians
+        // Don't replace shields with bucklers for large races or
+        // draconians.
         if (sub_type != ARM_SHIELD
             || player_size(PSIZE_TORSO) < SIZE_LARGE
                && !player_genus(GENPC_DRACONIAN))
@@ -3788,7 +3826,7 @@ spec_query:
             textcolor( WHITE );
             cprintf("You must be new here!");
         }
-        cprintf("  (Press T to enter a tutorial.)");
+        cprintf("  (Press Ctrl-T to enter a tutorial.)");
         cprintf(EOL EOL);
         textcolor( CYAN );
         cprintf("You can be:  "
@@ -3944,7 +3982,7 @@ spec_query:
 
     // These are handled specially as they _could_ be set
     // using Options.race or prev_race.
-    if (keyn == 'T') // easy to set in init.txt
+    if (keyn == CONTROL('T') || keyn == 'T') // easy to set in init.txt
         return !pick_tutorial();
 
     bool good_randrace = (keyn == '+');
@@ -4038,7 +4076,7 @@ job_query:
             textcolor( WHITE );
             cprintf("You must be new here!");
         }
-        cprintf("  (Press T to enter a tutorial.)");
+        cprintf("  (Press Ctrl-T to enter a tutorial.)");
 
         cprintf(EOL EOL);
         textcolor( CYAN );
@@ -4154,6 +4192,7 @@ job_query:
             return (false);
         }
     case 'T':
+    case CONTROL('T'):
         return pick_tutorial();
     case '#':
         good_random = true;
@@ -4358,7 +4397,7 @@ static bool _choose_wand()
     {
         if (_start_to_wand(Options.wand, is_rod) != -1)
         {
-            keyin = 'a' + Options.wand;
+            keyin = 'a' + Options.wand - 1;
             ng_wand = Options.wand;
             goto wand_done;
         }
@@ -5014,7 +5053,7 @@ bool _give_items_skills()
 
             // The new Xom also uses gift_timeout in his own special way...
             // (Namely, a countdown to becoming bored.)
-            you.gift_timeout = random2(40) + random2(40);
+            you.gift_timeout = std::max(5, random2(40) + random2(40));
         }
         else // Makhleb or Lugonu
         {
@@ -5528,6 +5567,7 @@ bool _give_items_skills()
         switch (you.species)
         {
         case SP_MOUNTAIN_DWARF:
+        case SP_DEEP_DWARF:
         case SP_HILL_ORC:
         case SP_CENTAUR:
         case SP_OGRE:

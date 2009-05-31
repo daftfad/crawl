@@ -102,6 +102,16 @@ std::string stash_annotate_item(const char *s,
     return text;
 }
 
+void maybe_update_stashes()
+{
+    if (Options.stash_tracking && !crawl_state.arena)
+    {
+        StashTrack.update_visible_stashes(
+            Options.stash_tracking == STM_ALL ? StashTracker::ST_AGGRESSIVE
+                                              : StashTracker::ST_PASSIVE);
+    }
+}
+
 bool is_stash(int x, int y)
 {
     LevelStashes *ls = StashTrack.find_current_level();
@@ -515,8 +525,10 @@ void StashMenu::draw_title()
         textcolor(title->colour);
         cprintf( "%s", title->text.c_str());
         if (title->quantity)
+        {
             cprintf(", %d item%s", title->quantity,
                                    title->quantity == 1? "" : "s");
+        }
         cprintf(")");
         if (can_travel)
             cprintf("  [ENTER: travel]");
@@ -906,9 +918,21 @@ void ShopInfo::describe_shop_item(const shop_item &si) const
     item_def it = static_cast<item_def>(si.item);
     describe_item( it );
 
-    if ( oldflags != si.item.flags )
+    if (oldflags != si.item.flags)
         const_cast<shop_item&>(si).item.flags = oldflags;
 }
+
+class ShopItemEntry : public InvEntry
+{
+public:
+    ShopItemEntry(const ShopInfo::shop_item &it,
+                  const std::string &item_name,
+                  menu_letter hotkey) : InvEntry(it.item)
+    {
+        text = item_name;
+        hotkeys[0] = hotkey;
+    }
+};
 
 bool ShopInfo::show_menu(const std::string &place,
                          bool can_travel) const
@@ -916,8 +940,8 @@ bool ShopInfo::show_menu(const std::string &place,
     StashMenu menu;
 
     MenuEntry *mtitle = new MenuEntry(name + " (" + place, MEL_TITLE);
-    menu.can_travel = can_travel;
-    mtitle->quantity = items.size();
+    menu.can_travel   = can_travel;
+    mtitle->quantity  = items.size();
     menu.set_title(mtitle);
 
     menu_letter hotkey;
@@ -935,11 +959,9 @@ bool ShopInfo::show_menu(const std::string &place,
     {
         for (int i = 0, count = items.size(); i < count; ++i)
         {
-            MenuEntry *me = new MenuEntry(shop_item_name(items[i]),
-                                          MEL_ITEM,
-                                          1,
-                                          hotkey++);
-            me->data = const_cast<shop_item *>( &items[i] );
+            ShopItemEntry *me = new ShopItemEntry(items[i],
+                                                  shop_item_name(items[i]),
+                                                  hotkey++);
             menu.add_entry(me);
         }
     }
@@ -1778,7 +1800,6 @@ public:
     StashSearchMenu(const char* sort_style_)
         : Menu(), can_travel(true),
           request_toggle_sort_method(false),
-//          allow_toggle(true), menu_action(ACT_EXECUTE),
           sort_style(sort_style_)
     { }
 
@@ -1836,9 +1857,9 @@ bool StashTracker::display_search_results(
 
     StashSearchMenu stashmenu(sort_style);
     stashmenu.set_tag("stash");
-    stashmenu.can_travel = travelable;
+    stashmenu.can_travel   = travelable;
     stashmenu.allow_toggle = true;
-    stashmenu.menu_action = Menu::ACT_EXECUTE;
+    stashmenu.menu_action  = Menu::ACT_EXECUTE;
     std::string title = "match";
 
     MenuEntry *mtitle = new MenuEntry(title, MEL_TITLE);

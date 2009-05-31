@@ -68,15 +68,17 @@ struct ait_hp_loss
 
 void start_delay( delay_type type, int turns, int parm1 = 0, int parm2 = 0 );
 void stop_delay( bool stop_stair_travel = false );
-bool you_are_delayed( void );
-delay_type current_delay_action( void );
-int check_recital_audience( void );
-void handle_delay( void );
+bool you_are_delayed();
+delay_type current_delay_action();
+int check_recital_audience();
+void handle_delay();
 
 bool is_run_delay(int delay);
 bool is_being_butchered(const item_def &item, bool just_first = true);
-bool is_vampire_feeding( void );
+bool is_vampire_feeding();
+bool player_stair_delay();
 void stop_butcher_delay();
+void maybe_clear_weapon_swap();
 void handle_interrupted_swap(bool swap_if_safe = false,
                              bool force_unsafe = false,
                              bool transform = false);
@@ -89,6 +91,7 @@ activity_interrupt_type get_activity_interrupt(const std::string &);
 const char *delay_name(int delay);
 delay_type get_delay(const std::string &);
 
+void autotoggle_autopickup(bool off);
 bool interrupt_activity( activity_interrupt_type ai,
                          const activity_interrupt_data &a
                             = activity_interrupt_data() );

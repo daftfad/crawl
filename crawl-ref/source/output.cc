@@ -281,6 +281,12 @@ static void _print_stats_mp(int x, int y)
 {
     // Calculate colour
     short mp_colour = HUD_VALUE_COLOUR;
+
+    const bool boosted = you.duration[DUR_DIVINE_VIGOUR];
+
+    if (boosted)
+        mp_colour = LIGHTBLUE;
+    else
     {
         int mp_percent = (you.max_magic_points == 0
                           ? 100
@@ -294,8 +300,11 @@ static void _print_stats_mp(int x, int y)
     cgotoxy(x+8, y, GOTO_STAT);
     textcolor(mp_colour);
     cprintf("%d", you.magic_points);
-    textcolor(HUD_VALUE_COLOUR);
-    cprintf("/%d", you.max_magic_points );
+    if (!boosted)
+        textcolor(HUD_VALUE_COLOUR);
+    cprintf("/%d", you.max_magic_points);
+    if (boosted)
+        textcolor(HUD_VALUE_COLOUR);
 
     int col = _count_digits(you.magic_points)
               + _count_digits(you.max_magic_points) + 1;
@@ -334,12 +343,12 @@ static void _print_stats_hp(int x, int y)
     textcolor(HUD_CAPTION_COLOUR);
     cprintf(max_max_hp != you.hp_max ? "HP: " : "Health: ");
     textcolor(hp_colour);
-    cprintf( "%d", you.hp );
+    cprintf("%d", you.hp);
     if (!boosted)
         textcolor(HUD_VALUE_COLOUR);
-    cprintf( "/%d", you.hp_max );
+    cprintf("/%d", you.hp_max);
     if (max_max_hp != you.hp_max)
-        cprintf( " (%d)", max_max_hp );
+        cprintf(" (%d)", max_max_hp);
     if (boosted)
         textcolor(HUD_VALUE_COLOUR);
 
@@ -641,7 +650,8 @@ static void _get_status_lights(std::vector<status_light>& out)
     if (you.duration[DUR_REGENERATION])
     {
         int color = _dur_colour( BLUE, dur_expiring(DUR_REGENERATION) );
-        out.push_back(status_light(color, "Regen"));
+        out.push_back(status_light(color,
+            you.attribute[ATTR_DIVINE_REGENERATION] ? "Regen MR" : "Regen"));
     }
 
     if (you.duration[DUR_INSULATION])
@@ -1870,12 +1880,17 @@ static std::vector<formatted_string> _get_overview_stats()
     // 4 columns
     column_composer cols1(4, 18, 28, 40);
 
-    const bool boosted = you.duration[DUR_DIVINE_VIGOUR]
-                             || you.duration[DUR_BERSERKER];
+    const bool boosted_hp  = you.duration[DUR_DIVINE_VIGOUR]
+                                || you.duration[DUR_BERSERKER];
+    const bool boosted_mp  = you.duration[DUR_DIVINE_VIGOUR];
+    const bool boosted_str = you.duration[DUR_DIVINE_STAMINA]
+                                || you.duration[DUR_MIGHT];
+    const bool boosted_int = you.duration[DUR_DIVINE_STAMINA];
+    const bool boosted_dex = you.duration[DUR_DIVINE_STAMINA];
 
     if (!player_rotted())
     {
-        if (boosted)
+        if (boosted_hp)
         {
             snprintf(buf, sizeof buf, "HP <lightblue>%3d/%d</lightblue>",
                      you.hp, you.hp_max);
@@ -1885,7 +1900,7 @@ static std::vector<formatted_string> _get_overview_stats()
     }
     else
     {
-        if (boosted)
+        if (boosted_hp)
         {
             snprintf(buf, sizeof buf, "HP <lightblue>%3d/%d (%d)</lightblue>",
                      you.hp, you.hp_max, get_real_hp(true, true));
@@ -1898,8 +1913,16 @@ static std::vector<formatted_string> _get_overview_stats()
     }
     cols1.add_formatted(0, buf, false);
 
-    snprintf(buf, sizeof buf, "MP %3d/%d",
-             you.magic_points, you.max_magic_points);
+    if (boosted_mp)
+    {
+        snprintf(buf, sizeof buf, "MP <lightblue>%3d/%d</lightblue>",
+                 you.magic_points, you.max_magic_points);
+    }
+    else
+    {
+        snprintf(buf, sizeof buf, "MP %3d/%d",
+                 you.magic_points, you.max_magic_points);
+    }
     cols1.add_formatted(0, buf, false);
 
     snprintf(buf, sizeof buf, "Gold %d", you.gold);
@@ -1915,36 +1938,88 @@ static std::vector<formatted_string> _get_overview_stats()
     cols1.add_formatted(1, buf, false);
 
     if (you.strength == you.max_strength)
-        snprintf(buf, sizeof buf, "Str %2d", you.strength);
+    {
+        if (boosted_str)
+        {
+            snprintf(buf, sizeof buf, "Str <lightblue>%2d</lightblue>",
+                     you.strength);
+        }
+        else
+            snprintf(buf, sizeof buf, "Str %2d", you.strength);
+    }
     else
     {
-        snprintf(buf, sizeof buf, "Str <yellow>%2d</yellow> (%d)",
-                 you.strength, you.max_strength);
+        if (boosted_str)
+        {
+            snprintf(buf, sizeof buf, "Str <lightblue>%2d (%d)</lightblue>",
+                     you.strength, you.max_strength);
+        }
+        else
+            snprintf(buf, sizeof buf, "Str <yellow>%2d</yellow> (%d)",
+                     you.strength, you.max_strength);
     }
     cols1.add_formatted(2, buf, false);
 
     if (you.intel == you.max_intel)
-        snprintf(buf, sizeof buf, "Int %2d", you.intel);
+    {
+        if (boosted_int)
+        {
+            snprintf(buf, sizeof buf, "Int <lightblue>%2d</lightblue>",
+                     you.intel);
+        }
+        else
+            snprintf(buf, sizeof buf, "Int %2d", you.intel);
+    }
     else
     {
-        snprintf(buf, sizeof buf, "Int <yellow>%2d</yellow> (%d)",
-                 you.intel, you.max_intel);
+        if (boosted_int)
+        {
+            snprintf(buf, sizeof buf, "Int <lightblue>%2d (%d)</lightblue>",
+                     you.intel, you.max_intel);
+        }
+        else
+            snprintf(buf, sizeof buf, "Int <yellow>%2d</yellow> (%d)",
+                     you.intel, you.max_intel);
     }
     cols1.add_formatted(2, buf, false);
 
     if (you.dex == you.max_dex)
-        snprintf(buf, sizeof buf, "Dex %2d", you.dex);
+    {
+        if (boosted_dex)
+        {
+            snprintf(buf, sizeof buf, "Dex <lightblue>%2d</lightblue>",
+                     you.dex);
+        }
+        else
+            snprintf(buf, sizeof buf, "Dex %2d", you.dex);
+    }
     else
     {
-        snprintf(buf, sizeof buf, "Dex <yellow>%2d</yellow> (%d)",
-                 you.dex, you.max_dex);
+        if (boosted_dex)
+        {
+            snprintf(buf, sizeof buf, "Dex <lightblue>%2d (%d)</lightblue>",
+                     you.dex, you.max_dex);
+        }
+        else
+            snprintf(buf, sizeof buf, "Dex <yellow>%2d</yellow> (%d)",
+                     you.dex, you.max_dex);
     }
     cols1.add_formatted(2, buf, false);
 
     char god_colour_tag[20];
     god_colour_tag[0] = 0;
     std::string godpowers(god_name(you.religion));
-    if (you.religion != GOD_NO_GOD)
+    if (you.religion == GOD_XOM)
+    {
+        snprintf(god_colour_tag, sizeof god_colour_tag, "<%s>",
+                 colour_to_str(god_colour(you.religion)).c_str());
+
+        if (you.gift_timeout == 0)
+            godpowers += " - BORED";
+        else if (you.gift_timeout == 1)
+            godpowers += " - getting BORED";
+    }
+    else if (you.religion != GOD_NO_GOD)
     {
         if (player_under_penance())
             strcpy(god_colour_tag, "<red>*");
@@ -2062,7 +2137,7 @@ static std::vector<formatted_string> _get_overview_resistances(
              _determine_colour_string(rclar, 1), itosym1(rclar));
     cols.add_formatted(1, buf, false);
 
-    if ( scan_randarts(RAP_PREVENT_TELEPORTATION, calc_unid) )
+    if (scan_randarts(RAP_PREVENT_TELEPORTATION, calc_unid))
     {
         snprintf(buf, sizeof buf, "\n%sPrev.Telep.: %s",
                  _determine_colour_string(-1, 1), itosym1(1));
@@ -2315,7 +2390,7 @@ std::string _status_mut_abilities()
         status.push_back("mighty");
 
     if (you.duration[DUR_DIVINE_VIGOUR])
-        status.push_back("divinely robust");
+        status.push_back("divinely vigorous");
 
     if (you.duration[DUR_DIVINE_STAMINA])
         status.push_back("divinely fortified");
@@ -2606,7 +2681,7 @@ std::string _status_mut_abilities()
     }                           //end switch - innate abilities
 
     // a bit more stuff
-    if (you.species == SP_OGRE || you.species == SP_TROLL
+    if (player_genus(GENPC_OGRE) || you.species == SP_TROLL
         || player_genus(GENPC_DRACONIAN) || you.species == SP_SPRIGGAN)
     {
         mutations.push_back("unfitting armour");
@@ -2949,7 +3024,8 @@ std::string _status_mut_abilities()
                 if (level == 3)
                     current = "shaggy fur";
                 break;
-            default: break;
+            default:
+                break;
         }
 
         if (!current.empty())

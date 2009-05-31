@@ -24,6 +24,7 @@ REVISION("$Rev$");
 #include "externs.h"
 
 #include "decks.h"
+#include "describe.h"
 #include "food.h"
 #include "initfile.h"
 #include "invent.h"
@@ -43,11 +44,8 @@ REVISION("$Rev$");
 #include "spl-book.h"
 #include "state.h"
 #include "stuff.h"
+#include "transfor.h"
 #include "view.h"
-#include "items.h"
-
-
-#include "describe.h"
 
 
 id_arr type_ids;
@@ -1259,7 +1257,7 @@ std::string item_def::name_aux(description_level_type desc,
                     (dhelm == THELM_DESC_PLUMED)   ? "plumed "  :
                     (dhelm == THELM_DESC_SPIKED)   ? "spiked "  :
                     (dhelm == THELM_DESC_VISORED)  ? "visored " :
-                    (dhelm == THELM_DESC_JEWELLED) ? "jewelled "
+                    (dhelm == THELM_DESC_GOLDEN)   ? "golden "
                                                    : "buggy ");
         }
 
@@ -1903,7 +1901,6 @@ bool check_item_knowledge(bool quiet)
 
 
     for (int i = 0; i < 5; i++)
-    {
         for (int j = 0; j < idx_to_maxtype[i]; j++)
         {
             if (type_ids[i][j] == ID_KNOWN_TYPE)
@@ -1919,7 +1916,6 @@ bool check_item_knowledge(bool quiet)
                 }
             }
         }
-    }
 
     if (items.empty())
     {
@@ -1933,14 +1929,16 @@ bool check_item_knowledge(bool quiet)
         std::sort(items.begin(), items.end(), item_names);
         InvMenu menu;
         menu.set_title("You recognise:");
-        menu.load_items(items, discoveries_item_mangle);
         menu.set_flags(MF_NOSELECT);
+        menu.load_items(items, discoveries_item_mangle);
         menu.show();
         redraw_screen();
 
-        for ( std::vector<const item_def*>::iterator iter = items.begin();
-              iter != items.end(); ++iter )
+        for (std::vector<const item_def*>::iterator iter = items.begin();
+             iter != items.end(); ++iter)
+        {
             delete *iter;
+        }
     }
 
     return (rc);
@@ -2613,7 +2611,8 @@ bool is_useless_item(const item_def &item, bool temp)
 
         if (item.sub_type == FOOD_CHUNK
             && (you.has_spell(SPELL_SUBLIMATION_OF_BLOOD)
-                || you.has_spell(SPELL_SIMULACRUM)))
+                || you.has_spell(SPELL_SIMULACRUM)
+                || !temp && you.attribute[ATTR_TRANSFORMATION] == TRAN_LICH))
         {
             return (false);
         }

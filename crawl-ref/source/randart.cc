@@ -619,7 +619,7 @@ static int _randart_add_one_property( const item_def &item,
 
     const bool negench = one_chance_in(4);
 
-    switch(prop)
+    switch (prop)
     {
     default:
     case 0:
@@ -1476,12 +1476,7 @@ std::string artefact_name(const item_def &item, bool appearance)
     if (appearance)
     {
         std::string appear = getRandNameString(lookup, " appearance");
-        if (appear.empty() // nothing found for lookup
-            // Don't allow "jewelled jewelled helmet".
-            || item.base_type == OBJ_ARMOUR
-               && item.sub_type == ARM_HELMET
-               && appear == "jewelled"
-               && get_helmet_desc(item) == THELM_DESC_JEWELLED)
+        if (appear.empty())
         {
             appear = getRandNameString("general appearance");
             if (appear.empty()) // still nothing found?

@@ -149,8 +149,8 @@ const bool InvEntry::is_item_equipped() const
     return (false);
 }
 
-// returns values < 0 for edible chunks (non-rotten except for Saprovores),
-// 0 for non-chunks, and values > 0 for rotten chunks for non-Saprovores
+// Returns values < 0 for edible chunks (non-rotten except for Saprovores),
+// 0 for non-chunks, and values > 0 for rotten chunks for non-Saprovores.
 const int InvEntry::item_freshness() const
 {
     if (item->base_type != OBJ_FOOD || item->sub_type != FOOD_CHUNK)
@@ -225,53 +225,78 @@ std::string InvEntry::get_text() const
     return tstr.str();
 }
 
-void InvEntry::add_class_hotkeys(const item_def &i)
+static void _get_class_hotkeys(const int type, std::vector<char> &glyphs)
 {
-    switch (i.base_type)
+    switch (type)
     {
     case OBJ_GOLD:
-        add_hotkey('$');
+        glyphs.push_back('$');
         break;
     case OBJ_MISSILES:
-        add_hotkey('(');
+        glyphs.push_back('(');
         break;
     case OBJ_WEAPONS:
-        add_hotkey(')');
+        glyphs.push_back(')');
         break;
     case OBJ_ARMOUR:
-        add_hotkey('[');
+        glyphs.push_back('[');
         break;
     case OBJ_WANDS:
-        add_hotkey('/');
+        glyphs.push_back('/');
         break;
     case OBJ_FOOD:
-        add_hotkey('%');
+        glyphs.push_back('%');
         break;
     case OBJ_BOOKS:
-        add_hotkey('+');
-        add_hotkey(':');
+        glyphs.push_back('+');
+        glyphs.push_back(':');
         break;
     case OBJ_SCROLLS:
-        add_hotkey('?');
+        glyphs.push_back('?');
         break;
     case OBJ_JEWELLERY:
-        add_hotkey(i.sub_type >= AMU_RAGE ? '"' : '=');
+        glyphs.push_back('"');
+        glyphs.push_back('=');
         break;
     case OBJ_POTIONS:
-        add_hotkey('!');
+        glyphs.push_back('!');
         break;
     case OBJ_STAVES:
-        add_hotkey('\\');
-        add_hotkey('|');
+        glyphs.push_back('\\');
+        glyphs.push_back('|');
         break;
     case OBJ_MISCELLANY:
-        add_hotkey('}');
+        glyphs.push_back('}');
         break;
     case OBJ_CORPSES:
-        add_hotkey('&');
+        glyphs.push_back('&');
         break;
     default:
         break;
+    }
+}
+
+void InvEntry::add_class_hotkeys(const item_def &i)
+{
+    const int type = i.base_type;
+    if (type == OBJ_JEWELLERY)
+    {
+        add_hotkey(i.sub_type >= AMU_RAGE ? '"' : '=');
+        return;
+    }
+
+    std::vector<char> glyphs;
+    _get_class_hotkeys(type, glyphs);
+    for (unsigned int k = 0; k < glyphs.size(); ++k)
+        add_hotkey(glyphs[k]);
+
+    // Hack to make rotten chunks answer to '&' as well.
+    // Check for uselessness rather than inedibility to cover the spells
+    // that use chunks.
+    if (i.base_type == OBJ_FOOD && i.sub_type == FOOD_CHUNK
+        && is_useless_item(i))
+    {
+        add_hotkey('&');
     }
 }
 
@@ -326,9 +351,9 @@ void InvMenu::set_title_annotator(invtitle_annotator afn)
     title_annotate = afn;
 }
 
-void InvMenu::set_title(MenuEntry *t)
+void InvMenu::set_title(MenuEntry *t, bool first)
 {
-    Menu::set_title(t);
+    Menu::set_title(t, first);
 }
 
 void InvMenu::set_preselect(const std::vector<SelItem> *pre)
@@ -434,6 +459,8 @@ static std::string _no_selectables_message(int item_selector)
         return("You aren't carrying any items that might be thrown or fired.");
     case OSEL_BUTCHERY:
         return("You aren't carrying any sharp implements.");
+    case OSEL_EVOKABLE:
+        return("You aren't carrying any items that can be evoked.");
     }
 
     return("You aren't carrying any such object.");
@@ -456,6 +483,9 @@ void InvMenu::load_inv_items(int item_selector, int excluded_slot,
 #ifdef USE_TILE
 bool InvEntry::get_tiles(std::vector<tile_def>& tileset) const
 {
+    if (!Options.tile_menu_icons)
+        return (false);
+
     if (quantity <= 0)
         return (false);
 
@@ -463,8 +493,66 @@ bool InvEntry::get_tiles(std::vector<tile_def>& tileset) const
     if (!idx)
         return (false);
 
-    tileset.push_back(tile_def(TILE_ITEM_SLOT, TEX_DUNGEON));
-    tileset.push_back(tile_def(idx, TEX_DEFAULT));
+    if (in_inventory(*item))
+    {
+        const bool equipped = item_is_equipped(*item);
+        if (equipped)
+        {
+            if (item_known_cursed(*item))
+                tileset.push_back(tile_def(TILE_ITEM_SLOT_EQUIP_CURSED, TEX_DEFAULT));
+            else
+                tileset.push_back(tile_def(TILE_ITEM_SLOT_EQUIP, TEX_DEFAULT));
+        }
+        else if (item_known_cursed(*item))
+            tileset.push_back(tile_def(TILE_ITEM_SLOT_CURSED, TEX_DEFAULT));
+
+        tileset.push_back(tile_def(TILE_ITEM_SLOT, TEX_DUNGEON));
+        tileset.push_back(tile_def(idx, TEX_DEFAULT));
+
+        // Is item melded?
+        if (equipped && !you_tran_can_wear(*item))
+            tileset.push_back(tile_def(TILE_MESH, TEX_DEFAULT));
+    }
+    else
+    {
+        // Do we want to display the floor type or is that too distracting?
+        const coord_def c = item->pos;
+        int ch = -1;
+        if (c.x == 0)
+        {
+            // Store items.
+            tileset.push_back(tile_def(TILE_ITEM_SLOT, TEX_DUNGEON));
+        }
+        else if (c != coord_def())
+        {
+            ch = tileidx_feature(grd(c), c.x, c.y);
+            if (ch == TILE_FLOOR_NORMAL)
+                ch = env.tile_flv(c).floor;
+            else if (ch == TILE_WALL_NORMAL)
+                ch = env.tile_flv(c).wall;
+
+            tileset.push_back(tile_def(ch, TEX_DUNGEON));
+        }
+        tileset.push_back(tile_def(idx, TEX_DEFAULT));
+
+        if (ch != -1)
+        {
+            // Needs to be displayed so as to not give away mimics in shallow water.
+            if (ch == TILE_DNGN_SHALLOW_WATER)
+            {
+                tileset.push_back(tile_def(TILE_MASK_SHALLOW_WATER,
+                                           TEX_DEFAULT));
+            }
+            else if (ch == TILE_DNGN_SHALLOW_WATER_MURKY)
+            {
+                tileset.push_back(tile_def(TILE_MASK_SHALLOW_WATER_MURKY,
+                                           TEX_DEFAULT));
+            }
+        }
+    }
+    int brand = tile_known_weapon_brand(*item);
+    if (brand)
+        tileset.push_back(tile_def(brand, TEX_DEFAULT));
 
     return (true);
 }
@@ -563,8 +651,7 @@ static bool _compare_invmenu_items(const InvEntry *a, const InvEntry *b,
                                   const item_sort_comparators *cmps)
 {
     for (item_sort_comparators::const_iterator i = cmps->begin();
-         i != cmps->end();
-         ++i)
+         i != cmps->end(); ++i)
     {
         const int cmp = i->compare(a, b);
         if (cmp)
@@ -674,7 +761,27 @@ void InvMenu::load_items(const std::vector<const item_def*> &mitems,
         if (!inv_class[i])
             continue;
 
-        add_entry( new MenuEntry( item_class_name(i), MEL_SUBTITLE ) );
+        std::string subtitle = item_class_name(i);
+#ifdef USE_TILE
+        // For Tiles, mention the class selection shortcuts.
+        if (is_set(MF_MULTISELECT) && inv_class[i] > 1)
+        {
+            std::vector<char> glyphs;
+            _get_class_hotkeys(i, glyphs);
+            if (!glyphs.empty())
+            {
+                const std::string str = "Magical Staves and Rods"; // longest string
+                subtitle += std::string(str.length()
+                                        - subtitle.length() + 1, ' ');
+                subtitle += "(select all with <w>";
+                for (unsigned int k = 0; k < glyphs.size(); ++k)
+                     subtitle += glyphs[k];
+                subtitle += "</w><blue>)";
+            }
+        }
+#endif
+
+        add_entry( new MenuEntry( subtitle, MEL_SUBTITLE ) );
         items_in_class.clear();
 
         for (int j = 0, count = mitems.size(); j < count; ++j)
@@ -757,7 +864,7 @@ unsigned char InvMenu::getkey() const
 {
     unsigned char mkey = lastch;
     if (!isalnum(mkey) && mkey != '$' && mkey != '-' && mkey != '?'
-        && mkey != '*' && mkey != ESCAPE)
+        && mkey != '*' && mkey != ESCAPE && mkey != '\\')
     {
         mkey = ' ';
     }
@@ -789,7 +896,10 @@ unsigned char get_invent(int invent_type)
         else
             break;
     }
-    redraw_screen();
+
+    if (!crawl_state.doing_prev_cmd_again)
+        redraw_screen();
+
     return select;
 }                               // end get_invent()
 
@@ -868,13 +978,19 @@ std::vector<SelItem> select_items( const std::vector<const item_def*> &items,
 static bool _item_class_selected(const item_def &i, int selector)
 {
     const int itype = i.base_type;
-    if (selector == OSEL_ANY || selector == itype && itype != OBJ_ARMOUR)
+    if (selector == OSEL_ANY || selector == itype
+                                && itype != OBJ_FOOD && itype != OBJ_ARMOUR)
+    {
         return (true);
+    }
 
     switch (selector)
     {
     case OBJ_ARMOUR:
         return (itype == OBJ_ARMOUR && you_tran_can_wear(i));
+
+    case OSEL_WORN_ARMOUR:
+        return (itype == OBJ_ARMOUR && item_is_equipped(i));
 
     case OSEL_UNIDENT:
         return !fully_identified(i);
@@ -910,10 +1026,16 @@ static bool _item_class_selected(const item_def &i, int selector)
         return (itype == OBJ_SCROLLS || itype == OBJ_BOOKS);
 
     case OSEL_RECHARGE:
-        return (item_is_rechargeable(i, true, true));
+        return (item_is_rechargeable(i, true));
+
+    case OSEL_EVOKABLE:
+        return (item_is_evokable(i, true));
 
     case OSEL_ENCH_ARM:
         return (is_enchantable_armour(i, true, true));
+
+    case OBJ_FOOD:
+        return (itype == OBJ_FOOD && !is_inedible(i));
 
     case OSEL_VAMP_EAT:
         return (itype == OBJ_CORPSES && i.sub_type == CORPSE_BODY
@@ -928,10 +1050,9 @@ static bool _item_class_selected(const item_def &i, int selector)
             return (true);
 
         for (int eq = 0; eq < NUM_EQUIP; eq++)
-        {
              if (you.equip[eq] == i.link)
                  return (true);
-        }
+
         return (false);
     }
     default:
@@ -1088,7 +1209,7 @@ std::vector<SelItem> prompt_invent_items(
     int count = -1;
     while (true)
     {
-        if (need_redraw)
+        if (need_redraw && !crawl_state.doing_prev_cmd_again)
         {
             redraw_screen();
             mesclr( true );
@@ -1140,8 +1261,11 @@ std::vector<SelItem> prompt_invent_items(
 
             if (items.size())
             {
-                redraw_screen();
-                mesclr(true);
+                if (!crawl_state.doing_prev_cmd_again)
+                {
+                    redraw_screen();
+                    mesclr(true);
+                }
 
                 for (unsigned int i = 0; i < items.size(); ++i)
                     items[i].slot = letter_to_index( items[i].slot );
@@ -1173,7 +1297,7 @@ std::vector<SelItem> prompt_invent_items(
             ret = letter_to_index( keyin );
 
             if (!is_valid_item( you.inv[ret] ))
-                mpr( "You do not have any such object." );
+                mpr("You do not have any such object.");
             else
                 break;
         }
@@ -1209,9 +1333,9 @@ static int _digit_to_index( char digit, operation_types oper )
         {
             const std::string& r(you.inv[i].inscription);
             // Note that r.size() is unsigned.
-            for ( unsigned int j = 0; j + 2 < r.size(); ++j )
+            for (unsigned int j = 0; j + 2 < r.size(); ++j)
             {
-                if ( r[j] == '@'
+                if (r[j] == '@'
                      && (r[j+1] == iletter || r[j+1] == '*')
                      && r[j+2] == digit )
                 {
@@ -1229,7 +1353,7 @@ bool has_warning_inscription(const item_def& item,
     const char iletter = static_cast<char>(oper);
 
     const std::string& r(item.inscription);
-    for ( unsigned int i = 0; i + 1 < r.size(); ++i )
+    for (unsigned int i = 0; i + 1 < r.size(); ++i)
     {
         if (r[i] == '!')
         {
@@ -1237,6 +1361,11 @@ bool has_warning_inscription(const item_def& item,
                 return (true);
             else if (oper == OPER_ZAP && r[i+1] == 'z') // for the 0.3.4. keys
                 return (true);
+            else if (oper == OPER_EVOKE
+                     && (r[i+1] == 'V' || tolower(r[i+1]) == 'z'))
+            {
+                return (true);
+            }
         }
     }
 
@@ -1406,7 +1535,8 @@ int prompt_invent_item( const char *prompt,
                         const char other_valid_char,
                         int excluded_slot,
                         int *const count,
-                        operation_types oper )
+                        operation_types oper,
+                        bool allow_list_known )
 {
     if (!_any_items_to_select(type_expect) && type_expect == OSEL_THROWABLE
         && oper == OPER_FIRE && mtype == MT_INVLIST)
@@ -1442,7 +1572,7 @@ int prompt_invent_item( const char *prompt,
 
     while (true)
     {
-        if (need_redraw)
+        if (need_redraw && !crawl_state.doing_prev_cmd_again)
         {
             redraw_screen();
             mesclr( true );
@@ -1481,6 +1611,13 @@ int prompt_invent_item( const char *prompt,
                         NULL,
                         &items );
 
+            if (allow_list_known && keyin == '\\')
+            {
+                if (check_item_knowledge(true))
+                    keyin = '?';
+                else
+                    mpr("You don't recognise anything yet!");
+            }
 
             need_getch  = false;
 
@@ -1493,8 +1630,11 @@ int prompt_invent_item( const char *prompt,
                 if (count)
                     *count = items[0].quantity;
 
-                redraw_screen();
-                mesclr( true );
+                if (!crawl_state.doing_prev_cmd_again)
+                {
+                    redraw_screen();
+                    mesclr( true );
+                }
             }
         }
         else if (count != NULL && isdigit( keyin ))
@@ -1517,11 +1657,21 @@ int prompt_invent_item( const char *prompt,
             }
         }
         else if (keyin == ESCAPE
-                || (Options.easy_quit_item_prompts
-                    && allow_easy_quit && keyin == ' '))
+                 || (Options.easy_quit_item_prompts
+                     && allow_easy_quit && keyin == ' '))
         {
             ret = PROMPT_ABORT;
             break;
+        }
+        else if (allow_list_known && keyin == '\\')
+        {
+                if (check_item_knowledge(true))
+                {
+                    keyin = '?';
+                    need_getch = false;
+                }
+                else
+                    mpr("You don't recognise anything yet!");
         }
         else if (isalpha( keyin ))
         {
@@ -1534,7 +1684,7 @@ int prompt_invent_item( const char *prompt,
         }
         else if (!isspace( keyin ))
         {
-            // we've got a character we don't understand...
+            // We've got a character we don't understand...
             canned_msg( MSG_HUH );
         }
         else
@@ -1563,4 +1713,102 @@ bool prompt_failed(int retval, std::string msg)
     crawl_state.cancel_cmd_repeat();
 
     return (true);
+}
+
+bool item_is_evokable(const item_def &item, bool known, bool msg)
+{
+    const bool wielded = (you.equip[EQ_WEAPON] == item.link);
+
+    switch (item.base_type)
+    {
+    case OBJ_WANDS:
+        if (item.plus2 == ZAPCOUNT_EMPTY)
+        {
+            if (msg)
+                mpr("This wand has no charges.");
+            return (false);
+        }
+        return (true);
+
+    case OBJ_WEAPONS:
+        if (!wielded && !msg)
+            return (false);
+
+        if (get_weapon_brand(item) == SPWPN_REACHING
+            && item_type_known(item))
+        {
+            if (!wielded)
+            {
+                if (msg)
+                    mpr("That item can only be evoked when wielded.");
+                return (false);
+            }
+            return (true);
+        }
+
+        if (is_fixed_artefact(item))
+        {
+            switch (item.special)
+            {
+            case SPWPN_SCEPTRE_OF_ASMODEUS:
+            case SPWPN_STAFF_OF_WUCAD_MU:
+            case SPWPN_STAFF_OF_DISPATER:
+            case SPWPN_STAFF_OF_OLGREB:
+                if (!wielded)
+                {
+                    if (msg)
+                        mpr("That item can only be evoked when wielded.");
+                    return (false);
+                }
+                return (true);
+
+            default:
+                return (false);
+            }
+        }
+        if (msg)
+            mpr("That item cannot be evoked!");
+        return (false);
+
+    case OBJ_STAVES:
+        if (item_is_rod(item)
+            || !known && !item_type_known(item)
+            || item.sub_type == STAFF_CHANNELING
+               && item_type_known(item))
+        {
+            if (!wielded)
+            {
+                if (msg)
+                    mpr("That item can only be evoked when wielded.");
+                return (false);
+            }
+            return (true);
+        }
+        if (msg)
+            mpr("That item cannot be evoked!");
+        return (false);
+
+    case OBJ_MISCELLANY:
+        if (is_deck(item))
+        {
+            if (!wielded)
+            {
+                if (msg)
+                    mpr("That item can only be evoked when wielded.");
+                return (false);
+            }
+            return (true);
+        }
+
+        if (item.sub_type != MISC_LANTERN_OF_SHADOWS
+            && item.sub_type != MISC_EMPTY_EBONY_CASKET)
+        {
+            return (true);
+        }
+        // else fall through
+    default:
+        if (msg)
+            mpr("That item cannot be evoked!");
+        return (false);
+    }
 }

@@ -20,7 +20,7 @@ struct generic_cost
     int base, add, rolls;
 
     generic_cost(int num)
-        : base(num), add(num == 0? 0 : (num + 1) / 2 + 1), rolls(1)
+        : base(num), add(num == 0 ? 0 : (num + 1) / 2 + 1), rolls(1)
     {
     }
     generic_cost(int num, int _add, int _rolls = 1)
@@ -74,7 +74,7 @@ int choose_ability_menu(const std::vector<talent>& talents);
  * *********************************************************************** */
 bool activate_ability();
 std::vector<talent> your_talents(bool check_confused);
-
+bool string_matches_ability_name(const std::string key);
 std::string print_abilities(void);
 
 void set_god_ability_slots(void);

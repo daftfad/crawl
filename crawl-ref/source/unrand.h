@@ -136,7 +136,7 @@
         0, 0, 0, 0, 0, 0,
 /* see invis, turn invis, levitate, blink, teleport at will, go berserk */
         0, 0, 0, 0, 0, 0,
-/* sense surroundings, make noise, no spells, teleport, no teleprt */
+/* sense surroundings, make noise, no spells, teleport, no teleport */
         0, 0, 0, 0, 0,
 /* force berserk, speed metabolism, mutate, +/- to hit, +/- to dam (not weapons) */
         0, 0, 0, 0, 0,
@@ -873,9 +873,9 @@
         0, 0
     }
     ,
-        "This trident was stolen many years ago from the Octopus king's garden "
-        "by a really unimportant and already dead man. But beware of "
-        "the Octopus king's wrath!",
+        "This trident was stolen many years ago from the Octopus King's garden "
+        "by a really unimportant and already dead man. But beware of the "
+        "Octopus King's wrath!",
         "",
         ""
 }
@@ -1207,7 +1207,7 @@
     ,
         "",
         "A double-ended whip made from the cured hides of the "
-        "Lair of the Beasts' deadly grey snakes.",
+        "Lair of Beasts' deadly grey snakes.",
         ""
 },
 
@@ -1244,7 +1244,7 @@
         0, 0, 0, 0, 0, 0,
 /* see invis, turn invis, levitate, blink, teleport at will, go berserk */
         0, 0, 0, 0, 0, 0,
-/* sense surroundings, make noise, no spells, teleport, no teleprt */
+/* sense surroundings, make noise, no spells, teleport, no teleport */
         0, 0, 0, 0, 0,
 /* force berserk, speed metabolism, mutate, +/- to hit, +/- to dam (not weapons) */
         0, 0, 0, 0, 0,

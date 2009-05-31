@@ -15,8 +15,16 @@ REVISION("$Rev$");
 #include "menu.h"
 #include "macro.h"
 #include "message.h"
+#ifdef USE_TILE
+ #include "monstuff.h"
+ #include "mon-util.h"
+#endif
 #include "player.h"
-#include "tiles.h"
+#ifdef USE_TILE
+ #include "stuff.h"
+ #include "tiles.h"
+ #include "travel.h"
+#endif
 #include "tutorial.h"
 #include "view.h"
 #include "initfile.h"
@@ -32,9 +40,13 @@ MenuDisplayText::MenuDisplayText(Menu *menu) : MenuDisplay(menu), m_starty(1)
 
 void MenuDisplayText::draw_stock_item(int index, const MenuEntry *me)
 {
-    textattr(m_menu->item_colour(index, me));
+    if (crawl_state.doing_prev_cmd_again)
+        return;
+
+    const int col = m_menu->item_colour(index, me);
+    textattr(col);
     if (m_menu->get_flags() & MF_ALLOW_FORMATTING)
-        formatted_string::parse_string(me->get_text()).display();
+        formatted_string::parse_string(me->get_text(), true, NULL, col).display();
     else
     {
         std::string text = me->get_text();
@@ -85,8 +97,8 @@ void MenuDisplayTile::set_num_columns(int columns)
 
 Menu::Menu( int _flags, const std::string& tagname, bool text_only )
   : f_selitem(NULL), f_drawitem(NULL), f_keyfilter(NULL), allow_toggle(false),
-    menu_action(ACT_EXAMINE), title(NULL), flags(_flags), tag(tagname),
-    first_entry(0), y_offset(0), pagesize(0), max_pagesize(0),
+    menu_action(ACT_EXAMINE), title(NULL), title2(NULL), flags(_flags),
+    tag(tagname), first_entry(0), y_offset(0), pagesize(0), max_pagesize(0),
     more("-more-", true), items(), sel(), select_filter(),
     highlighter(new MenuHighlighter), num(-1), lastch(0), alive(false),
     last_selected(-1)
@@ -104,7 +116,8 @@ Menu::Menu( int _flags, const std::string& tagname, bool text_only )
 }
 
 Menu::Menu( const formatted_string &fs )
- : f_selitem(NULL), f_drawitem(NULL), f_keyfilter(NULL), title(NULL),
+ : f_selitem(NULL), f_drawitem(NULL), f_keyfilter(NULL),  allow_toggle(false),
+   menu_action(ACT_EXAMINE), title(NULL), title2(NULL),
 
    // This is a text-viewer menu, init flags to be easy on the user.
    flags(MF_NOSELECT | MF_EASY_EXIT),
@@ -114,11 +127,7 @@ Menu::Menu( const formatted_string &fs )
    select_filter(), highlighter(new MenuHighlighter), num(-1),
    lastch(0), alive(false), last_selected(-1)
 {
-#ifdef USE_TILE
     mdisplay = new MenuDisplayText(this);
-#else
-    mdisplay = new MenuDisplayText(this);
-#endif
     mdisplay->set_num_columns(1);
 
     int colour = LIGHTGREY;
@@ -238,13 +247,21 @@ void Menu::set_highlighter( MenuHighlighter *mh )
     highlighter = mh;
 }
 
-void Menu::set_title( MenuEntry *e )
+void Menu::set_title( MenuEntry *e, bool first )
 {
-    if (title != e)
-        delete title;
+    if (first)
+    {
+        if (title != e)
+            delete title;
 
-    title = e;
-    title->level = MEL_TITLE;
+        title = e;
+        title->level = MEL_TITLE;
+    }
+    else
+    {
+        title2 = e;
+        title2->level = MEL_TITLE;
+    }
 }
 
 void Menu::add_entry( MenuEntry *entry )
@@ -297,7 +314,7 @@ void Menu::do_menu()
     while (alive)
     {
 #ifndef USE_TILE
-        int keyin = getchm(KC_MENU, c_getch);
+        int keyin = getchm(KMC_MENU, c_getch);
 #else
         mouse_control mc(MOUSE_MODE_MORE);
         int keyin = getch();
@@ -505,6 +522,9 @@ bool Menu::process_key( int keyin )
 
 bool Menu::draw_title_suffix( const std::string &s, bool titlefirst )
 {
+    if (crawl_state.doing_prev_cmd_again)
+        return (true);
+
     int oldx = wherex(), oldy = wherey();
 
     if (titlefirst)
@@ -531,6 +551,9 @@ bool Menu::draw_title_suffix( const std::string &s, bool titlefirst )
 
 bool Menu::draw_title_suffix( const formatted_string &fs, bool titlefirst )
 {
+    if (crawl_state.doing_prev_cmd_again)
+        return (true);
+
     int oldx = wherex(), oldy = wherey();
 
     if (titlefirst)
@@ -685,18 +708,125 @@ void Menu::select_items(int key, int qty)
     cgotoxy( x, y );
 }
 
+MonsterMenuEntry::MonsterMenuEntry(const std::string &str, const monsters* mon, int hotkey) :
+    MenuEntry(str, MEL_ITEM, 1, hotkey)
+{
+    data = (void*)mon;
+    quantity = 1;
+}
+
+FeatureMenuEntry::FeatureMenuEntry(const std::string &str, const coord_def p, int hotkey) :
+    MenuEntry(str, MEL_ITEM, 1, hotkey)
+{
+    pos      = p;
+    quantity = 1;
+}
+
 #ifdef USE_TILE
 bool MenuEntry::get_tiles(std::vector<tile_def>& tileset) const
 {
-    // Is this a monster?
+    return (false);
+}
+
+bool MonsterMenuEntry::get_tiles(std::vector<tile_def>& tileset) const
+{
+    if (!Options.tile_menu_icons)
+        return (false);
+
     monsters *m = (monsters*)(data);
     if (!m)
         return (false);
 
     const coord_def c = m->pos();
-    const dungeon_feature_type feat = grd(c);
-    tileset.push_back(tile_def(tileidx_feature(feat, c.x, c.y), TEX_DUNGEON));
-    tileset.push_back(tile_def(tileidx_monster_base(m), TEX_PLAYER));
+    int ch = tileidx_feature(grd(c), c.x, c.y);
+    if (ch == TILE_FLOOR_NORMAL)
+        ch = env.tile_flv(c).floor;
+    else if (ch == TILE_WALL_NORMAL)
+        ch = env.tile_flv(c).wall;
+
+    tileset.push_back(tile_def(ch, TEX_DUNGEON));
+
+    if (m->type == MONS_DANCING_WEAPON)
+    {
+        item_def item = mitm[m->inv[MSLOT_WEAPON]];
+        tileset.push_back(tile_def(tileidx_item(item), TEX_DEFAULT));
+        tileset.push_back(tile_def(TILE_ANIMATED_WEAPON, TEX_DEFAULT));
+
+    }
+    else if (mons_is_mimic(m->type))
+        tileset.push_back(tile_def(tileidx_monster_base(m), TEX_DEFAULT));
+    else
+        tileset.push_back(tile_def(tileidx_monster_base(m), TEX_PLAYER));
+
+    if (!mons_flies(m))
+    {
+        if (ch == TILE_DNGN_LAVA)
+            tileset.push_back(tile_def(TILE_MASK_LAVA, TEX_DEFAULT));
+        else if (ch == TILE_DNGN_SHALLOW_WATER)
+            tileset.push_back(tile_def(TILE_MASK_SHALLOW_WATER, TEX_DEFAULT));
+        else if (ch == TILE_DNGN_DEEP_WATER)
+            tileset.push_back(tile_def(TILE_MASK_DEEP_WATER, TEX_DEFAULT));
+        else if (ch == TILE_DNGN_SHALLOW_WATER_MURKY)
+            tileset.push_back(tile_def(TILE_MASK_SHALLOW_WATER_MURKY, TEX_DEFAULT));
+        else if (ch == TILE_DNGN_DEEP_WATER_MURKY)
+            tileset.push_back(tile_def(TILE_MASK_DEEP_WATER_MURKY, TEX_DEFAULT));
+    }
+
+    if (!monster_descriptor(m->type, MDSC_NOMSG_WOUNDS))
+    {
+        std::string damage_desc;
+        mon_dam_level_type damage_level;
+        mons_get_damage_level(m, damage_desc, damage_level);
+
+        switch (damage_level)
+        {
+        case MDAM_DEAD:
+        case MDAM_ALMOST_DEAD:
+            tileset.push_back(tile_def(TILE_MDAM_ALMOST_DEAD, TEX_DEFAULT));
+            break;
+        case MDAM_SEVERELY_DAMAGED:
+            tileset.push_back(tile_def(TILE_MDAM_SEVERELY_DAMAGED, TEX_DEFAULT));
+            break;
+        case MDAM_HEAVILY_DAMAGED:
+            tileset.push_back(tile_def(TILE_MDAM_HEAVILY_DAMAGED, TEX_DEFAULT));
+            break;
+        case MDAM_MODERATELY_DAMAGED:
+            tileset.push_back(tile_def(TILE_MDAM_MODERATELY_DAMAGED, TEX_DEFAULT));
+            break;
+        case MDAM_LIGHTLY_DAMAGED:
+            tileset.push_back(tile_def(TILE_MDAM_LIGHTLY_DAMAGED, TEX_DEFAULT));
+            break;
+        case MDAM_OKAY:
+        default:
+            // no flag for okay.
+            break;
+        }
+    }
+
+    if (mons_friendly_real(m))
+        tileset.push_back(tile_def(TILE_HEART, TEX_DEFAULT));
+    else if (mons_neutral(m))
+        tileset.push_back(tile_def(TILE_NEUTRAL, TEX_DEFAULT));
+    else if (mons_looks_stabbable(m))
+        tileset.push_back(tile_def(TILE_STAB_BRAND, TEX_DEFAULT));
+    else if (mons_looks_distracted(m))
+        tileset.push_back(tile_def(TILE_MAY_STAB_BRAND, TEX_DEFAULT));
+
+    return (true);
+}
+
+bool FeatureMenuEntry::get_tiles(std::vector<tile_def>& tileset) const
+{
+    if (!Options.tile_menu_icons)
+        return (false);
+
+    if (!in_bounds(pos))
+        return (false);
+
+    tileset.push_back(tile_def(tileidx_feature(grd(pos), pos.x, pos.y),
+                               TEX_DUNGEON));
+    if (is_travelable_stair(grd(pos)) && !travel_cache.know_stair(pos))
+        tileset.push_back(tile_def(TILE_NEW_STAIR, TEX_DEFAULT));
 
     return (true);
 }
@@ -782,6 +912,9 @@ int Menu::get_entry_index( const MenuEntry *e ) const
 
 void Menu::draw_menu()
 {
+    if (crawl_state.doing_prev_cmd_again)
+        return;
+
     clrscr();
 
     draw_title();
@@ -827,9 +960,14 @@ void Menu::draw_title()
 
 void Menu::write_title()
 {
-    textattr( item_colour(-1, title) );
+    const bool first = (!allow_toggle || menu_action == ACT_EXECUTE);
+    if (!first)
+        ASSERT(title2);
 
-    cprintf("%s", title->get_text().c_str());
+    textattr( item_colour(-1, first ? title : title2) );
+
+    std::string text = (first ? title->get_text() : title2->get_text());
+    cprintf("%s", text.c_str());
     if (flags & MF_SHOW_PAGENUMBERS)
     {
         // The total number of pages is well defined, but the current
@@ -855,8 +993,9 @@ bool Menu::in_page(int index) const
 
 void Menu::draw_item( int index ) const
 {
-    if (!in_page(index))
+    if (!in_page(index) || crawl_state.doing_prev_cmd_again)
         return;
+
     cgotoxy( 1, y_offset + index - first_entry );
 
     draw_index_item(index, items[index]);
@@ -864,6 +1003,9 @@ void Menu::draw_item( int index ) const
 
 void Menu::draw_index_item(int index, const MenuEntry *me) const
 {
+    if (crawl_state.doing_prev_cmd_again)
+        return;
+
     if (f_drawitem)
         (*f_drawitem)(index, me);
     else
@@ -1023,10 +1165,11 @@ void slider_menu::adjust_pagesizes(int recurse_depth)
         pagesize--;
 
     if (selected != -1
-            && (selected < first_entry || selected >= first_entry + pagesize)
-            && recurse_depth > 0)
+        && (selected < first_entry || selected >= first_entry + pagesize)
+        && recurse_depth > 0)
+    {
         fix_entry(recurse_depth - 1);
-
+    }
     calc_y_offset();
 }
 
@@ -1132,7 +1275,8 @@ void slider_menu::calc_y_offset()
 int slider_menu::entry_end() const
 {
     int end = first_entry + pagesize;
-    if (end > (int) items.size()) end = items.size();
+    if (end > (int) items.size())
+        end = items.size();
     return (end);
 }
 
@@ -1329,13 +1473,12 @@ void column_composer::clear()
     flines.clear();
 }
 
-void column_composer::add_formatted(
-        int ncol,
-        const std::string &s,
-        bool add_separator,
-        bool eol_ends_format,
-        bool (*tfilt)(const std::string &),
-        int  margin)
+void column_composer::add_formatted(int ncol,
+                                    const std::string &s,
+                                    bool add_separator,
+                                    bool eol_ends_format,
+                                    bool (*tfilt)(const std::string &),
+                                    int  margin)
 {
     ASSERT(ncol >= 0 && ncol < (int) columns.size());
 
@@ -1346,24 +1489,24 @@ void column_composer::add_formatted(
     // Add a blank line if necessary. Blank lines will not
     // be added at page boundaries.
     if (add_separator && col.lines && !segs.empty()
-            && (!pagesize || col.lines % pagesize))
+        && (!pagesize || col.lines % pagesize))
+    {
         newlines.push_back(formatted_string());
+    }
 
     for (unsigned i = 0, size = segs.size(); i < size; ++i)
     {
         newlines.push_back(
-                formatted_string::parse_string(
-                    segs[i],
-                    eol_ends_format,
-                    tfilt));
+                formatted_string::parse_string( segs[i],
+                                                eol_ends_format,
+                                                tfilt));
     }
 
     strip_blank_lines(newlines);
 
-    compose_formatted_column(
-            newlines,
-            col.lines,
-            margin == -1? col.margin : margin);
+    compose_formatted_column( newlines,
+                              col.lines,
+                              margin == -1? col.margin : margin );
 
     col.lines += newlines.size();
 
@@ -1422,11 +1565,12 @@ formatted_scroller::formatted_scroller(int _flags, const std::string& s) :
 void formatted_scroller::add_text(const std::string& s)
 {
     size_t eolpos = 0;
-    while ( true )
+    while (true)
     {
         const size_t newpos = s.find( "\n", eolpos );
-        add_item_formatted_string(formatted_string::parse_string(std::string(s, eolpos, newpos-eolpos)));
-        if ( newpos == std::string::npos )
+        add_item_formatted_string(formatted_string::parse_string(
+                                        std::string(s, eolpos, newpos-eolpos)));
+        if (newpos == std::string::npos)
             break;
         else
             eolpos = newpos + 1;
@@ -1663,7 +1807,7 @@ bool formatted_scroller::page_up()
     if (items[first_entry]->level == MEL_TITLE)
         return (false);
 
-    for ( int i = 0; i < pagesize; ++i )
+    for (int i = 0; i < pagesize; ++i)
     {
         if (first_entry == 0 || items[first_entry-1]->level == MEL_TITLE)
             break;
@@ -1676,8 +1820,8 @@ bool formatted_scroller::page_up()
 
 bool formatted_scroller::line_down()
 {
-    if (first_entry + pagesize < static_cast<int>(items.size()) &&
-        items[first_entry + pagesize]->level != MEL_TITLE )
+    if (first_entry + pagesize < static_cast<int>(items.size())
+        && items[first_entry + pagesize]->level != MEL_TITLE)
     {
         ++first_entry;
         return (true);

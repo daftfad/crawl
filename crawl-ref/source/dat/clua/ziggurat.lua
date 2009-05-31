@@ -126,11 +126,31 @@ end
 -----------------------------------------------------------------------------
 -- Ziggurat level builders.
 
+beh_wander = mons.behaviour("wander")
+
+function ziggurat_awaken_all(mons)
+  mons.beh = beh_wander
+end
+
 function ziggurat_build_level(e)
   if zig().depth == 1 then
     e.welcome("You land on top of a ziggurat so tall you cannot make out the ground.")
   end
   local builder = zig().builder
+
+  local depth = zig().depth
+
+  -- Deeper levels can have all monsters awake.
+  -- Does never happen at depths 1-4; does always happen at depths 25-27.
+  local generate_awake = depth > 4 + crawl.random2(21)
+  zig().monster_hook = generate_awake and ziggurat_awaken_all
+
+  -- Deeper levels may block controlled teleports.
+  -- Does never happen at depths 1-6; does always happen at depths 25-27.
+  if depth > 6 + crawl.random2(19) then
+    dgn.change_level_flags("no_tele_control")
+  end
+
   if builder then
     return ziggurat_builder_map[builder](e)
   end
@@ -189,11 +209,17 @@ local function set_random_floor_colour()
 end
 
 local function with_props(spec, props)
-  return util.cathash({ spec = spec }, props)
+  local spec_table = type(spec) == "table" and spec or { spec = spec }
+  return util.cathash(spec_table, props)
+end
+
+local function spec_fn(specfn)
+  return { specfn = specfn }
 end
 
 local function spec_if(fn, spec)
-  return { spec = spec, cond = fn }
+  local spec_table = type(spec) == "table" and spec or { spec = spec }
+  return util.cathash(spec_table, { cond = fn })
 end
 
 local function depth_ge(lev)
@@ -215,12 +241,27 @@ local function depth_lt(lev)
          end
 end
 
+local function zig_monster_fn(spec)
+  local mfn = dgn.monster_fn(spec)
+  return function (x, y)
+           local mons = mfn(x, y)
+           if mons then
+             local monster_hook = zig().monster_hook
+             if monster_hook then
+               monster_hook(mons)
+             end
+           end
+           return mons
+         end
+end
+
 local function monster_creator_fn(arg)
   local atyp = type(arg)
   if atyp == "string" then
     local _, _, branch = string.find(arg, "^place:(%w+):")
     local _, _, place = string.find(arg, "^place:(%w+):?")
-    local mcreator = dgn.monster_fn(arg)
+    local mcreator = zig_monster_fn(arg)
+
     local function mspec(x, y, nth)
       if branch then
         set_floor_colour(dgn.br_floorcol(branch))
@@ -233,7 +274,8 @@ local function monster_creator_fn(arg)
     return { fn = mspec, spec = arg }
   elseif atyp == "table" then
     if not arg.cond or arg.cond() then
-      return util.cathash(monster_creator_fn(arg.spec), arg)
+      local spec = arg.spec or arg.specfn()
+      return util.cathash(monster_creator_fn(spec), arg)
     end
   elseif atyp == "function" then
     return { fn = arg }
@@ -252,14 +294,9 @@ local function mset_if(condition, ...)
   mset(unpack(util.map(util.curry(spec_if, condition), { ... })))
 end
 
-mset("place:Elf:$ w:300 / deep elf blademaster / deep elf master archer / " ..
-     "deep elf annihilator / deep elf sorcerer / deep elf demonologist",
-     "place:Orc:$ w:120 / orc warlord / orc knight / stone giant",
-     "place:Vault:$",
-     with_props("place:Slime:$", { jelly_protect = true }),
+mset(with_props("place:Slime:$", { jelly_protect = true }),
      "place:Snake:$",
      with_props("place:Lair:$", { weight = 5 }),
-     "place:Tomb:$ w:200 / greater mummy",
      "place:Crypt:$",
      "place:Abyss",
      with_props("place:Shoal:$", { weight = 5 }),
@@ -268,10 +305,44 @@ mset("place:Elf:$ w:300 / deep elf blademaster / deep elf master archer / " ..
      with_props("place:Dis:$", { weight = 5 }),
      with_props("place:Tar:$", { weight = 5 }),
      with_props("daeva / angel", { weight = 2 }))
-mset_if(depth_ge(6), "place:Pan w:400 / w:15 pandemonium lord")
-mset_if(depth_lt(6), "place:Pan")
 
-local drac_creator = dgn.monster_fn("random draconian")
+-- spec_fn can be used to wrap a function that returns a monster spec.
+-- This is useful if you want to adjust monster weights in the spec
+-- wrt to depth in the ziggurat. At level-generation time, the spec
+-- returned by this function will also be used to init the monster
+-- population (with dgn.set_random_mon_list). As an example:
+mset(spec_fn(function ()
+               local d = math.max(0, zig().depth - 12)
+               return "place:Vault:$ w:60 / ancient lich w:" .. d
+             end))
+
+mset(spec_fn(function ()
+               local d = math.max(0, zig().depth - 5)
+               return "place:Pan w:40 / pandemonium lord w:" .. d
+             end))
+
+mset(spec_fn(function ()
+               local d = zig().depth + 5
+               return "place:Tomb:$ w:200 / greater mummy w:" .. d
+             end))
+
+mset(spec_fn(function ()
+               local d = 300 - 10 * zig().depth
+               return "place:Elf:$ w:" .. d .. " / deep elf sorcerer / " ..
+                 "deep elf blademaster / deep elf master archer / " ..
+                 "deep elf annihilator / deep elf demonologist"
+             end))
+
+mset(spec_fn(function ()
+               local d = 310 - 10 * zig().depth
+               local e = math.max(0, zig().depth - 20)
+               return "place:Orc:$ w:" .. d .. " / orc warlord / orc knight / " ..
+                 "orc high priest w:5 / orc sorcerer w:5 / stone giant / " ..
+                 "moth of wrath w:" .. e
+             end))
+
+
+local drac_creator = zig_monster_fn("random draconian")
 local function mons_drac_gen(x, y, nth)
   if nth == 1 then
     dgn.set_random_mon_list("random draconian")
@@ -280,8 +351,8 @@ local function mons_drac_gen(x, y, nth)
   return drac_creator(x, y)
 end
 
-local pan_lord_fn = dgn.monster_fn("pandemonium lord")
-local pan_critter_fn = dgn.monster_fn("place:Pan")
+local pan_lord_fn = zig_monster_fn("pandemonium lord")
+local pan_critter_fn = zig_monster_fn("place:Pan")
 
 local function mons_panlord_gen(x, y, nth)
   set_random_floor_colour()

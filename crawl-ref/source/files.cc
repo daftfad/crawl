@@ -900,19 +900,18 @@ static void _place_player_on_stair(level_area_type old_level_type,
 
 static void _close_level_gates()
 {
-    for ( int i = 0; i < GXM; ++i )
-        for ( int j = 0; j < GYM; ++j )
+    for (rectangle_iterator ri(0); ri; ++ri)
+    {
+        if (you.char_direction == GDT_ASCENDING
+            && you.level_type != LEVEL_PANDEMONIUM)
         {
-            if (you.char_direction == GDT_ASCENDING
-                && you.level_type != LEVEL_PANDEMONIUM)
+            if (grid_sealable_portal(grd(*ri)))
             {
-                if (grid_sealable_portal(grd[i][j]))
-                {
-                    grd[i][j] = DNGN_STONE_ARCH;
-                    env.markers.remove_markers_at(coord_def(i,j), MAT_ANY);
-                }
+                grd(*ri) = DNGN_STONE_ARCH;
+                env.markers.remove_markers_at(*ri, MAT_ANY);
             }
         }
+    }
 }
 
 static void _clear_env_map()
@@ -959,6 +958,8 @@ static void _grab_followers()
 {
     const bool can_follow = level_type_allows_followers(you.level_type);
 
+    int non_stair_using_allies = 0;
+
     // Handle nearby ghosts.
     for (adjacent_iterator ai; ai; ++ai)
     {
@@ -966,16 +967,29 @@ static void _grab_followers()
         if (fmenv == NULL)
             continue;
 
+        if (mons_wont_attack(fmenv) && !mons_can_use_stairs(fmenv))
+            non_stair_using_allies++;
+
         if (fmenv->type == MONS_PLAYER_GHOST
             && fmenv->hit_points < fmenv->max_hit_points / 2)
         {
-            mpr("The ghost fades into the shadows.");
+            if (player_monster_visible(fmenv))
+                mpr("The ghost fades into the shadows.");
             monster_teleport(fmenv, true);
         }
     }
 
     if (can_follow)
     {
+        if (non_stair_using_allies > 0)
+        {
+            // XXX: This assumes that the only monsters that are
+            // incapable of using stairs are zombified.
+            mprf("Your mindless thrall%s stay%s behind.",
+                 non_stair_using_allies > 1 ? "s" : "",
+                 non_stair_using_allies > 1 ? ""  : "s");
+        }
+
         memset(travel_point_distance, 0, sizeof(travel_distance_grid_t));
         std::vector<coord_def> places[2];
         int place_set = 0;
@@ -1025,8 +1039,8 @@ static void _do_lost_items(level_area_type old_level_type)
         if (!is_valid_item(item))
             continue;
 
-        // Item is in player intentory, so it's not lost.
-        if (item.pos.x == -1 && item.pos.y == -1)
+        // Item is in player inventory, so it's not lost.
+        if (item.pos == coord_def(-1,-1))
             continue;
 
         item_was_lost(item);
@@ -1235,10 +1249,14 @@ bool load( dungeon_feature_type stair_taken, load_mode_type load_mode,
         place_transiting_items();
     }
 
-#ifdef USE_TILE
     if (load_mode != LOAD_VISITOR)
+    {
+        // Tell stash-tracker and travel that we've changed levels.
+        trackers_init_new_level(true);
+#ifdef USE_TILE
         TileNewLevel(just_created_level);
 #endif
+    }
 
     _redraw_all();
 
@@ -1353,23 +1371,29 @@ bool load( dungeon_feature_type stair_taken, load_mode_type load_mode,
             dungeon_feature_type feat = grd(you.pos());
             if (feat != DNGN_ENTER_SHOP
                 && grid_stair_direction(feat) != CMD_NO_CMD
-                && grid_stair_direction(stair_taken) != CMD_NO_CMD
-                && coinflip()
-                && slide_feature_over(you.pos(), coord_def(-1, -1), false))
+                && grid_stair_direction(stair_taken) != CMD_NO_CMD)
             {
                 std::string stair_str =
                     feature_description(feat, NUM_TRAPS, false,
                                         DESC_CAP_THE, false);
                 std::string verb = stair_climb_verb(feat);
 
-                mprf("%s slides away from you right after you %s through it!",
-                     stair_str.c_str(), verb.c_str());
+                if (coinflip()
+                    && slide_feature_over(you.pos(), coord_def(-1, -1), false))
+                {
+                    mprf("%s slides away from you right after you %s through "
+                         "it!", stair_str.c_str(), verb.c_str());
+                }
+
+                if (coinflip())
+                {
+                    // Stairs stop fleeing from you now you actually caught one.
+                    mprf("%s settles down.", stair_str.c_str(), verb.c_str());
+                    you.duration[DUR_REPEL_STAIRS_MOVE]  = 0;
+                    you.duration[DUR_REPEL_STAIRS_CLIMB] = 0;
+                }
             }
         }
-
-        // Stairs running from you is done now that you actually caught one.
-        you.duration[DUR_REPEL_STAIRS_MOVE]  = 0;
-        you.duration[DUR_REPEL_STAIRS_CLIMB] = 0;
 
         // If butchering was interrupted by switching levels (banishment)
         // then switch back from butchering tool if there's no hostiles
@@ -1378,7 +1402,9 @@ bool load( dungeon_feature_type stair_taken, load_mode_type load_mode,
 
         // Forget about interrupted butchering, since we probably aren't going
         // to get back to the corpse in time to finish things.
-        you.attribute[ATTR_WEAPON_SWAP_INTERRUPTED] = 0;
+        // But do not reset the weapon swap if we swapped weapons
+        // because of a transformation.
+        maybe_clear_weapon_swap();
     }
 
     return just_created_level;
@@ -1574,7 +1600,7 @@ void _load_ghost(void)
     if (!_determine_ghost_version(gfile, majorVersion, minorVersion))
     {
         fclose(gfile);
-#if DEBUG_DIAGNOSTICS
+#if DEBUG_BONES | DEBUG_DIAGNOSTICS
         mprf(MSGCH_DIAGNOSTICS,
              "Ghost file \"%s\" seems to be invalid.", cha_fil.c_str());
         more();
@@ -1584,7 +1610,6 @@ void _load_ghost(void)
 
     if (majorVersion != TAG_MAJOR_VERSION || minorVersion > TAG_MINOR_VERSION)
     {
-
         fclose(gfile);
         unlink(cha_fil.c_str());
         return;
@@ -1597,7 +1622,7 @@ void _load_ghost(void)
     if (!feof(gfile))
     {
         fclose(gfile);
-#if DEBUG_DIAGNOSTICS
+#if DEBUG_BONES | DEBUG_DIAGNOSTICS
         mprf(MSGCH_DIAGNOSTICS, "Incomplete read of \"%s\".",
                   cha_fil.c_str() );
         more();
@@ -1607,15 +1632,23 @@ void _load_ghost(void)
 
     fclose(gfile);
 
-#if DEBUG_DIAGNOSTICS
-    mpr( "Loaded ghost.", MSGCH_DIAGNOSTICS );
+    if (!debug_check_ghosts())
+    {
+        mprf(MSGCH_DIAGNOSTICS, "Refusing to load buggy ghost from file \"%s\"! "
+                                "Please submit a bug report.",
+             cha_fil.c_str());
+        return;
+    }
+
+#if DEBUG_BONES | DEBUG_DIAGNOSTICS
+    mpr("Loaded ghost.", MSGCH_DIAGNOSTICS);
 #endif
 
     // Remove bones file - ghosts are hardly permanent.
     unlink(cha_fil.c_str());
 
     // Translate ghost to monster and place.
-    for (int imn = 0; imn < MAX_MONSTERS - 10 && !ghosts.empty(); imn++)
+    for (int imn = 0; imn < MAX_MONSTERS - 10 && !ghosts.empty(); ++imn)
     {
         if (menv[imn].type != -1)
             continue;
@@ -1896,7 +1929,7 @@ static bool _determine_ghost_version( FILE *ghostFile,
 static void _restore_ghost_version( FILE *ghostFile,
                                     char majorVersion, char minorVersion )
 {
-    switch(majorVersion)
+    switch (majorVersion)
     {
     case TAG_MAJOR_VERSION:
         _restore_tagged_file(ghostFile, TAGTYPE_GHOST, minorVersion);

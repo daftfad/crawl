@@ -116,12 +116,10 @@ void debug_test_explore();
  * called from: directn
  * *********************************************************************** */
 void error_message_to_player(void);
-#if DEBUG_DIAGNOSTICS
 void debug_stethoscope(int mon);
-#endif
 
 class monsters;
-class coord_def;
+struct coord_def;
 
 void wizard_apply_monster_blessing(monsters* mon);
 void wizard_give_monster_item(monsters* mon);

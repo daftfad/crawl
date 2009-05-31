@@ -145,6 +145,13 @@ public:
 
     bool isAt(int xp, int yp) const { return x == xp && y == yp; }
 
+    // Messy!
+    struct shop_item
+    {
+        item_def item;
+        unsigned price;
+    };
+
 private:
     int x, y;
     std::string name;
@@ -154,12 +161,6 @@ private:
     // Set true if the player has visited this shop
     bool visited;
 
-    // Messy!
-    struct shop_item
-    {
-        item_def item;
-        unsigned price;
-    };
     std::vector<shop_item> items;
 
     std::string shop_item_name(const shop_item &si) const;
@@ -357,6 +358,7 @@ private:
 
 extern StashTracker StashTrack;
 
+void maybe_update_stashes();
 bool is_stash(int x, int y);
 inline bool is_stash( const coord_def& p ) { return is_stash(p.x, p.y); }
 void describe_stash(int x, int y);

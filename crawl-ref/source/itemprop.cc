@@ -77,13 +77,13 @@ static armour_def Armour_prop[NUM_ARMOURS] =
     { ARM_CHAIN_MAIL,           "chain mail",             6, -4,  400,
         false, EQ_BODY_ARMOUR, SIZE_SMALL,  SIZE_MEDIUM },
     { ARM_BANDED_MAIL,          "banded mail",            7, -5,  500,
-        false, EQ_BODY_ARMOUR, SIZE_MEDIUM, SIZE_MEDIUM },
+        false, EQ_BODY_ARMOUR, SIZE_SMALL, SIZE_MEDIUM },
     { ARM_SPLINT_MAIL,          "splint mail",            8, -5,  550,
-        false, EQ_BODY_ARMOUR, SIZE_MEDIUM, SIZE_MEDIUM },
+        false, EQ_BODY_ARMOUR, SIZE_SMALL, SIZE_MEDIUM },
     { ARM_PLATE_MAIL,           "plate mail",            10, -6,  650,
-        false, EQ_BODY_ARMOUR, SIZE_MEDIUM, SIZE_MEDIUM },
+        false, EQ_BODY_ARMOUR, SIZE_SMALL, SIZE_MEDIUM },
     { ARM_CRYSTAL_PLATE_MAIL,   "crystal plate mail",    14, -8, 1200,
-        false, EQ_BODY_ARMOUR, SIZE_MEDIUM, SIZE_MEDIUM },
+        false, EQ_BODY_ARMOUR, SIZE_SMALL, SIZE_MEDIUM },
 
     { ARM_TROLL_HIDE,           "troll hide",             2, -1,  220,
         true,  EQ_BODY_ARMOUR, SIZE_LITTLE, SIZE_GIANT },
@@ -195,7 +195,7 @@ static weapon_def Weapon_prop[NUM_WEAPONS] =
         DAMV_CRUSHING, 10 },
     { WPN_ANKUS,             "ankus",               9,  2, 14, 120,  8,
         SK_MACES_FLAILS, HANDS_ONE,    SIZE_MEDIUM, MI_NONE, false,
-        DAMV_CRUSHING, 10 },
+        DAMV_PIERCING | DAM_BLUDGEON, 10 },
     { WPN_MORNINGSTAR,       "morningstar",        10, -1, 15, 140,  8,
         SK_MACES_FLAILS, HANDS_ONE,    SIZE_MEDIUM, MI_NONE, false,
         DAMV_PIERCING | DAM_BLUDGEON, 10 },
@@ -221,7 +221,7 @@ static weapon_def Weapon_prop[NUM_WEAPONS] =
         SK_MACES_FLAILS, HANDS_TWO,    SIZE_BIG,    MI_NONE, false,
         DAMV_PIERCING | DAM_BLUDGEON, 0 },
 
-    // Short blades
+    // Short Blades
     { WPN_KNIFE,             "knife",               3,  5, 10,  10,  1,
         SK_SHORT_BLADES, HANDS_ONE,    SIZE_LITTLE, MI_NONE, false,
         DAMV_STABBING | DAM_SLICE, 0 },
@@ -238,7 +238,7 @@ static weapon_def Weapon_prop[NUM_WEAPONS] =
         SK_SHORT_BLADES, HANDS_ONE,    SIZE_SMALL,  MI_NONE, false,
         DAMV_SLICING | DAM_PIERCE, 10 },
 
-    // Long blades
+    // Long Blades
     { WPN_FALCHION,              "falchion",               8,  2, 13, 170,  4,
         SK_LONG_BLADES,  HANDS_ONE,    SIZE_SMALL, MI_NONE, false,
         DAMV_SLICING, 10 },      // or perhaps DAMV_CHOPPING is more apt?
@@ -484,6 +484,17 @@ void do_curse_item( item_def &item, bool quiet )
     if (item.flags & ISFLAG_CURSED)
         return;
 
+    if (!quiet)
+    {
+        mprf("Your %s glows black for a moment.",
+             item.name(DESC_PLAIN).c_str());
+
+        // If we get the message, we know the item is cursed now.
+        item.flags |= ISFLAG_KNOW_CURSE;
+    }
+
+    item.flags |= ISFLAG_CURSED;
+
     // Xom is amused by the player's items being cursed, especially
     // if they're worn/equipped.
     if (in_inventory(item))
@@ -494,9 +505,11 @@ void do_curse_item( item_def &item, bool quiet )
         {
             amusement *= 2;
 
-            // Cursed cloaks prevent you from removing body armour.
+            // Cursed cloaks prevent you from removing body armour,
+            // gloves from switching rings.
             if (item.base_type == OBJ_ARMOUR
-                && get_armour_slot(item) == EQ_CLOAK)
+                && (get_armour_slot(item) == EQ_CLOAK
+                    || get_armour_slot(item) == EQ_GLOVES))
             {
                 amusement *= 2;
             }
@@ -508,14 +521,6 @@ void do_curse_item( item_def &item, bool quiet )
         }
         xom_is_stimulated(amusement);
     }
-
-    if (!quiet)
-    {
-        mprf("Your %s glows black for a moment.",
-             item.name(DESC_PLAIN).c_str());
-    }
-
-    item.flags |= ISFLAG_CURSED;
 }
 
 void do_uncurse_item( item_def &item )
@@ -1191,7 +1196,7 @@ bool check_armour_shape( const item_def &item, bool quiet )
                 if (item.sub_type != ARM_NAGA_BARDING)
                 {
                     if (!quiet)
-                        mpr( "You can't wear that!" );
+                        mpr("You can't wear that!");
 
                     return (false);
                 }
@@ -1201,7 +1206,7 @@ bool check_armour_shape( const item_def &item, bool quiet )
                 if (item.sub_type != ARM_CENTAUR_BARDING)
                 {
                     if (!quiet)
-                        mpr( "You can't wear that!" );
+                        mpr("You can't wear that!");
 
                     return (false);
                 }
@@ -1211,7 +1216,7 @@ bool check_armour_shape( const item_def &item, bool quiet )
                 if (player_in_water() && item.sub_type == ARM_BOOTS)
                 {
                     if (!quiet)
-                        mpr( "You don't currently have feet!" );
+                        mpr("You don't currently have feet!");
 
                     return (false);
                 }
@@ -1221,7 +1226,7 @@ bool check_armour_shape( const item_def &item, bool quiet )
                     || item.sub_type == ARM_CENTAUR_BARDING)
                 {
                     if (!quiet)
-                        mpr( "You can't wear barding!" );
+                        mpr("You can't wear barding!");
 
                     return (false);
                 }
@@ -1236,7 +1241,7 @@ bool check_armour_shape( const item_def &item, bool quiet )
             if (player_mutation_level(MUT_HORNS))
             {
                 if (!quiet)
-                    mpr( "You can't wear that with your horns!" );
+                    mpr("You can't wear that with your horns!");
 
                 return (false);
             }
@@ -1244,7 +1249,7 @@ bool check_armour_shape( const item_def &item, bool quiet )
             if (player_mutation_level(MUT_BEAK))
             {
                 if (!quiet)
-                    mpr( "You can't wear that with your beak!" );
+                    mpr("You can't wear that with your beak!");
 
                 return (false);
             }
@@ -1254,29 +1259,20 @@ bool check_armour_shape( const item_def &item, bool quiet )
             if (you.has_claws(false) >= 3)
             {
                 if (!quiet)
-                    mpr( "You can't wear gloves with your huge claws!" );
+                    mpr("You can't wear gloves with your huge claws!");
 
                 return (false);
             }
             break;
 
         case EQ_BODY_ARMOUR:
-            // Cannot swim in heavy armour.
-            if (player_is_swimming() && !is_light_armour( item ))
-            {
-                if (!quiet)
-                   mpr("You can't swim in that!");
-
-                return (false);
-            }
-
             // Draconians are human-sized, but have wings that cause problems
             // with most body armours (only very flexible fit allowed).
             if (player_genus( GENPC_DRACONIAN )
                 && !check_armour_size( item, SIZE_BIG ))
             {
                 if (!quiet)
-                   mpr( "That armour doesn't fit your wings." );
+                   mpr("That armour doesn't fit your wings.");
 
                 return (false);
             }
@@ -1293,7 +1289,7 @@ bool check_armour_shape( const item_def &item, bool quiet )
             || item.sub_type == ARM_CENTAUR_BARDING)
         {
             if (!quiet)
-               mpr( "You can't wear barding in your current form!" );
+               mpr("You can't wear barding in your current form!");
 
             return (false);
         }
@@ -1319,16 +1315,14 @@ bool check_armour_shape( const item_def &item, bool quiet )
 
 // Returns whether a wand or rod can be charged, or a weapon of electrocution
 // enchanted.
-// If unknown is true, wands with unknown charges and weapons with unknown
-// brand will also return true.
 // If hide_charged is true, wands known to be full will return false.
 // (This distinction is necessary because even full wands/rods give a message.)
-bool item_is_rechargeable(const item_def &it, bool unknown, bool hide_charged)
+bool item_is_rechargeable(const item_def &it, bool hide_charged, bool weapons)
 {
     // These are obvious...
     if (it.base_type == OBJ_WANDS)
     {
-        if (unknown && !hide_charged)
+        if (!hide_charged)
             return (true);
 
         // Don't offer wands already maximally charged.
@@ -1342,7 +1336,7 @@ bool item_is_rechargeable(const item_def &it, bool unknown, bool hide_charged)
     }
     else if (item_is_rod(it))
     {
-        if (unknown && !hide_charged)
+        if (!hide_charged)
             return (true);
 
         if (item_ident(it, ISFLAG_KNOW_PLUSES))
@@ -1354,16 +1348,16 @@ bool item_is_rechargeable(const item_def &it, bool unknown, bool hide_charged)
     }
     else if (it.base_type == OBJ_WEAPONS)
     {
-        if (unknown && !item_type_known(it)) // Could be electrocution.
+        // Might be electrocution.
+        if (weapons && !item_type_known(it))
             return (true);
 
         // Weapons of electrocution can get +1 to-dam this way.
         if (!is_artefact(it)
             && get_weapon_brand(it) == SPWPN_ELECTROCUTION
             && item_type_known(it)
-            && (unknown && !item_ident(it, ISFLAG_KNOW_PLUSES )
-                || item_ident(it, ISFLAG_KNOW_PLUSES )
-                   && it.plus2 < MAX_WPN_ENCHANT))
+            && (!item_ident(it, ISFLAG_KNOW_PLUSES)
+                || it.plus2 < MAX_WPN_ENCHANT))
         {
             return (true);
         }
@@ -1397,7 +1391,7 @@ int wand_charge_value(int type)
     }
 }
 
-bool is_enchantable_weapon(const item_def &wpn, bool uncurse)
+bool is_enchantable_weapon(const item_def &wpn, bool uncurse, bool first)
 {
     if (wpn.base_type != OBJ_WEAPONS && wpn.base_type != OBJ_MISSILES)
         return (false);
@@ -1407,7 +1401,8 @@ bool is_enchantable_weapon(const item_def &wpn, bool uncurse)
     if (wpn.base_type == OBJ_WEAPONS)
     {
         if (is_artefact(wpn)
-            || wpn.plus >= MAX_WPN_ENCHANT && wpn.plus2 >= MAX_WPN_ENCHANT)
+            || first && wpn.plus >= MAX_WPN_ENCHANT
+            || !first && wpn.plus2 >= MAX_WPN_ENCHANT)
         {
             return (uncurse && item_cursed(wpn));
         }
@@ -1590,8 +1585,8 @@ hands_reqd_type hands_reqd( const item_def &item, size_type size )
     case OBJ_WEAPONS:
         // Merging staff with magical staves for consistency... doing
         // as a special case because we want to be very flexible with
-        // these useful objects (we want spriggans and ogre magi to
-        // be able to use them).
+        // these useful objects (we want spriggans and ogres to be
+        // able to use them).
         if (item.base_type == OBJ_STAVES || weapon_skill(item) == SK_STAVES)
         {
             if (size < SIZE_SMALL)
@@ -1729,9 +1724,9 @@ bool is_blessed_blade(const item_def &item)
 bool is_blessed_blade_convertible(const item_def &item)
 {
     return (!is_artefact(item)
-        && (item.base_type == OBJ_WEAPONS
-            && (is_demonic(item)
-                || weapon_skill(item) == SK_LONG_BLADES)));
+            && (item.base_type == OBJ_WEAPONS
+                && (is_demonic(item)
+                    || weapon_skill(item) == SK_LONG_BLADES)));
 }
 
 bool convert2good(item_def &item, bool allow_blessed)
@@ -2074,7 +2069,7 @@ bool check_weapon_shape( const item_def &item, bool quiet, bool check_id )
         && player_is_unholy())
     {
         if (!quiet)
-            mpr( "This weapon will not allow you to wield it." );
+            mpr("This weapon will not allow you to wield it.");
 
         return (false);
     }
@@ -2283,21 +2278,19 @@ int ring_has_pluses( const item_def &item )
 //
 // Food functions:
 //
-bool food_is_meat( const item_def &item )
+bool food_is_meat(const item_def &item)
 {
-    ASSERT( is_valid_item( item ) && item.base_type == OBJ_FOOD );
-
-    return (Food_prop[ Food_index[item.sub_type] ].carn_mod > 0);
+    ASSERT(is_valid_item(item) && item.base_type == OBJ_FOOD);
+    return (Food_prop[Food_index[item.sub_type]].carn_mod > 0);
 }
 
 bool food_is_veg( const item_def &item )
 {
-    ASSERT( is_valid_item( item ) && item.base_type == OBJ_FOOD );
-
-    return (Food_prop[ Food_index[item.sub_type] ].herb_mod > 0);
+    ASSERT(is_valid_item(item) && item.base_type == OBJ_FOOD);
+    return (Food_prop[Food_index[item.sub_type]].herb_mod > 0);
 }
 
-bool is_blood_potion( const item_def &item)
+bool is_blood_potion(const item_def &item)
 {
     if (item.base_type != OBJ_POTIONS)
         return (false);
@@ -2307,38 +2300,37 @@ bool is_blood_potion( const item_def &item)
 }
 
 // Returns food value for one turn of eating.
-int food_value( const item_def &item )
+int food_value(const item_def &item)
 {
-    ASSERT( is_valid_item( item ) && item.base_type == OBJ_FOOD );
+    ASSERT(is_valid_item(item) && item.base_type == OBJ_FOOD);
 
     const int herb = player_mutation_level(MUT_HERBIVOROUS);
 
     // XXX: This needs to be better merged with the mutation system.
     const int carn = player_mutation_level(MUT_CARNIVOROUS);
 
-    const food_def &food = Food_prop[ Food_index[item.sub_type] ];
+    const food_def &food = Food_prop[Food_index[item.sub_type]];
 
     int ret = food.value;
 
     ret += (carn * food.carn_mod);
     ret += (herb * food.herb_mod);
 
-    return ((ret > 0) ? div_rand_round( ret, food.turns ) : 0);
+    return ((ret > 0) ? div_rand_round(ret, food.turns) : 0);
 }
 
-int food_turns( const item_def &item )
+int food_turns(const item_def &item)
 {
-    ASSERT( is_valid_item( item ) && item.base_type == OBJ_FOOD );
-
-    return (Food_prop[ Food_index[item.sub_type] ].turns);
+    ASSERT(is_valid_item(item) && item.base_type == OBJ_FOOD);
+    return (Food_prop[Food_index[item.sub_type]].turns);
 }
 
-bool can_cut_meat( const item_def &item )
+bool can_cut_meat(const item_def &item)
 {
-    return (does_damage_type( item, DAM_SLICE ));
+    return (does_damage_type(item, DAM_SLICE));
 }
 
-bool food_is_rotten( const item_def &item )
+bool food_is_rotten(const item_def &item)
 {
     return (item.special < 100) && (item.base_type == OBJ_CORPSES
                                        && item.sub_type == CORPSE_BODY
@@ -2346,15 +2338,18 @@ bool food_is_rotten( const item_def &item )
                                        && item.sub_type == FOOD_CHUNK);
 }
 
-int corpse_freshness( const item_def &item )
+int corpse_freshness(const item_def &item)
 {
     ASSERT(item.base_type == OBJ_CORPSES);
     ASSERT(item.special <= FRESHEST_CORPSE);
     return (item.special);
 }
 
+//
+// Generic item functions:
+//
 // Returns true if item counts as a tool for tool size comparisons and msgs.
-bool is_tool( const item_def &item )
+bool is_tool(const item_def &item)
 {
     // Currently using OBJ_WEAPONS instead of can_cut_meat() as almost
     // any weapon might be an evocable artefact.
@@ -2364,11 +2359,7 @@ bool is_tool( const item_def &item )
                 && item.sub_type != MISC_RUNE_OF_ZOT));
 }
 
-
-//
-// Generic item functions:
-//
-int property( const item_def &item, int prop_type )
+int property(const item_def &item, int prop_type)
 {
     switch (item.base_type)
     {
@@ -2420,26 +2411,10 @@ bool gives_ability(const item_def &item)
     switch (item.base_type)
     {
     case OBJ_WEAPONS:
-    {
-        // unwielded weapon
-        item_def *weap = you.slot_item(EQ_WEAPON);
-        if (!weap || weap->slot != item.slot)
-            return (false);
         break;
-    }
     case OBJ_JEWELLERY:
-    {
         if (!jewellery_is_amulet(item))
         {
-            // unworn ring
-            item_def *lring = you.slot_item(EQ_LEFT_RING);
-            item_def *rring = you.slot_item(EQ_RIGHT_RING);
-            if ((!lring || lring->slot != item.slot)
-                && (!rring || rring->slot != item.slot))
-            {
-                return (false);
-            }
-
             if (item.sub_type == RING_TELEPORTATION
                 || item.sub_type == RING_LEVITATION
                 || item.sub_type == RING_INVISIBILITY)
@@ -2449,26 +2424,19 @@ bool gives_ability(const item_def &item)
         }
         else
         {
-            // unworn amulet
-            item_def *amul = you.slot_item(EQ_AMULET);
-            if (!amul || amul->slot != item.slot)
-                return (false);
-
             if (item.sub_type == AMU_RAGE)
                 return (true);
         }
         break;
-    }
     case OBJ_ARMOUR:
     {
         const equipment_type eq = get_armour_slot(item);
         if (eq == EQ_NONE)
             return (false);
+        const special_armour_type ego = get_armour_ego_type(item);
 
-        // unworn armour
-        item_def *arm = you.slot_item(eq);
-        if (!arm || arm->slot != item.slot)
-            return (false);
+        if (ego == SPARM_DARKNESS || ego == SPARM_LEVITATION)
+            return (true);
         break;
     }
     default:
@@ -2495,26 +2463,10 @@ bool gives_resistance(const item_def &item)
     switch (item.base_type)
     {
     case OBJ_WEAPONS:
-    {
-        // unwielded weapon
-        item_def *weap = you.slot_item(EQ_WEAPON);
-        if (!weap || weap->slot != item.slot)
-            return (false);
         break;
-    }
     case OBJ_JEWELLERY:
-    {
         if (!jewellery_is_amulet(item))
         {
-            // unworn ring
-            const item_def *lring = you.slot_item(EQ_LEFT_RING);
-            const item_def *rring = you.slot_item(EQ_RIGHT_RING);
-            if ((!lring || lring->slot != item.slot)
-                && (!rring || rring->slot != item.slot))
-            {
-                return (false);
-            }
-
             if (item.sub_type >= RING_PROTECTION_FROM_FIRE
                    && item.sub_type <= RING_PROTECTION_FROM_COLD
                 || item.sub_type == RING_SEE_INVISIBLE
@@ -2527,27 +2479,15 @@ bool gives_resistance(const item_def &item)
         }
         else
         {
-            // unworn amulet
-            const item_def *amul = you.slot_item(EQ_AMULET);
-            if (!amul || amul->slot != item.slot)
-                return (false);
-
             if (item.sub_type != AMU_RAGE && item.sub_type != AMU_INACCURACY)
                 return (true);
         }
         break;
-    }
     case OBJ_ARMOUR:
     {
         const equipment_type eq = get_armour_slot(item);
         if (eq == EQ_NONE)
             return (false);
-
-        // unworn armour
-        item_def *arm = you.slot_item(eq);
-        if (!arm || arm->slot != item.slot)
-            return (false);
-        break;
 
         const int ego = get_armour_ego_type(item);
         if (ego >= SPARM_FIRE_RESISTANCE && ego <= SPARM_SEE_INVISIBLE
@@ -2557,19 +2497,12 @@ bool gives_resistance(const item_def &item)
         }
     }
     case OBJ_STAVES:
-    {
-        // unwielded staff
-        item_def *weap = you.slot_item(EQ_WEAPON);
-        if (!weap || weap->slot != item.slot)
-            return (false);
-
         if (item.sub_type >= STAFF_FIRE && item.sub_type <= STAFF_POISON
             || item.sub_type == STAFF_AIR)
         {
             return (true);
         }
         return (false);
-    }
     default:
         return (false);
     }
@@ -2590,7 +2523,7 @@ bool gives_resistance(const item_def &item)
     return (false);
 }
 
-int item_mass( const item_def &item )
+int item_mass(const item_def &item)
 {
     int unit_mass = 0;
 
@@ -2704,7 +2637,7 @@ int item_mass( const item_def &item )
 
 // Note that this function, and item sizes in general aren't quite on the
 // same scale as PCs and monsters.
-size_type item_size( const item_def &item )
+size_type item_size(const item_def &item)
 {
     int size = SIZE_TINY;
 
@@ -2766,11 +2699,11 @@ size_type item_size( const item_def &item )
     else if (size > SIZE_HUGE)
         size = SIZE_HUGE;
 
-    return (static_cast<size_type>( size ));
+    return (static_cast<size_type>(size));
 }
 
 // Returns true if we might be interested in dumping the colour.
-bool is_colourful_item( const item_def &item )
+bool is_colourful_item(const item_def &item)
 {
     bool ret = false;
 

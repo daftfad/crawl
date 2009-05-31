@@ -112,10 +112,9 @@ int holy_word_player(int pow, int caster, actor *attacker)
 int holy_word_monsters(coord_def where, int pow, int caster,
                        actor *attacker)
 {
-    int retval = 0;
-
-    // doubt this will ever happen, but it's here as a safety -- bwr
     pow = std::min(300, pow);
+
+    int retval = 0;
 
     // Is the player in this cell?
     if (where == you.pos())
@@ -154,7 +153,8 @@ int holy_word_monsters(coord_def where, int pow, int caster,
                 // Currently, holy word annoys the monsters it affects
                 // because it can kill them, and because hostile
                 // monsters don't use it.
-                behaviour_event(monster, ME_ANNOY, MHITYOU);
+                if (attacker != NULL)
+                    behaviour_event(monster, ME_ANNOY, attacker->mindex());
 
                 if (monster->speed_increment >= 25)
                     monster->speed_increment -= 20;
@@ -272,10 +272,16 @@ int torment_monsters(coord_def where, int pow, int caster, actor *attacker)
     int hploss = std::max(0, monster->hit_points / 2 - 1);
 
     if (hploss)
+    {
         simple_monster_message(monster, " convulses!");
 
-    // Currently, torment doesn't annoy the monsters it affects because
-    // it can't kill them, and because hostile monsters use it.
+        // Currently, torment doesn't annoy the monsters it affects
+        // because it can't kill them, and because hostile monsters use
+        // it.  It does alert them, though.
+        if (attacker != NULL)
+            behaviour_event(monster, ME_ALERT, attacker->mindex());
+    }
+
     monster->hurt(NULL, hploss, BEAM_TORMENT_DAMAGE);
 
     if (hploss)
@@ -698,7 +704,7 @@ bool lose_stat(unsigned char which_stat, unsigned char stat_loss,
                                   ISFLAG_KNOW_CURSE | ISFLAG_KNOW_PLUSES);
     std::string verb;
 
-    switch(cause.base_type)
+    switch (cause.base_type)
     {
     case OBJ_ARMOUR:
     case OBJ_JEWELLERY:
@@ -802,7 +808,8 @@ void random_uselessness(int scroll_slot)
         break;
 
     case 1:
-        mpr("The scroll reassembles itself in your hands!");
+        mprf("The scroll reassembles itself in your %s!",
+             your_hand(true).c_str());
         inc_inv_item_quantity(scroll_slot, 1);
         break;
 
@@ -821,12 +828,10 @@ void random_uselessness(int scroll_slot)
         break;
 
     case 3:
-        if (player_can_smell())
-            mprf("You smell %s.", weird_smell().c_str());
-        else if (you.species == SP_MUMMY)
+        if (you.species == SP_MUMMY)
             mpr("Your bandages flutter.");
-        else // currently not ever used
-            canned_msg(MSG_NOTHING_HAPPENS);
+        else // if (player_can_smell())
+            mprf("You smell %s.", weird_smell().c_str());
         break;
 
     case 4:
@@ -835,10 +840,12 @@ void random_uselessness(int scroll_slot)
 
     case 5:
         temp_rand = random2(3);
-        mprf("Your %s",
-             (temp_rand == 0) ? "ears itch!" :
-             (temp_rand == 1) ? "brain hurts!"
-                              : "nose twitches suddenly!");
+        if (player_mutation_level(MUT_BEAK) || one_chance_in(3))
+            mpr("Your brain hurts!");
+        else if (you.species == SP_MUMMY || coinflip())
+            mpr("Your ears itch!");
+        else
+            mpr("Your nose twitches suddenly!");
         break;
 
     case 6:
@@ -867,7 +874,7 @@ typedef FixedVector<int, max_has_value> has_vector;
 static armour_type _acquirement_armour_subtype()
 {
     // Increasing the representation of the non-body armour
-    // slots here to make up for the fact that there's one
+    // slots here to make up for the fact that there's only
     // one type of item for most of them. -- bwr
     //
     // NUM_ARMOURS is body armour and handled below
@@ -1307,8 +1314,8 @@ static int _find_acquirement_subtype(object_class_type class_wanted,
     return (type_wanted);
 }
 
-// The weight of a spell is defined as the average of all disciplines'
-// skill levels minus the doubled spell level.
+// The weight of a spell takes into account its disciplines' skill levels
+// and the spell difficulty.
 static int _spell_weight(spell_type spell)
 {
     ASSERT(spell != SPELL_NO_SPELL);
@@ -1323,12 +1330,13 @@ static int _spell_weight(spell_type spell)
         {
             int skill = you.skills[spell_type2skill(disc)];
 
-            weight += skill + 1;
+            weight += skill;
             count++;
         }
     }
     ASSERT(count > 0);
 
+    // Particularly difficult spells _reduce_ the overall weight.
     int leveldiff = 5 - spell_difficulty(spell);
 
     return std::max(0, 2 * weight/count + leveldiff);
@@ -1409,14 +1417,14 @@ static bool _do_book_acquirement(item_def &book, int agent)
             if (i == SK_SPELLCASTING && weight >= 1)
                 weight--;
 
-            // Count magic skills double to bias against manuals
-            // for magic users.
             if (i >= SK_SPELLCASTING && i <= SK_POISON_MAGIC)
                 magic_weights += weight;
             else
                 other_weights += weight;
         }
 
+        // Count magic skills double to bias against manuals
+        // for magic users.
         if (x_chance_in_y(other_weights, 2*magic_weights + other_weights))
         {
             choice = BOOK_MANUAL;
@@ -1503,7 +1511,7 @@ static bool _do_book_acquirement(item_def &book, int agent)
             int w = (skill < 12) ? skill + 3
                                  : std::max(0, 25 - skill);
 
-            // If we don't know any magic skills, make non-magic skills
+            // If we don't have any magic skills, make non-magic skills
             // more likely.
             if (!knows_magic && (i < SK_SPELLCASTING || i > SK_POISON_MAGIC))
                 w *= 2;
@@ -1897,20 +1905,24 @@ bool recharge_wand(int item_slot)
         }
 
         // Weapons of electrocution can be "charged", i.e. gain +1 damage.
-        if (wand.base_type == OBJ_WEAPONS
-            && get_weapon_brand(wand) == SPWPN_ELECTROCUTION)
+        if (wand.base_type == OBJ_WEAPONS)
         {
-            // Might fail because of already high enchantment.
-            if (enchant_weapon( ENCHANT_TO_DAM, false, wand ))
+            if (get_weapon_brand(wand) == SPWPN_ELECTROCUTION)
             {
-                you.wield_change = true;
+                // Might fail because of already high enchantment.
+                if (enchant_weapon( ENCHANT_TO_DAM, false, wand ))
+                {
+                    you.wield_change = true;
 
-                if (!item_ident(wand, ISFLAG_KNOW_TYPE))
-                    set_ident_flags(wand, ISFLAG_KNOW_TYPE);
+                    if (!item_ident(wand, ISFLAG_KNOW_TYPE))
+                        set_ident_flags(wand, ISFLAG_KNOW_TYPE);
 
-                return (true);
+                    return (true);
+                }
+                return (false);
             }
-            return (false);
+            else
+                canned_msg( MSG_NOTHING_HAPPENS );
         }
 
         if (wand.base_type != OBJ_WANDS && !item_is_rod(wand))
@@ -1921,33 +1933,32 @@ bool recharge_wand(int item_slot)
         {
             charge_gain = wand_charge_value(wand.sub_type);
 
-            // Reinitialize zap counts.
-            wand.plus2 = ZAPCOUNT_RECHARGED;
-
             const int new_charges =
                 std::max<int>(
                     wand.plus,
                     std::min(charge_gain * 3,
                              wand.plus +
-                             1 + random2avg( ((charge_gain - 1) * 3) + 1, 3 )));
+                             1 + random2avg(((charge_gain - 1) * 3) + 1, 3)));
 
             const bool charged = (new_charges > wand.plus);
 
             std::string desc;
+
             if (charged && item_ident(wand, ISFLAG_KNOW_PLUSES))
             {
-                snprintf(info, INFO_SIZE, " and now has %d charges", new_charges);
+                snprintf(info, INFO_SIZE, " and now has %d charge%s",
+                         new_charges, new_charges == 1 ? "" : "s");
                 desc = info;
             }
+
             mprf("%s %s for a moment%s.",
                  wand.name(DESC_CAP_YOUR).c_str(),
-                 charged? "glows" : "flickers",
+                 charged ? "glows" : "flickers",
                  desc.c_str());
 
-            wand.plus = new_charges;
-
-            if (!charged)
-                wand.plus2 = ZAPCOUNT_MAX_CHARGED;
+            // Reinitialize zap counts.
+            wand.plus  = new_charges;
+            wand.plus2 = (charged ? ZAPCOUNT_RECHARGED : ZAPCOUNT_MAX_CHARGED);
         }
         else // It's a rod.
         {
@@ -2096,7 +2107,7 @@ void yell(bool force)
         mpr( "                   w - Wait here.           f - Follow me.");
    }
     mprf(" Anything else - Stay silent%s.",
-         one_chance_in(20)? " (and be thought a fool)" : "");
+         one_chance_in(20) ? " (and be thought a fool)" : "");
 
     unsigned char keyn = get_ch();
     mesclr();
@@ -2266,7 +2277,7 @@ bool vitrify_area(int radius)
     // This hinges on clear wall types having the same order as non-clear ones!
     const int clear_plus = DNGN_CLEAR_ROCK_WALL - DNGN_ROCK_WALL;
     bool something_happened = false;
-    for ( radius_iterator ri(you.pos(), radius, false, false); ri; ++ri )
+    for (radius_iterator ri(you.pos(), radius, false, false); ri; ++ri)
     {
         const dungeon_feature_type grid = grd(*ri);
 
@@ -2274,8 +2285,7 @@ bool vitrify_area(int radius)
             || grid == DNGN_STONE_WALL
             || grid == DNGN_PERMAROCK_WALL )
         {
-            grd(*ri)
-                = static_cast<dungeon_feature_type>(grid + clear_plus);
+            grd(*ri) = static_cast<dungeon_feature_type>(grid + clear_plus);
             set_terrain_changed(ri->x, ri->y);
             something_happened = true;
         }
@@ -2466,14 +2476,21 @@ static bool _grid_is_flanked_by_walls(const coord_def &p)
 // are flanked by walls on both sides, and if so, the grids following that
 // also have to be floor flanked by walls.
 //
-//   c.d
+//   czd
 //   a.b   -> if (a, b == walls) then (c, d == walls) or return (false)
 //   #X#
 //    .
+//
+// Grid z may be floor or wall, either way we have a corridor of at least
+// length 2.
 static bool _deadend_check_wall(const coord_def &p)
 {
+    // The grids to the left and right of p are walls. (We already know that
+    // they are symmetric, so only need to check one side. We also know that
+    // the other direction, here up/down must then be non-walls.)
     if (grid_is_wall(grd[p.x-1][p.y]))
     {
+        // Run the check twice, once in either direction.
         for (int i = -1; i <= 1; i++)
         {
             if (i == 0)
@@ -2493,7 +2510,7 @@ static bool _deadend_check_wall(const coord_def &p)
             }
         }
     }
-    else
+    else // The grids above and below p are walls.
     {
         for (int i = -1; i <= 1; i++)
         {
@@ -2521,8 +2538,9 @@ static bool _deadend_check_wall(const coord_def &p)
 // Similar to the above, checks whether turning a wall grid into floor
 // would create a short "dead-end" of only 1 grid.
 //
-// In the example below, X would create dead-ends at positions a and b,
-// but both Y and Z avoid this, and the resulting mini-mazes looks better.
+// In the example below, X would create miniature dead-ends at positions
+// a and b, but both Y and Z avoid this, and the resulting mini-mazes
+// look much better.
 //
 // ########   (A)  ########     (B)  ########     (C)  ########
 // #.....#.        #....a#.          #.....#.          #.....#.
@@ -2630,6 +2648,7 @@ void change_labyrinth(bool msg)
             if (testbits(env.map(*ri).property, FPROP_VAULT))
                 continue;
 
+            // Make sure we don't accidentally create "ugly" dead-ends.
             if (_grid_is_flanked_by_walls(*ri) && _deadend_check_floor(*ri))
                 targets.push_back(*ri);
         }
@@ -2684,7 +2703,7 @@ void change_labyrinth(bool msg)
     {
         const coord_def c(targets[count]);
         // Maybe not valid anymore...
-        if (!_grid_is_flanked_by_walls(c))
+        if (!grid_is_wall(grd(c)) || !_grid_is_flanked_by_walls(c))
             continue;
 
         // Use the adjacent floor grids as source and destination.
@@ -2726,9 +2745,15 @@ void change_labyrinth(bool msg)
         for (unsigned int i = 0; i < path.size(); i++)
         {
             const coord_def p(path[i]);
+            // The point must be inside the changed area.
             if (p.x < c1.x || p.x > c2.x || p.y < c1.y || p.y > c2.y)
                 continue;
 
+            // Only replace plain floor.
+            if (grd(p) != DNGN_FLOOR)
+                continue;
+
+            // Don't change any grids we remember.
             if (is_terrain_seen(p.x, p.y))
                 continue;
 
@@ -2761,11 +2786,12 @@ void change_labyrinth(bool msg)
                  (int) old_grid, c.x, c.y, (int) grd(p), p.x, p.y);
         }
 #ifdef WIZARD
+        // Highlight the switched grids.
         env.map(c).property |= FPROP_HIGHLIGHT;
         env.map(p).property |= FPROP_HIGHLIGHT;
 #endif
 
-        // Shift blood some most of the time.
+        // Shift blood some of the time.
         if (is_bloodcovered(c))
         {
             if (one_chance_in(4))
@@ -2776,18 +2802,17 @@ void change_labyrinth(bool msg)
                     if (grid_is_wall(grd(*ai)) && one_chance_in(++wall_count))
                         old_adj = *ai;
 
-                if (old_adj != c)
+                if (old_adj != c && !is_bloodcovered(old_adj))
                 {
-                    if (!is_bloodcovered(old_adj))
-                        env.map(old_adj).property |= FPROP_BLOODY;
+                    env.map(old_adj).property |= FPROP_BLOODY;
                     env.map(c).property &= (~FPROP_BLOODY);
                 }
             }
         }
         else if (one_chance_in(500))
         {
-            // Sometimes (rarely) add blood randomly, accumulating with time...
-            env.map(p).property |= FPROP_BLOODY;
+            // Rarely add blood randomly, accumulating with time...
+            env.map(c).property |= FPROP_BLOODY;
         }
 
         // Rather than use old_grid directly, replace with an adjacent
@@ -2829,10 +2854,9 @@ void change_labyrinth(bool msg)
                     if (_is_floor(grd(*ai)) && one_chance_in(++floor_count))
                         new_adj = *ai;
 
-                if (new_adj != p)
+                if (new_adj != p && !is_bloodcovered(new_adj))
                 {
-                    if (!is_bloodcovered(new_adj))
-                        env.map(new_adj).property |= FPROP_BLOODY;
+                    env.map(new_adj).property |= FPROP_BLOODY;
                     env.map(p).property &= (~FPROP_BLOODY);
                 }
             }
@@ -2851,7 +2875,7 @@ void change_labyrinth(bool msg)
     dirs.push_back(coord_def( 0,-1));
     dirs.push_back(coord_def( 1,-1));
     dirs.push_back(coord_def(-1, 0));
-//    dirs.push_back(coord_def( 0, 0));
+
     dirs.push_back(coord_def( 1, 0));
     dirs.push_back(coord_def(-1, 1));
     dirs.push_back(coord_def( 0, 1));
@@ -2969,13 +2993,13 @@ static void _rot_inventory_food(long time_delta)
 
         if (you.inv[i].base_type == OBJ_POTIONS)
         {
-            // also handles messaging
+            // Also handles messaging.
             if (maybe_coagulate_blood_potions_inv(you.inv[i]))
                 burden_changed_by_rot = true;
             continue;
         }
 
-        // food item timed out -> make it disappear
+        // Food item timed out -> make it disappear.
         if ((time_delta / 20) >= you.inv[i].special)
         {
             if (you.inv[i].base_type == OBJ_FOOD)
@@ -2988,17 +3012,9 @@ static void _rot_inventory_food(long time_delta)
                 continue;
             }
 
-            if (you.inv[i].sub_type == CORPSE_SKELETON)
-            {
-                if (you.equip[EQ_WEAPON] == i)
-                    unwield_item();
-
-                destroy_item(you.inv[i]);
-                burden_changed_by_rot = true;
-                continue;
-            }
-
-            if (!mons_skeleton(you.inv[i].plus))
+            // The item is of type carrion.
+            if (you.inv[i].sub_type == CORPSE_SKELETON
+                || !mons_skeleton(you.inv[i].plus))
             {
                 if (you.equip[EQ_WEAPON] == i)
                     unwield_item();
@@ -3014,7 +3030,7 @@ static void _rot_inventory_food(long time_delta)
             continue;
         }
 
-        // if it hasn't disappeared, reduce the rotting timer
+        // If it hasn't disappeared, reduce the rotting timer.
         you.inv[i].special -= (time_delta / 20);
 
         if (food_is_rotten(you.inv[i])
@@ -3088,6 +3104,7 @@ static void _rot_inventory_food(long time_delta)
     if (burden_changed_by_rot)
     {
         mpr("Your equipment suddenly weighs less.", MSGCH_ROTTEN_MEAT);
+        learned_something_new(TUT_ROTTEN_GONE);
         burden_change();
     }
 }
@@ -3127,10 +3144,10 @@ void handle_time(long time_delta)
 
         // Slow heal mutation.  Applied last.
         // Each level reduces your stat recovery by one third.
-        if (player_mutation_level(MUT_SLOW_HEALING) > 0)
+        if (player_mutation_level(MUT_SLOW_HEALING) > 0
+            && x_chance_in_y(player_mutation_level(MUT_SLOW_HEALING), 3))
         {
-            if (x_chance_in_y(player_mutation_level(MUT_SLOW_HEALING), 3))
-                recovery = false;
+            recovery = false;
         }
 
         if (recovery)
@@ -3192,15 +3209,15 @@ void handle_time(long time_delta)
         mutagenic_randart = true;
     }
 
-    // we take off about .5 points per turn
+    // We take off about .5 points per turn.
     if (!you.duration[DUR_INVIS] && !you.duration[DUR_HASTE] && coinflip())
         added_contamination--;
 
-    // only punish if contamination caused by mutagenic randarts
-    // (haste and invisibility already penalized earlier)
+    // Only punish if contamination caused by mutagenic randarts.
+    // (Haste and invisibility already penalized earlier.)
     contaminate_player( added_contamination, mutagenic_randart );
 
-    // only check for badness once every other turn
+    // Only check for badness once every other turn.
     if (coinflip())
     {
         // [ds] Be less harsh with glow mutation; Brent and Mark Mackey note
@@ -3246,7 +3263,7 @@ void handle_time(long time_delta)
                 beam.explode();
             }
 
-            // we want to warp the player, not do good stuff!
+            // We want to warp the player, not do good stuff!
             if (one_chance_in(5))
                 mutate(RANDOM_MUTATION);
             else
@@ -3588,23 +3605,26 @@ void update_level(double elapsedTime)
         if (mon->flags & MF_JUST_SUMMONED)
             continue;
 
-        // XXX: Allow some spellcasting (like Healing and Teleport)? -- bwr
+        // XXX: Allow some spellcasting (like Healing and Teleport)? - bwr
         // const bool healthy = (mon->hit_points * 2 > mon->max_hit_points);
 
         // This is the monster healing code, moved here from tag.cc:
-        if (monster_descriptor(mon->type, MDSC_REGENERATES)
-            || mon->type == MONS_PLAYER_GHOST)
+        if (mons_can_regenerate(mon))
         {
-            heal_monster(mon, turns, false);
-        }
-        else if (mons_can_regenerate(mon))
-        {
-            // Set a lower ceiling of 0.1 on the regen rate.
-            const int regen_rate =
-                std::max(mons_natural_regen_rate(mon) * 2, 5);
+            if (monster_descriptor(mon->type, MDSC_REGENERATES)
+                || mon->type == MONS_PLAYER_GHOST)
+            {
+                heal_monster(mon, turns, false);
+            }
+            else
+            {
+                // Set a lower ceiling of 0.1 on the regen rate.
+                const int regen_rate =
+                    std::max(mons_natural_regen_rate(mon) * 2, 5);
 
-            heal_monster(mon, div_rand_round(turns * regen_rate, 50),
-                         false);
+                heal_monster(mon, div_rand_round(turns * regen_rate, 50),
+                             false);
+            }
         }
 
         // Handle nets specially to remove the trapping property of the net.

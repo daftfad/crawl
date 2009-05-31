@@ -90,11 +90,11 @@ const int dir_dx[9] = {-1, 0, 1, -1, 0, 1, -1, 0, 1};
 const int dir_dy[9] = {1, 1, 1, 0, 0, 0, -1, -1, -1};
 
 const int cmd_normal[9] = {'b', 'j', 'n', 'h', '.', 'l', 'y', 'k', 'u'};
-const int cmd_shift[9] = {'B', 'J', 'N', 'H', '5', 'L', 'Y', 'K', 'U'};
-const int cmd_ctrl[9] = {CONTROL('B'), CONTROL('J'), CONTROL('N'),
-                      CONTROL('H'), 'X', CONTROL('L'),
-                      CONTROL('Y'), CONTROL('K'), CONTROL('U')};
-const int cmd_dir[9] = {'1', '2', '3', '4', '5', '6', '7', '8', '9'};
+const int cmd_shift[9]  = {'B', 'J', 'N', 'H', '5', 'L', 'Y', 'K', 'U'};
+const int cmd_ctrl[9]   = {CONTROL('B'), CONTROL('J'), CONTROL('N'),
+                           CONTROL('H'), 'X', CONTROL('L'),
+                           CONTROL('Y'), CONTROL('K'), CONTROL('U')};
+const int cmd_dir[9]    = {'1', '2', '3', '4', '5', '6', '7', '8', '9'};
 
 Region::Region() :
     ox(0),
@@ -480,9 +480,7 @@ void DungeonRegion::pack_foreground(unsigned int bg, unsigned int fg, int x, int
     unsigned int bg_idx = bg & TILE_FLAG_MASK;
 
     if (fg_idx && fg_idx <= TILE_MAIN_MAX)
-    {
         m_buf_main.add(fg_idx, x, y);
-    }
 
     if (fg_idx && !(fg & TILE_FLAG_FLYING))
     {
@@ -539,12 +537,13 @@ void DungeonRegion::pack_foreground(unsigned int bg, unsigned int fg, int x, int
     }
 
     if (fg & TILE_FLAG_ANIM_WEP)
-    {
         m_buf_main.add(TILE_ANIMATED_WEAPON, x, y);
-    }
 
     if (bg & TILE_FLAG_UNSEEN && (bg != TILE_FLAG_UNSEEN || fg))
         m_buf_main.add(TILE_MESH, x, y);
+
+    if (bg & TILE_FLAG_OOR && (bg != TILE_FLAG_OOR || fg))
+        m_buf_main.add(TILE_OOR_MESH, x, y);
 
     if (bg & TILE_FLAG_MM_UNSEEN && (bg != TILE_FLAG_MM_UNSEEN || fg))
         m_buf_main.add(TILE_MAGIC_MAP_MESH, x, y);
@@ -1202,7 +1201,7 @@ void DungeonRegion::add_text_tag(text_tag_type type, const std::string &tag,
 void DungeonRegion::add_overlay(const coord_def &gc, int idx)
 {
     tile_overlay over;
-    over.gc = gc;
+    over.gc  = gc;
     over.idx = idx;
 
     m_overlays.push_back(over);
@@ -1258,10 +1257,8 @@ void InventoryRegion::on_resize()
         return;
 
     m_flavour = new unsigned char[mx * my];
-    for (int i = 0; i < mx * my; i++)
-    {
+    for (int i = 0; i < mx * my; ++i)
         m_flavour[i] = random2((unsigned char)~0);
-    }
 }
 
 void InventoryRegion::update(int num, InventoryTile *items)
@@ -1513,6 +1510,7 @@ int InventoryRegion::handle_mouse(MouseEvent &event)
 
     if (event.button == MouseEvent::LEFT)
     {
+        you.last_clicked_item = item_idx;
         if (on_floor)
         {
             if (event.mod & MOD_SHIFT)
@@ -1529,12 +1527,12 @@ int InventoryRegion::handle_mouse(MouseEvent &event)
             else
                 tile_item_use(idx);
         }
-        you.last_clicked_item = item_idx;
         // TODO enne - need to redraw inventory here?
         return CK_MOUSE_CMD;
     }
     else if (event.button == MouseEvent::RIGHT)
     {
+        you.last_clicked_item = item_idx;
         if (on_floor)
         {
             if (event.mod & MOD_SHIFT)
@@ -1574,6 +1572,10 @@ static bool _is_true_equipped_item(item_def item)
 // apart from dropping it.
 static bool _can_use_item(const item_def &item, bool equipped)
 {
+    // There's nothing you can do with an empty box if you can't unwield it.
+    if (!equipped && item.sub_type == MISC_EMPTY_EBONY_CASKET)
+        return (false);
+
     // Vampires can drain corpses.
     if (item.base_type == OBJ_CORPSES)
     {
@@ -1694,7 +1696,6 @@ bool InventoryRegion::update_tip_text(std::string& tip)
             // first equipable categories
             case OBJ_WEAPONS:
             case OBJ_STAVES:
-            case OBJ_MISCELLANY:
                 tip += "Wield (w)";
                 if (is_throwable(&you, item))
                     tip += "\n[Ctrl-L-Click] Fire (f)";
@@ -1703,6 +1704,15 @@ bool InventoryRegion::update_tip_text(std::string& tip)
                 tip += "Unwield (w-)";
                 if (is_throwable(&you, item))
                     tip += "\n[Ctrl-L-Click] Fire (f)";
+                break;
+            case OBJ_MISCELLANY:
+                if (item.sub_type >= MISC_DECK_OF_ESCAPE
+                    && item.sub_type <= MISC_DECK_OF_DEFENCE)
+                {
+                    tip += "Wield (w)";
+                    break;
+                }
+                tip += "Evoke (V)";
                 break;
             case OBJ_MISCELLANY + EQUIP_OFFSET:
                 if (item.sub_type >= MISC_DECK_OF_ESCAPE
@@ -1745,7 +1755,7 @@ bool InventoryRegion::update_tip_text(std::string& tip)
                 }
                 break;
             case OBJ_WANDS:
-                tip += "Zap (Z)";
+                tip += "Evoke (V)";
                 if (wielded)
                     tip += "\n[Ctrl-L-Click] Unwield (w-)";
                 break;
@@ -1851,7 +1861,7 @@ bool InventoryRegion::update_alt_text(std::string &alt)
         item = &you.inv[idx];
 
     describe_info inf;
-    get_item_desc(*item, inf);
+    get_item_desc(*item, inf, true);
 
     alt_desc_proc proc(crawl_view.msgsz.x, crawl_view.msgsz.y);
     process_description<alt_desc_proc>(proc, inf);
@@ -2178,12 +2188,14 @@ void TextRegion::addstr(char *buffer)
     {
         char c = buffer[i];
         bool newline = false;
-        if (c == '\n' || c == '\r')
+
+        if (c == '\r')
+            continue;
+
+        if (c == '\n')
         {
             c = 0;
             newline = true;
-            if (buffer[i+1] == '\n' || buffer[i+1] == '\r')
-                i++;
         }
         buf2[j] = c;
         j++;
@@ -2597,9 +2609,9 @@ void MenuRegion::place_entries()
 {
     m_dirty = false;
 
-    const int heading_indent = 10;
-    const int tile_indent = 20;
-    const int text_indent = 58;
+    const int heading_indent  = 10;
+    const int tile_indent     = 20;
+    const int text_indent     = (Options.tile_menu_icons ? 58 : 20);
     const int max_tile_height = 32;
     const int entry_buffer = 1;
     const VColour selected_colour(50, 50, 10, 255);
@@ -2611,6 +2623,8 @@ void MenuRegion::place_entries()
         m_tile_buf[t].clear();
 
     int column = 0;
+    if (!Options.tile_menu_icons)
+        set_num_columns(1);
     const int max_columns = std::min(2, m_max_columns);
     const int column_width = mx / max_columns;
 
@@ -2818,6 +2832,12 @@ int MenuRegion::maxpagesize() const
     int more_height = (lines + 1) * m_font_entry->char_height();
 
     int pagesize = ((my - more_height) / 32) * m_max_columns;
+
+    // Upper limit for inventory menus. (jpeg)
+    // Non-inventory menus only have one column and need
+    // *really* big screens to cover more than 52 lines.
+    if (pagesize > 52)
+        return (52);
     return (pagesize);
 }
 
@@ -2832,6 +2852,57 @@ void MenuRegion::set_more(const formatted_string &more)
     m_more.clear();
     m_more += more;
     m_dirty = true;
+}
+
+TitleRegion::TitleRegion(int width, int height) :
+    m_buf(&m_img, GL_QUADS)
+{
+    sx = sy = 0;
+    dx = dy = 1;
+
+    if (!m_img.load_texture("title.png", GenericTexture::MIPMAP_NONE))
+        return;
+
+    // Center
+    wx = width;
+    wy = height;
+    ox = (wx - m_img.orig_width()) / 2;
+    oy = (wy - m_img.orig_height()) / 2;
+
+    {
+        PTVert &v = m_buf.get_next();
+        v.pos_x = 0;
+        v.pos_y = 0;
+        v.tex_x = 0;
+        v.tex_y = 0;
+    }
+    {
+        PTVert &v = m_buf.get_next();
+        v.pos_x = 0;
+        v.pos_y = m_img.height();
+        v.tex_x = 0;
+        v.tex_y = 1;
+    }
+    {
+        PTVert &v = m_buf.get_next();
+        v.pos_x = m_img.width();
+        v.pos_y = m_img.height();
+        v.tex_x = 1;
+        v.tex_y = 1;
+    }
+    {
+        PTVert &v = m_buf.get_next();
+        v.pos_x = m_img.width();
+        v.pos_y = 0;
+        v.tex_x = 1;
+        v.tex_y = 0;
+    }
+}
+
+void TitleRegion::render()
+{
+    set_transform();
+    m_buf.draw();
 }
 
 ImageManager::ImageManager()

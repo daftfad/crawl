@@ -474,7 +474,7 @@
      SPFLAG_DIR_OR_TARGET | SPFLAG_AREA,
      3,
      200,
-     8, 8,
+     5, 5,
      0,
      NULL,
      true,
@@ -814,7 +814,7 @@
      SPFLAG_DIR_OR_TARGET | SPFLAG_NOT_SELF,
      4,
      200,
-        LOS_RADIUS, LOS_RADIUS,
+     LOS_RADIUS, LOS_RADIUS,
      0,
      NULL,
      true,
@@ -840,7 +840,7 @@
      SPFLAG_AREA | SPFLAG_NEUTRAL,
      4,
      0,
-       -1, -1,
+     -1, -1,
      0,
      NULL,
      false,
@@ -1073,7 +1073,7 @@
      SPFLAG_DIR_OR_TARGET,
      4,
      100,
-     LOS_RADIUS, LOS_RADIUS,
+     5, 5,
      0,
      NULL,
      true,
@@ -2211,6 +2211,8 @@
      false,
      false
 },
+
+// From here on, all spells are monster-only spells.
 
 {
     SPELL_HELLFIRE_BURST, "Hellfire Burst",

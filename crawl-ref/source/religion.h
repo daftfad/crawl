@@ -14,8 +14,10 @@
 #include "ouch.h"
 #include "externs.h"
 
-#define MAX_PIETY   200
-#define MAX_PENANCE 200
+#define MAX_PIETY      200
+#define HALF_MAX_PIETY (MAX_PIETY / 2)
+
+#define MAX_PENANCE    200
 
 enum harm_protection_type
 {
@@ -162,5 +164,5 @@ bool god_likes_items(god_type god);
 void religion_turn_start();
 void religion_turn_end();
 
-int get_tension(god_type god = you.religion);
+int get_tension(god_type god = you.religion, bool count_travelling = true);
 #endif

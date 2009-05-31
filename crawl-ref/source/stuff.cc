@@ -149,7 +149,7 @@ rectangle_iterator::rectangle_iterator( int x_border_dist, int y_border_dist )
 
 rectangle_iterator::operator bool() const
 {
-    return !(current.y > bottomright.y);
+    return (current.y <= bottomright.y);
 }
 
 coord_def rectangle_iterator::operator *() const
@@ -164,7 +164,7 @@ const coord_def* rectangle_iterator::operator->() const
 
 rectangle_iterator& rectangle_iterator::operator ++()
 {
-    if ( current.x == bottomright.x )
+    if (current.x == bottomright.x)
     {
         current.x = topleft.x;
         current.y++;
@@ -403,9 +403,11 @@ static int follower_tag_radius2()
     // If only friendlies are adjacent, we set a max radius of 6, otherwise
     // only adjacent friendlies may follow.
     for (adjacent_iterator ai; ai; ++ai)
+    {
         if (const monsters *mon = monster_at(*ai))
             if (!mons_friendly(mon))
                 return (2);
+    }
 
     return (6 * 6);
 }
@@ -458,6 +460,7 @@ void untag_followers()
 
 unsigned char get_ch()
 {
+    mouse_control mc(MOUSE_MODE_MORE);
     unsigned char gotched = getch();
 
     if (gotched == 0)
@@ -679,10 +682,8 @@ int random2limit(int max, int limit)
         return (0);
 
     for (i = 0; i < max; i++)
-    {
         if (random2(limit) >= i)
             sum++;
-    }
 
     return (sum);
 }
@@ -1054,7 +1055,7 @@ bool yesno( const char *str, bool safe, int safeanswer, bool clear_after,
         if (!noprompt)
             mpr(prompt.c_str(), MSGCH_PROMPT);
 
-        int tmp = getchm(KC_CONFIRM);
+        int tmp = getchm(KMC_CONFIRM);
 
         if (map && map->find(tmp) != map->end())
             tmp = map->find(tmp)->second;
@@ -1155,7 +1156,7 @@ int yesnoquit( const char* str, bool safe, int safeanswer, bool allow_all,
     {
         mpr(prompt.c_str(), MSGCH_PROMPT);
 
-        int tmp = getchm(KC_CONFIRM);
+        int tmp = getchm(KMC_CONFIRM);
 
         if (tmp == CK_ESCAPE || tmp == CONTROL('G') || tmp == 'q' || tmp == 'Q')
             return -1;

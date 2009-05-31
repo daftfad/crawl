@@ -373,7 +373,7 @@ void MiscastEffect::do_miscast()
     case SPTYP_TRANSLOCATION:  _translocation(severity);  break;
     case SPTYP_SUMMONING:      _summoning(severity);      break;
     case SPTYP_NECROMANCY:     _necromancy(severity);     break;
-    case SPTYP_TRANSMUTATION:  _transmutation(severity); break;
+    case SPTYP_TRANSMUTATION:  _transmutation(severity);  break;
     case SPTYP_FIRE:           _fire(severity);           break;
     case SPTYP_ICE:            _ice(severity);            break;
     case SPTYP_EARTH:          _earth(severity);          break;
@@ -1050,7 +1050,7 @@ void MiscastEffect::_translocation(int severity)
             break;
         case 2:
             you_msg      = "You feel a wrenching sensation.";
-            mon_msg_seen = "@The monster@ jerks violently for a moment.";
+            mon_msg_seen = "@The_monster@ jerks violently for a moment.";
             break;
         case 3:
             you_msg = "You feel a strange surge of energy!";

@@ -457,10 +457,10 @@ const int spec_skills[ NUM_SPECIES ][40] =
     {                           // SP_KOBOLD
      80,                        // SK_FIGHTING
      60,                        // SK_SHORT_BLADES
-     100,                       // SK_LONG_BLADES
+     140,                       // SK_LONG_BLADES
      120,                       // SK_UNUSED_1
      110,                       // SK_AXES
-     140,                       // SK_MACES_FLAILS
+     100,                       // SK_MACES_FLAILS
      150,                       // SK_POLEARMS
      110,                       // SK_STAVES
      70,                        // SK_SLINGS
@@ -584,46 +584,46 @@ const int spec_skills[ NUM_SPECIES ][40] =
     },
 
     {                           // SP_OGRE
-      70,                       // SK_FIGHTING
+     70,                        // SK_FIGHTING
      200,                       // SK_SHORT_BLADES
      180,                       // SK_LONG_BLADES
      100,                       // SK_UNUSED_1
      180,                       // SK_AXES
-     100,                       // SK_MACES_FLAILS
+     90,                        // SK_MACES_FLAILS
      110,                       // SK_POLEARMS
      120,                       // SK_STAVES
      180,                       // SK_SLINGS
      180,                       // SK_BOWS
      180,                       // SK_CROSSBOWS
      180,                       // SK_DARTS
-      80,                       // SK_THROWING
+     80,                        // SK_THROWING
      150,                       // SK_ARMOUR
      120,                       // SK_DODGING
      150,                       // SK_STEALTH
      150,                       // SK_STABBING
      120,                       // SK_SHIELDS
      150,                       // SK_TRAPS_DOORS
-     130,                       // SK_UNARMED_COMBAT
+     110,                       // SK_UNARMED_COMBAT
      100,                       // undefined
      100,                       // undefined
      100,                       // undefined
      100,                       // undefined
      100,                       // undefined
      (70 * 130) / 100,          // SK_SPELLCASTING
-     180,                       // SK_CONJURATIONS
-     180,                       // SK_ENCHANTMENTS
-     180,                       // SK_SUMMONINGS
-     180,                       // SK_NECROMANCY
-     180,                       // SK_TRANSLOCATIONS
-     180,                       // SK_TRANSMUTATIONS
-     180,                       // SK_DIVINATIONS
-     180,                       // SK_FIRE_MAGIC
-     180,                       // SK_ICE_MAGIC
-     180,                       // SK_AIR_MAGIC
-     180,                       // SK_EARTH_MAGIC
-     180,                       // SK_POISON_MAGIC
+     160,                       // SK_CONJURATIONS
+     160,                       // SK_ENCHANTMENTS
+     160,                       // SK_SUMMONINGS
+     160,                       // SK_NECROMANCY
+     160,                       // SK_TRANSLOCATIONS
+     160,                       // SK_TRANSMUTATIONS
+     160,                       // SK_DIVINATIONS
+     160,                       // SK_FIRE_MAGIC
+     160,                       // SK_ICE_MAGIC
+     160,                       // SK_AIR_MAGIC
+     160,                       // SK_EARTH_MAGIC
+     160,                       // SK_POISON_MAGIC
      (100 * 75) / 100,          // SK_INVOCATIONS
-     (180 * 75) / 100,          // SK_EVOCATIONS
+     (160 * 75) / 100,          // SK_EVOCATIONS
     },
 
     {                           // SP_TROLL
@@ -1492,7 +1492,7 @@ const int spec_skills[ NUM_SPECIES ][40] =
      100,                       // SK_LONG_BLADES
      130,                       // SK_UNUSED_1
      90,                        // SK_AXES
-     110,                       // SK_MACES_FLAILS
+     100,                       // SK_MACES_FLAILS
      120,                       // SK_POLEARMS
      110,                       // SK_STAVES
      90,                        // SK_SLINGS
@@ -1839,7 +1839,7 @@ void show_skills()
 const char *skill_name(int which_skill)
 {
     return (skills[which_skill][0]);
-}                               // end skill_name()
+}
 
 int str_to_skill(const std::string &skill)
 {
@@ -1990,7 +1990,7 @@ std::string skill_title( unsigned char best_skill, unsigned char skill_lev,
         case SK_INVOCATIONS:
             if (god == GOD_NO_GOD)
                 result = atheist_inv_titles[skill_rank];
-            else if (god == GOD_TROG || god == GOD_XOM
+            else if (god == GOD_XOM || god == GOD_VEHUMET || god == GOD_TROG
                      || god == GOD_NEMELEX_XOBEH)
             {
                 // don't care about Invocations
@@ -2001,7 +2001,7 @@ std::string skill_title( unsigned char best_skill, unsigned char skill_lev,
             break;
 
         case SK_SPELLCASTING:
-            if (species == SP_OGRE)
+            if (player_genus(GENPC_OGRE))
             {
                 result = "Ogre-Mage";
                 break;

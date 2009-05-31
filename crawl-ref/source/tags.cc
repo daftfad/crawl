@@ -167,8 +167,8 @@ static void tag_construct_lost_items(writer &th);
 static void tag_read_you(reader &th, char minorVersion);
 static void tag_read_you_items(reader &th, char minorVersion);
 static void tag_read_you_dungeon(reader &th);
-static void tag_read_lost_monsters(reader &th, int minorVersion);
-static void tag_read_lost_items(reader &th, int minorVersion);
+static void tag_read_lost_monsters(reader &th);
+static void tag_read_lost_items(reader &th);
 
 static void tag_construct_level(writer &th);
 static void tag_construct_level_items(writer &th);
@@ -187,7 +187,7 @@ static void tag_construct_ghost(writer &th);
 static void tag_read_ghost(reader &th, char minorVersion);
 
 static void marshallGhost(writer &th, const ghost_demon &ghost);
-static ghost_demon unmarshallGhost( reader &th );
+static ghost_demon unmarshallGhost(reader &th, char minorVersion);
 
 static void marshallResists(writer &, const mon_resist_def &);
 static void unmarshallResists(reader &, mon_resist_def &);
@@ -653,7 +653,7 @@ void tag_write(tag_type tagID, FILE* outf)
 {
     std::vector<unsigned char> buf;
     writer th(&buf);
-    switch(tagID)
+    switch (tagID)
     {
     case TAG_YOU:            tag_construct_you(th);            break;
     case TAG_YOU_ITEMS:      tag_construct_you_items(th);      break;
@@ -730,8 +730,8 @@ tag_type tag_read(FILE *fp, char minorVersion)
     case TAG_LEVEL_TILES:    tag_read_level_tiles(th);                  break;
     case TAG_GHOST:          tag_read_ghost(th, minorVersion);          break;
     case TAG_LOST_MONSTERS:
-        tag_read_lost_monsters(th, minorVersion);
-        tag_read_lost_items(th, minorVersion);
+        tag_read_lost_monsters(th);
+        tag_read_lost_items(th);
         break;
     default:
         // I don't know how to read that!
@@ -754,9 +754,9 @@ tag_type tag_read(FILE *fp, char minorVersion)
 // (currently none).
 void tag_missing(int tag, char minorVersion)
 {
-    UNUSED( minorVersion );
+    UNUSED(minorVersion);
 
-    switch(tag)
+    switch (tag)
     {
         case TAG_LEVEL_ATTITUDE:
             tag_missing_level_attitude();
@@ -821,7 +821,7 @@ void tag_set_expected(char tags[], int fileType)
 // --------------------------- player tags (foo.sav) -------------------- //
 static void tag_construct_you(writer &th)
 {
-    int i,j;
+    int i, j;
 
     marshallString(th, you.your_name, 30);
 
@@ -1639,14 +1639,14 @@ static void tag_read_you_dungeon(reader &th)
     read_level_connectivity(th);
 }
 
-static void tag_read_lost_monsters(reader &th, int minorVersion)
+static void tag_read_lost_monsters(reader &th)
 {
     the_lost_ones.clear();
     unmarshallMap(th, the_lost_ones,
                   unmarshall_level_id, unmarshall_follower_list);
 }
 
-static void tag_read_lost_items(reader &th, int minorVersion)
+static void tag_read_lost_items(reader &th)
 {
     transiting_items.clear();
 
@@ -2172,10 +2172,10 @@ static void unmarshall_monster(reader &th, monsters &m)
 
     unmarshallSpells(th, m.spells);
 
-    m.god = (god_type) unmarshallByte(th);
+    m.god = static_cast<god_type>( unmarshallByte(th) );
 
     if (m.type == MONS_PLAYER_GHOST || m.type == MONS_PANDEMONIUM_DEMON)
-        m.set_ghost( unmarshallGhost(th) );
+        m.set_ghost(unmarshallGhost(th, _tag_minor_version));
 
     m.check_speed();
 }
@@ -2254,7 +2254,7 @@ void tag_missing_level_attitude()
 
         menv[i].foe = MHITNOT;
 
-        switch(menv[i].behaviour)
+        switch (menv[i].behaviour)
         {
             case 0:         // old BEH_SLEEP
                 new_beh = BEH_SLEEP;    // don't wake sleepers
@@ -2425,6 +2425,7 @@ static void marshallGhost(writer &th, const ghost_demon &ghost)
 
     marshallShort(th, ghost.species);
     marshallShort(th, ghost.job);
+    marshallByte(th, ghost.religion);
     marshallShort(th, ghost.best_skill);
     marshallShort(th, ghost.best_skill_level);
     marshallShort(th, ghost.xl);
@@ -2445,7 +2446,7 @@ static void marshallGhost(writer &th, const ghost_demon &ghost)
     marshallSpells(th, ghost.spells);
 }
 
-static ghost_demon unmarshallGhost( reader &th )
+static ghost_demon unmarshallGhost(reader &th, char minorVersion)
 {
     ghost_demon ghost;
 
@@ -2453,6 +2454,10 @@ static ghost_demon unmarshallGhost( reader &th )
 
     ghost.species          = static_cast<species_type>( unmarshallShort(th) );
     ghost.job              = static_cast<job_type>( unmarshallShort(th) );
+
+    if (minorVersion >= TAG_MINOR_RELIGION)
+        ghost.religion     = static_cast<god_type>( unmarshallByte(th) );
+
     ghost.best_skill       = static_cast<skill_type>( unmarshallShort(th) );
     ghost.best_skill_level = unmarshallShort(th);
     ghost.xl               = unmarshallShort(th);
@@ -2492,5 +2497,5 @@ static void tag_read_ghost(reader &th, char minorVersion)
         return;
 
     for (int i = 0; i < nghosts; ++i)
-        ghosts.push_back( unmarshallGhost(th) );
+        ghosts.push_back(unmarshallGhost(th, minorVersion));
 }

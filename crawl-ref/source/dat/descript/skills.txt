@@ -8,6 +8,8 @@ Fighting
 
 Apart from making you more proficient in hand-to-hand combat, Fighting
 also increases your maximum hitpoints.
+Fighting can be trained up to level 2 by attacking plants or fungi,
+afterwards only real opponents count.
 %%%%
 Short Blades
 
@@ -278,5 +280,6 @@ Evocations
 
 Evocations is all about using magical items like wands, decks or
 other uncommon objects. The higher your skill, the more likely is a
-positive outcome when evoking items.
+positive outcome when evoking items. Also, high skill may let you determine
+the amount of charges a zapped wand has left.
 %%%%

@@ -140,6 +140,10 @@ static bool _is_noteworthy( const Note& note )
         return (false);
     }
 
+    // Xom effects are only noteworthy if the option is true.
+    if (note.type == NOTE_XOM_EFFECT)
+        return (Options.note_xom_effects);
+
     // God powers might be noteworthy if it's an actual power.
     if (note.type == NOTE_GOD_POWER
         && _real_god_power(note.first, note.second) == -1)
@@ -344,7 +348,7 @@ std::string Note::describe( bool when, bool where, bool what ) const
                 result << "Defeated " << name;
             break;
         case NOTE_POLY_MONSTER:
-            result << name << " changed form";
+            result << name << " changed into " << desc;
             break;
         case NOTE_GOD_POWER:
             result << "Acquired "
@@ -374,6 +378,16 @@ std::string Note::describe( bool when, bool where, bool what ) const
         case NOTE_SEEN_FEAT:
             result << "Found " << name;
             break;
+        case NOTE_XOM_EFFECT:
+            result << "XOM: " << name;
+#if defined(DEBUG_XOM) || defined(NOTE_DEBUG_XOM)
+            // If debugging, also take note of piety and tension.
+            result << " (piety: " << first;
+            if (second >= 0)
+                result << ", tension: " << second;
+            result << ")";
+#endif
+            break;
         default:
             result << "Buggy note description: unknown note type";
             break;
@@ -381,9 +395,10 @@ std::string Note::describe( bool when, bool where, bool what ) const
     }
 
     if (type == NOTE_SEEN_MONSTER || type == NOTE_KILL_MONSTER)
+    {
         if (what && first == MONS_PANDEMONIUM_DEMON)
             result << " the pandemonium lord";
-
+    }
     return result.str();
 }
 

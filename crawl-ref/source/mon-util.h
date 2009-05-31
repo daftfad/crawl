@@ -452,6 +452,7 @@ habitat_type grid2habitat(dungeon_feature_type grid);
 dungeon_feature_type habitat2grid(habitat_type ht);
 
 monsterentry *get_monster_data(int p_monsterid);
+const mon_resist_def &get_mons_class_resists(int mc);
 mon_resist_def get_mons_resists(const monsters *mon);
 
 // last updated 10jun2000 {dlb}
@@ -473,7 +474,7 @@ bool give_monster_proper_name(monsters *mon, bool orcs_only = true);
  * called from: beam - direct - fight - monstuff - mstuff2 - spells4 - view
  * *********************************************************************** */
 flight_type mons_class_flies(int mc);
-flight_type mons_flies(const monsters *mon);
+flight_type mons_flies(const monsters *mon, bool randarts = true);
 
 bool mons_class_amphibious(int mc);
 bool mons_amphibious(const monsters *mon);
@@ -722,7 +723,8 @@ bool ms_low_hitpoint_cast( const monsters *mon, spell_type monspell );
 bool mons_is_magic_user( const monsters *mon );
 bool mons_has_los_ability( int mclass );
 bool mons_has_los_attack(const monsters *mon);
-bool mons_has_ranged_spell( const monsters *mon, bool attack_only = false );
+bool mons_has_ranged_spell( const monsters *mon, bool attack_only = false,
+                            bool ench_too = true );
 bool mons_has_ranged_attack( const monsters *mon );
 
 // last updated 06mar2001 (gdl)
@@ -760,7 +762,7 @@ bool mons_is_native_in_branch(const monsters *monster,
                               const branch_type branch = you.where_are_you);
 bool mons_is_chaotic(const monsters *mon);
 bool mons_is_poisoner(const monsters *mon);
-bool mons_is_confused(const monsters *m);
+bool mons_is_confused(const monsters *m, bool class_too = false);
 bool mons_is_caught(const monsters *m);
 bool mons_is_sleeping(const monsters *m);
 bool mons_is_wandering(const monsters *m);
@@ -815,7 +817,8 @@ bool mons_is_petrifying(const monsters *m);
 bool mons_cannot_act(const monsters *m);
 bool mons_cannot_move(const monsters *m);
 
-bool monster_senior(const monsters *first, const monsters *second);
+bool monster_senior(const monsters *first, const monsters *second,
+                    bool fleeing = false);
 monster_type draco_subspecies( const monsters *mon );
 std::string draconian_colour_name(monster_type mtype);
 monster_type draconian_colour_by_name(const std::string &colour);
@@ -867,7 +870,4 @@ bool mons_can_pass(const monsters *mon, dungeon_feature_type grid);
 
 mon_inv_type equip_slot_to_mslot(equipment_type eq);
 mon_inv_type item_to_mslot(const item_def &item);
-
-bool      held_by_monster(const item_def &item);
-monsters* holding_monster(const item_def &item);
 #endif

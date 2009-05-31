@@ -148,6 +148,7 @@ void TilesFramework::shutdown()
     delete m_region_inv;
     delete m_region_crt;
     delete m_region_menu;
+    delete m_region_title;
 
     m_region_tile = NULL;
     m_region_stat = NULL;
@@ -156,6 +157,7 @@ void TilesFramework::shutdown()
     m_region_inv = NULL;
     m_region_crt = NULL;
     m_region_menu = NULL;
+    m_region_title = NULL;
 
     for (unsigned int i = 0; i < LAYER_MAX; i++)
         m_layers[i].m_regions.clear();
@@ -171,6 +173,14 @@ void TilesFramework::shutdown()
     _shutdown_console();
 }
 
+void TilesFramework::draw_title()
+{
+    m_active_layer = LAYER_TITLE;
+    set_need_redraw();
+
+    getch();
+}
+
 void TilesFramework::calculate_default_options()
 {
     // Find which set of _screen_sizes to use.
@@ -183,7 +193,8 @@ void TilesFramework::calculate_default_options()
         {
             break;
         }
-    } while (++auto_size < num_screen_sizes - 1);
+    }
+    while (++auto_size < num_screen_sizes - 1);
 
     // Auto pick map and font sizes if option is zero.
 #define AUTO(x,y) (x = (x) ? (x) : _screen_sizes[auto_size][(y)])
@@ -314,6 +325,8 @@ bool TilesFramework::initialise()
     m_region_crt  = new CRTRegion(m_fonts[crt_font].font);
     m_region_menu = new MenuRegion(&m_image, m_fonts[crt_font].font);
 
+    m_region_title = new TitleRegion(m_windowsz.x, m_windowsz.y);
+
     m_layers[LAYER_NORMAL].m_regions.push_back(m_region_map);
     m_layers[LAYER_NORMAL].m_regions.push_back(m_region_tile);
     m_layers[LAYER_NORMAL].m_regions.push_back(m_region_inv);
@@ -322,6 +335,8 @@ bool TilesFramework::initialise()
 
     m_layers[LAYER_CRT].m_regions.push_back(m_region_crt);
     m_layers[LAYER_CRT].m_regions.push_back(m_region_menu);
+
+    m_layers[LAYER_TITLE].m_regions.push_back(m_region_title);
 
     cgotoxy(1, 1, GOTO_CRT);
 
@@ -389,7 +404,6 @@ void TilesFramework::load_dungeon(const coord_def &cen)
 
     int count = 0;
     for (int y = 0; y < wy; y++)
-    {
         for (int x = 0; x < wx; x++)
         {
             unsigned int fg;
@@ -411,7 +425,7 @@ void TilesFramework::load_dungeon(const coord_def &cen)
                 bg = env.tile_bk_bg(gc);
                 if (!fg && !bg)
                     tileidx_unseen(fg, bg, get_envmap_char(gc), gc);
-                bg |=  tile_unseen_flag(gc);
+                bg |= tile_unseen_flag(gc);
             }
             else
             {
@@ -425,7 +439,6 @@ void TilesFramework::load_dungeon(const coord_def &cen)
             tb[count++] = fg;
             tb[count++] = bg;
         }
-    }
 
     load_dungeon(tb, cen);
     tiles.redraw();
@@ -710,6 +723,10 @@ struct cursor_loc
                 && rhs.cy == cy
                 && reg);
     }
+    bool operator!=(const cursor_loc &rhs) const
+    {
+        return !(*this == rhs);
+    }
 
     Region *reg;
     int cx, cy;
@@ -722,10 +739,11 @@ int TilesFramework::getch_ck()
     SDL_Event event;
     cursor_loc cur_loc;
     cursor_loc tip_loc;
+    cursor_loc last_loc;
 
     int key = 0;
 
-    const unsigned int ticks_per_redraw = 16; // 60 FPS = 16.6 ms/frame
+    const unsigned int ticks_per_redraw = 50;
     unsigned int last_redraw_tick = 0;
 
     unsigned int res = std::max(30, Options.tile_tooltip_ms);
@@ -744,6 +762,8 @@ int TilesFramework::getch_ck()
         if (SDL_WaitEvent(&event))
         {
             ticks = SDL_GetTicks();
+
+            last_loc = cur_loc;
 
             if (event.type != SDL_USEREVENT)
             {
@@ -841,8 +861,15 @@ int TilesFramework::getch_ck()
                 break;
 
             case SDL_QUIT:
-                save_game(true);
-                ASSERT(!"Shouldn't get here");
+                if (crawl_state.need_save)
+                {
+                    for (unsigned i = 0; i < crawl_state.exit_hooks.size(); ++i)
+                        crawl_state.exit_hooks[i]->restore_state();
+
+                    crawl_state.exit_hooks.clear();
+                    save_game(true);
+                }
+                exit(0);
                 break;
 
             case SDL_USEREVENT:
@@ -872,15 +899,19 @@ int TilesFramework::getch_ck()
                     if (reg->update_tip_text(m_tooltip))
                         break;
                 }
+                m_need_redraw = true;
             }
         }
         else
         {
+            if (last_loc != cur_loc)
+                m_need_redraw = true;
+
             m_tooltip.clear();
             tip_loc.reset();
         }
 
-        if (ticks - last_redraw_tick > ticks_per_redraw)
+        if ((ticks - last_redraw_tick > ticks_per_redraw) || need_redraw())
         {
             redraw();
             last_redraw_tick = ticks;
@@ -1228,7 +1259,7 @@ void TilesFramework::update_minimap(int gx, int gy, map_feature f)
         else if (mons_class_flag(menv[grid].type, M_NO_EXP_GAIN))
             f = MF_MONS_NO_EXP;
     }
-    else if (f == MF_FLOOR || f == MF_MAP_FLOOR)
+    else if (f == MF_FLOOR || f == MF_MAP_FLOOR || f == MF_WATER)
     {
         if (is_exclude_root(gc))
             f = MF_EXCL_ROOT;
@@ -1259,6 +1290,42 @@ void TilesFramework::update_minimap_bounds()
     m_region_map->update_bounds();
 }
 
+int tile_known_weapon_brand(const item_def item)
+{
+    if (!item_type_known(item))
+        return 0;
+
+    if (item.base_type == OBJ_WEAPONS)
+    {
+        if (!is_fixed_artefact(item)
+            && get_weapon_brand(item) != SPWPN_NORMAL)
+        {
+            return (TILE_BRAND_FLAMING + get_weapon_brand(item) - 1);
+        }
+    }
+    else if (item.base_type == OBJ_MISSILES)
+    {
+        switch (get_ammo_brand(item))
+        {
+        case SPMSL_FLAME:
+            return TILE_BRAND_FLAME;
+        case SPMSL_FROST:
+            return TILE_BRAND_FROST;
+        case SPMSL_POISONED:
+            return TILE_BRAND_POISONED;
+        case SPMSL_CURARE:
+            return TILE_BRAND_CURARE;
+        case SPMSL_RETURNING:
+            return TILE_BRAND_RETURNING;
+        case SPMSL_CHAOS:
+            return TILE_BRAND_CHAOS;
+        default:
+            break;
+        }
+    }
+    return 0;
+}
+
 static void _fill_item_info(InventoryTile &desc, const item_def &item)
 {
     desc.tile = tileidx_item(item);
@@ -1268,7 +1335,7 @@ static void _fill_item_info(InventoryTile &desc, const item_def &item)
         || type == OBJ_POTIONS || type == OBJ_MISSILES)
     {
         // -1 specifies don't display anything
-        desc.quantity = item.quantity == 1 ? -1 : item.quantity;
+        desc.quantity = (item.quantity == 1) ? -1 : item.quantity;
     }
     else if (type == OBJ_WANDS
              && ((item.flags & ISFLAG_KNOW_PLUSES)
@@ -1276,46 +1343,12 @@ static void _fill_item_info(InventoryTile &desc, const item_def &item)
     {
         desc.quantity = item.plus;
     }
+    else if (item_is_rod(item) && item.flags & ISFLAG_KNOW_PLUSES)
+        desc.quantity = item.plus / ROD_CHARGE_MULT;
     else
         desc.quantity = -1;
 
-    if (item_type_known(item))
-    {
-        if (item.base_type == OBJ_WEAPONS)
-        {
-            if (!is_fixed_artefact(item)
-                && get_weapon_brand(item) != SPWPN_NORMAL)
-            {
-                desc.special = TILE_BRAND_FLAMING + get_weapon_brand(item) - 1;
-            }
-        }
-        else if (item.base_type == OBJ_MISSILES)
-        {
-            switch (get_ammo_brand(item))
-            {
-            case SPMSL_FLAME:
-                desc.special = TILE_BRAND_FLAME;
-                break;
-            case SPMSL_FROST:
-                desc.special = TILE_BRAND_FROST;
-                break;
-            case SPMSL_POISONED:
-                desc.special = TILE_BRAND_POISONED;
-                break;
-            case SPMSL_CURARE:
-                desc.special = TILE_BRAND_CURARE;
-                break;
-            case SPMSL_RETURNING:
-                desc.special = TILE_BRAND_RETURNING;
-                break;
-            case SPMSL_CHAOS:
-                desc.special = TILE_BRAND_CHAOS;
-                break;
-            default:
-                break;
-            }
-        }
-    }
+    desc.special = tile_known_weapon_brand(item);
     desc.flag = 0;
     if (item_cursed(item) && item_ident(item, ISFLAG_KNOW_CURSE))
         desc.flag |= TILEI_FLAG_CURSE;

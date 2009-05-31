@@ -24,6 +24,7 @@ REVISION("$Rev$");
 
 #include "beam.h"
 #include "cloud.h"
+#include "database.h"
 #include "debug.h"
 #include "delay.h"
 #include "effects.h"
@@ -60,6 +61,14 @@ REVISION("$Rev$");
 #include "tutorial.h"
 #include "view.h"
 #include "xom.h"
+
+#ifdef NOTE_DEBUG_CHAOS_BRAND
+    #define NOTE_DEBUG_CHAOS_EFFECTS
+#endif
+
+#ifdef NOTE_DEBUG_CHAOS_EFFECTS
+#include "notes.h"
+#endif
 
 const int HIT_WEAK   = 7;
 const int HIT_MED    = 18;
@@ -197,7 +206,7 @@ int calc_heavy_armour_penalty( bool random_factor )
                 heavy_armour++;
             break;
         case ARM_LARGE_SHIELD:
-            if (you.species == SP_OGRE || you.species == SP_TROLL
+            if (player_genus(GENPC_OGRE) || you.species == SP_TROLL
                 || player_genus(GENPC_DRACONIAN))
             {
                 if (you.skills[SK_SHIELDS] < maybe_random2(13, random_factor))
@@ -221,8 +230,15 @@ int calc_heavy_armour_penalty( bool random_factor )
     // Heavy armour modifiers for PARM_EVASION.
     if (player_wearing_slot(EQ_BODY_ARMOUR))
     {
-        const int ev_pen = property( you.inv[you.equip[EQ_BODY_ARMOUR]],
-                                     PARM_EVASION );
+        int ev_pen = property( you.inv[you.equip[EQ_BODY_ARMOUR]],
+                               PARM_EVASION );
+
+        // Wearing heavy armour in water is particularly cumbersome.
+        if (you.species == SP_MERFOLK && grd(you.pos()) == DNGN_DEEP_WATER
+            && player_is_swimming())
+        {
+            ev_pen *= 2;
+        }
 
         if (ev_pen < 0 && maybe_random2(you.skills[SK_ARMOUR],
                                         random_factor) < abs(ev_pen))
@@ -486,9 +502,9 @@ std::string melee_attack::wep_name(description_level_type desc,
     }
 
     if (possessive)
-        name = apostrophise(atk_name(desc));
+        name = apostrophise(atk_name(desc)) + " ";
 
-    name += weapon->name(desc, false, false, false, false, ignore_flags);
+    name += weapon->name(DESC_PLAIN, false, false, false, false, ignore_flags);
 
     return (name);
 }
@@ -773,7 +789,7 @@ static bool _player_vampire_draws_blood(const monsters* mon, const int damage,
     const int chunk_type = mons_corpse_effect(mon->type);
 
     // Now print message, need biting unless already done (never for bat form!)
-    if (needs_bite_msg && you.attribute[ATTR_TRANSFORMATION] != TRAN_BAT)
+    if (needs_bite_msg && !player_in_bat_form())
     {
         mprf( "You bite %s, and draw %s blood!",
               mon->name(DESC_NOCAP_THE, true).c_str(),
@@ -793,7 +809,7 @@ static bool _player_vampire_draws_blood(const monsters* mon, const int damage,
             heal += 1 + random2(damage);
 
         // Decrease healing when done in bat form.
-        if (you.attribute[ATTR_TRANSFORMATION] == TRAN_BAT)
+        if (player_in_bat_form())
             heal /= 2;
 
         if (heal > 0)
@@ -813,7 +829,7 @@ static bool _player_vampire_draws_blood(const monsters* mon, const int damage,
             food_value = 15 + random2avg(29, 2);
 
         // Bats get a rather less nutrition out of it.
-        if (you.attribute[ATTR_TRANSFORMATION] == TRAN_BAT)
+        if (player_in_bat_form())
             food_value /= 2;
 
         lessen_hunger(food_value, false);
@@ -1097,6 +1113,14 @@ bool melee_attack::player_aux_unarmed()
                 continue;
             }
 
+            // TSO worshippers don't use their stinger in order to
+            // avoid poisoning.
+            if (you.religion == GOD_SHINING_ONE
+                && player_mutation_level(MUT_STINGER) > 0)
+            {
+                continue;
+            }
+
             unarmed_attack = "tail-slap";
             aux_damage = 6;
 
@@ -1243,8 +1267,8 @@ bool melee_attack::player_aux_unarmed()
             else
             {
                 mprf("Your %s misses %s.",
-                     miss_verb.empty()? unarmed_attack.c_str()
-                     : miss_verb.c_str(),
+                     miss_verb.empty() ? unarmed_attack.c_str()
+                                       : miss_verb.c_str(),
                      defender->name(DESC_NOCAP_THE).c_str());
             }
 
@@ -1667,8 +1691,8 @@ int melee_attack::player_weapon_type_modify(int damage)
     // All weak hits look the same, except for when the player
     // has a non-weapon in hand.  -- bwr
     // Exception: vampire bats only _bite_ to allow for drawing blood
-    if (damage < HIT_WEAK && (you.species != SP_VAMPIRE
-        || you.attribute[ATTR_TRANSFORMATION] != TRAN_BAT))
+    if (damage < HIT_WEAK
+        && (you.species != SP_VAMPIRE || !player_in_bat_form()))
     {
         if (weap_type != WPN_UNKNOWN)
             attack_verb = "hit";
@@ -1746,7 +1770,14 @@ int melee_attack::player_weapon_type_modify(int damage)
         else
         {
             attack_verb = "spit";
-            verb_degree = " like a pig";
+            if (defender->atype() == ACT_MONSTER
+                && defender_visible
+                && mons_genus(defender_as_monster()->type) == MONS_HOG)
+            {
+                verb_degree = " like the proverbial pig";
+            }
+            else
+                verb_degree = " like a pig";
         }
         break;
 
@@ -1918,7 +1949,7 @@ bool melee_attack::player_monattk_hit_effects(bool mondied)
     // the hydra some more.
     //
     // Also returns true if the hydra's last head was cut off, in which
-    // case nothing more should be done to the last hydra.
+    // case nothing more should be done to the hydra.
     if (decapitate_hydra(damage_done))
         return (!defender->alive());
 
@@ -1971,7 +2002,7 @@ void melee_attack::_monster_die(monsters* monster, killer_type killer,
         def_copy = new monsters(*monster);
 
     // The monster is about to die, so restore its original attitude
-    // for the cleanup effects (god reactions.) This could be a
+    // for the cleanup effects (god reactions). This could be a
     // problem if the "killing" is actually an Abyss banishment - we
     // don't want to create permafriendlies this way - so don't do it
     // then.
@@ -2072,7 +2103,7 @@ void melee_attack::calc_elemental_brand_damage( beam_type flavour,
             "%s %s %s%s",
             atk_name(DESC_CAP_THE).c_str(),
             attacker->conj_verb(verb).c_str(),
-            def_name(DESC_NOCAP_THE).c_str(),
+            mons_defender_name().c_str(),
             special_attack_punctuation().c_str());
     }
 }
@@ -2112,7 +2143,7 @@ void melee_attack::drain_defender()
                     "%s %s %s!",
                     atk_name(DESC_CAP_THE).c_str(),
                     attacker->conj_verb("drain").c_str(),
-                    def_name(DESC_NOCAP_THE).c_str());
+                    mons_defender_name().c_str());
         }
 
         attacker->god_conduct(DID_NECROMANCY, 2);
@@ -2245,13 +2276,13 @@ enum chaos_type
     CHAOS_HASTE,
     CHAOS_INVIS,
     CHAOS_SLOW,
-    CHAOS_PARA,
+    CHAOS_PARALYSIS,
     CHAOS_PETRIFY,
     NUM_CHAOS_TYPES
 };
 
 // XXX: We might want to vary the probabilities for the various effects
-// based on whether the source is weapon of chaos or a monster with
+// based on whether the source is a weapon of chaos or a monster with
 // AF_CHAOS.
 void melee_attack::chaos_affects_defender()
 {
@@ -2271,11 +2302,11 @@ void melee_attack::chaos_affects_defender()
     int rage_chance    = can_rage         ? 10 : 0;
     int miscast_chance = 10;
 
+    // Already a shifter?
     if (is_shifter)
-        // Already a shifter.
         shifter_chance = 0;
 
-    // A chaos self-attack increased the chance of certain effects,
+    // A chaos self-attack increases the chance of certain effects,
     // due to a short-circuit/feedback/resonance/whatever.
     if (attacker == defender)
     {
@@ -2291,9 +2322,11 @@ void melee_attack::chaos_affects_defender()
             if (defender->atype() == ACT_PLAYER)
                 mpr("You give off a flash of multicoloured light!");
             else if (you.can_see(defender))
+            {
                 simple_monster_message(defender_as_monster(),
                                        " gives off a flash of "
                                        "multicoloured light!");
+            }
             else
                 mpr("There is a flash of multicoloured light!");
         }
@@ -2314,7 +2347,7 @@ void melee_attack::chaos_affects_defender()
         10, // CHAOS_INVIS
 
         10, // CHAOS_SLOW
-        10, // CHAOS_PARA
+        10, // CHAOS_PARALYSIS
         10, // CHAOS_PETRIFY
     };
 
@@ -2322,6 +2355,28 @@ void melee_attack::chaos_affects_defender()
     beam.flavour = BEAM_NONE;
 
     int choice = choose_random_weighted(probs, probs + NUM_CHAOS_TYPES);
+#ifdef NOTE_DEBUG_CHAOS_EFFECTS
+    std::string chaos_effect = "CHAOS effect: ";
+    switch (choice)
+    {
+    case CHAOS_CLONE:           chaos_effect += "clone"; break;
+    case CHAOS_POLY:            chaos_effect += "polymorph"; break;
+    case CHAOS_POLY_UP:         chaos_effect += "polymorph PPT_MORE"; break;
+    case CHAOS_MAKE_SHIFTER:    chaos_effect += "shifter"; break;
+    case CHAOS_MISCAST:         chaos_effect += "miscast"; break;
+    case CHAOS_RAGE:            chaos_effect += "berserk"; break;
+    case CHAOS_HEAL:            chaos_effect += "healing"; break;
+    case CHAOS_HASTE:           chaos_effect += "hasting"; break;
+    case CHAOS_INVIS:           chaos_effect += "invisible"; break;
+    case CHAOS_SLOW:            chaos_effect += "slowing"; break;
+    case CHAOS_PARALYSIS:       chaos_effect += "paralysis"; break;
+    case CHAOS_PETRIFY:         chaos_effect += "petrify"; break;
+    default:                    chaos_effect += "(other)"; break;
+    }
+
+    take_note(Note(NOTE_MESSAGE, 0, 0, chaos_effect.c_str()), true);
+#endif
+
     switch (static_cast<chaos_type>(choice))
     {
     case CHAOS_CLONE:
@@ -2334,14 +2389,19 @@ void melee_attack::chaos_affects_defender()
         if (clone_idx != NON_MONSTER)
         {
             if (obvious_effect)
+            {
                 special_damage_message =
                     make_stringf("%s is duplicated!",
                                  def_name(DESC_NOCAP_THE).c_str());
+            }
 
             monsters &clone(menv[clone_idx]);
             // The player shouldn't get new permanent followers from cloning.
             if (clone.attitude == ATT_FRIENDLY && !clone.is_summoned())
                 clone.mark_summoned(6, true, MON_SUMM_CLONE);
+
+            // Monsters being cloned is interesting.
+            xom_is_stimulated(mons_friendly(&clone) ? 16 : 32);
         }
         break;
     }
@@ -2360,6 +2420,7 @@ void melee_attack::chaos_affects_defender()
         break;
 
     case CHAOS_MAKE_SHIFTER:
+    {
         ASSERT(can_poly && shifter_chance > 0);
         ASSERT(!is_shifter);
         ASSERT(defender->atype() == ACT_MONSTER);
@@ -2369,18 +2430,26 @@ void melee_attack::chaos_affects_defender()
             ENCH_GLOWING_SHAPESHIFTER : ENCH_SHAPESHIFTER);
         // Immediately polymorph monster, just to make the effect obvious.
         monster_polymorph(defender_as_monster(), RANDOM_MONSTER);
-        break;
 
+        // Xom loves it if this happens!
+        const int friend_factor = mons_friendly(defender_as_monster()) ? 1 : 2;
+        const int glow_factor   =
+            (defender_as_monster()->has_ench(ENCH_SHAPESHIFTER) ? 1 : 2);
+        xom_is_stimulated( 64 * friend_factor * glow_factor );
+        break;
+    }
     case CHAOS_MISCAST:
     {
         int level = defender->get_experience_level();
 
-        // At level == 27 there's a 20.3% chance of a level 3 miscast.
-        int level1_chance = level;
-        int level2_chance = std::max( 0, level - 7);
-        int level3_chance = std::max( 0, level - 15);
+        // At level == 27 there's a 13.9% chance of a level 3 miscast.
+        int level0_chance = level;
+        int level1_chance = std::max( 0, level - 7);
+        int level2_chance = std::max( 0, level - 12);
+        int level3_chance = std::max( 0, level - 17);
 
         level = random_choose_weighted(
+            level0_chance, 0,
             level1_chance, 1,
             level2_chance, 2,
             level3_chance, 3,
@@ -2388,8 +2457,7 @@ void melee_attack::chaos_affects_defender()
 
         miscast_level  = level;
         miscast_type   = SPTYP_RANDOM;
-        miscast_target = coinflip() ? attacker : defender;
-
+        miscast_target = one_chance_in(3) ? attacker : defender;
         break;
     }
 
@@ -2415,7 +2483,7 @@ void melee_attack::chaos_affects_defender()
         beam.flavour = BEAM_SLOW;
         break;
 
-    case CHAOS_PARA:
+    case CHAOS_PARALYSIS:
         beam.flavour = BEAM_PARALYSIS;
         break;
 
@@ -2448,6 +2516,9 @@ void melee_attack::chaos_affects_defender()
             : attacker_as_monster()->confused_by_you() ? KILL_YOU_CONF
                                                        : KILL_MON;
 
+        if (beam.thrower == KILL_YOU || mons_friendly(attacker_as_monster()))
+            beam.attitude = ATT_FRIENDLY;
+
         beam.beam_source = attacker->mindex();
 
         beam.source = defender->pos();
@@ -2477,7 +2548,7 @@ static bool _move_stairs(const actor* attacker, const actor* defender)
 
     // The player can't use shops to escape, so don't bother.
     if (stair_feat == DNGN_ENTER_SHOP)
-        return false;
+        return (false);
 
     // Don't move around notable terrain the player is aware of if it's
     // out of sight.
@@ -2509,7 +2580,13 @@ void melee_attack::chaos_affects_attacker()
 
     // Move stairs out from under the attacker.
     if (one_chance_in(100) && _move_stairs(attacker, defender))
+    {
+#ifdef NOTE_DEBUG_CHAOS_EFFECTS
+        take_note(Note(NOTE_MESSAGE, 0, 0,
+                       "CHAOS affects attacker: move stairs"), true);
+#endif
         DID_AFFECT();
+    }
 
     // Dump attacker or items under attacker to another level.
     if (is_valid_shaft_level()
@@ -2518,24 +2595,59 @@ void melee_attack::chaos_affects_attacker()
         && one_chance_in(1000))
     {
         (void) attacker->do_shaft();
+#ifdef NOTE_DEBUG_CHAOS_EFFECTS
+        take_note(Note(NOTE_MESSAGE, 0, 0,
+                       "CHAOS affects attacker: shaft effect"), true);
+#endif
+        DID_AFFECT();
+    }
+
+    // Create a colourful cloud.
+    if (weapon && one_chance_in(1000))
+    {
+        mprf("Smoke pours forth from %s!", wep_name(DESC_NOCAP_YOUR).c_str());
+        big_cloud(random_smoke_type(), KC_OTHER, attacker->pos(), 20,
+                  4 + random2(8));
+#ifdef NOTE_DEBUG_CHAOS_EFFECTS
+        take_note(Note(NOTE_MESSAGE, 0, 0,
+                       "CHAOS affects attacker: smoke"), true);
+#endif
         DID_AFFECT();
     }
 
     // Make a loud noise.
     if (weapon && player_can_hear(attacker->pos())
-        && one_chance_in(1000))
+        && one_chance_in(200))
     {
-        std::string msg = wep_name(DESC_CAP_YOUR);
-        msg += " twangs alarmingly!";
-
+        std::string msg = "";
         if (!you.can_see(attacker))
-            msg = "You hear a loud twang.";
+        {
+            std::string noise = getSpeakString("weapon_noise");
+            if (!noise.empty())
+                msg = "You hear " + noise;
+        }
+        else
+        {
+            msg = getSpeakString("weapon_noises");
+            std::string wepname = wep_name(DESC_CAP_YOUR);
+            if (!msg.empty())
+            {
+                msg = replace_all(msg, "@Your_weapon@", wepname);
+                msg = replace_all(msg, "@The_weapon@", wepname);
+            }
+        }
 
-        noisy(15, attacker->pos(), msg.c_str());
-        DID_AFFECT();
+        if (!msg.empty())
+        {
+            mpr(msg.c_str(), MSGCH_SOUND);
+            noisy(15, attacker->pos());
+#ifdef NOTE_DEBUG_CHAOS_EFFECTS
+            take_note(Note(NOTE_MESSAGE, 0, 0,
+                           "CHAOS affects attacker: noise"), true);
+#endif
+            DID_AFFECT();
+        }
     }
-
-    return;
 }
 
 static void _find_remains(monsters* mon, int &corpse_class, int &corpse_index,
@@ -2591,10 +2703,8 @@ static void _find_remains(monsters* mon, int &corpse_class, int &corpse_index,
         {
             // Last item which we're sure belonged to the monster.
             for (unsigned int i = 0; i < items.size(); i++)
-            {
                 if (items[i] == si.link())
                     last_item = si.link();
-            }
         }
     }
 }
@@ -2655,10 +2765,16 @@ static bool _make_zombie(monsters* mon, int corpse_class, int corpse_index,
         if (you.can_see(zombie))
             simple_monster_message(mon, " instantly turns into a zombie!");
         else if (last_item != NON_ITEM)
+        {
             simple_monster_message(mon, "'s equipment vanishes!");
+            autotoggle_autopickup(true);
+        }
     }
     else
+    {
         simple_monster_message(zombie, " appears from thin air!");
+        autotoggle_autopickup(false);
+    }
 
     return (true);
 }
@@ -2688,9 +2804,14 @@ void melee_attack::chaos_killed_defender(monsters* mon)
     _find_remains(mon, corpse_class, corpse_index, fake_corpse, last_item,
                   items);
 
-    if (one_chance_in(100) &&
-        _make_zombie(mon, corpse_class, corpse_index, fake_corpse, last_item))
+    if (one_chance_in(100)
+        && _make_zombie(mon, corpse_class, corpse_index, fake_corpse,
+                        last_item))
     {
+#ifdef NOTE_DEBUG_CHAOS_EFFECTS
+        take_note(Note(NOTE_MESSAGE, 0, 0,
+                       "CHAOS killed defender: zombified monster"), true);
+#endif
         DID_AFFECT();
     }
 }
@@ -2764,19 +2885,110 @@ void melee_attack::do_miscast()
 // by the non-chaos brands/flavours they return.
 int melee_attack::random_chaos_brand()
 {
-    return (random_choose_weighted(
-        15, SPWPN_NORMAL,
-        10, SPWPN_FLAMING,
-        10, SPWPN_FREEZING,
-        10, SPWPN_ELECTROCUTION,
-        10, SPWPN_VENOM,
-        10, SPWPN_CHAOS,
-         5, SPWPN_VORPAL,
-         5, SPWPN_DRAINING,
-         5, SPWPN_VAMPIRICISM,
-         2, SPWPN_CONFUSE,
-         2, SPWPN_DISTORTION,
-         0));
+    int brand = SPWPN_NORMAL;
+    // Assuming the chaos to be mildly intelligent, try to avoid brands
+    // that clash with the most basic resists of the defender,
+    // i.e. its holiness.
+    while (true)
+    {
+        brand = (random_choose_weighted(
+                     5, SPWPN_VORPAL,
+                    10, SPWPN_FLAMING,
+                    10, SPWPN_FREEZING,
+                    10, SPWPN_ELECTROCUTION,
+                    10, SPWPN_VENOM,
+                    10, SPWPN_CHAOS,
+                     5, SPWPN_DRAINING,
+                     5, SPWPN_VAMPIRICISM,
+                     5, SPWPN_HOLY_WRATH,
+                     2, SPWPN_CONFUSE,
+                     2, SPWPN_DISTORTION,
+                     0));
+
+        if (one_chance_in(3))
+            break;
+
+        bool susceptible = true;
+        switch (brand)
+        {
+        case SPWPN_FLAMING:
+            if (defender->is_fiery())
+                susceptible = false;
+            break;
+        case SPWPN_FREEZING:
+            if (defender->is_icy())
+                susceptible = false;
+            break;
+        case SPWPN_ELECTROCUTION:
+            if (defender->airborne())
+                susceptible = false;
+            break;
+        case SPWPN_VENOM:
+            if (defender->holiness() == MH_UNDEAD)
+                susceptible = false;
+            break;
+        case SPWPN_VAMPIRICISM:
+            if (defender->is_summoned())
+            {
+                susceptible = false;
+                break;
+            }
+            // intentional fall-through
+        case SPWPN_DRAINING:
+            if (defender->holiness() != MH_NATURAL)
+                susceptible = false;
+            break;
+        case SPWPN_HOLY_WRATH:
+            if (defender->holiness() != MH_UNDEAD
+                && defender->holiness() != MH_DEMONIC)
+            {
+                susceptible = false;
+            }
+            break;
+        case SPWPN_CONFUSE:
+            if (defender->holiness() == MH_NONLIVING
+                || defender->holiness() == MH_PLANT)
+            {
+                susceptible = false;
+            }
+            break;
+        default:
+            break;
+        }
+
+        if (susceptible)
+            break;
+    }
+#ifdef NOTE_DEBUG_CHAOS_BRAND
+    std::string brand_name = "CHAOS brand: ";
+    switch (brand)
+    {
+    case SPWPN_NORMAL:          brand_name += "(plain)"; break;
+    case SPWPN_FLAMING:         brand_name += "flaming"; break;
+    case SPWPN_FREEZING:        brand_name += "freezing"; break;
+    case SPWPN_HOLY_WRATH:      brand_name += "holy wrath"; break;
+    case SPWPN_ELECTROCUTION:   brand_name += "electrocution"; break;
+    case SPWPN_VENOM:           brand_name += "venom"; break;
+    case SPWPN_DRAINING:        brand_name += "draining"; break;
+    case SPWPN_DISTORTION:      brand_name += "distortion"; break;
+    case SPWPN_VAMPIRICISM:     brand_name += "vampiricism"; break;
+    case SPWPN_VORPAL:          brand_name += "vorpal"; break;
+    // ranged weapon brands
+    case SPWPN_FLAME:           brand_name += "flame"; break;
+    case SPWPN_FROST:           brand_name += "frost"; break;
+
+    // both ranged and non-ranged
+    case SPWPN_CHAOS:           brand_name += "chaos"; break;
+    case SPWPN_CONFUSE:         brand_name += "confusion"; break;
+    default:                    brand_name += "(other)"; break;
+    }
+
+    // Pretty much duplicated by the chaos effect note,
+    // which will be much more informative.
+    if (brand != SPWPN_CHAOS)
+        take_note(Note(NOTE_MESSAGE, 0, 0, brand_name.c_str()), true);
+#endif
+    return (brand);
 }
 
 mon_attack_flavour melee_attack::random_chaos_attack_flavour()
@@ -2897,8 +3109,10 @@ bool melee_attack::apply_damage_brand()
             if (defender->atype() == ACT_PLAYER)
                 old_poison = you.duration[DUR_POISONING];
             else
+            {
                 old_poison =
                     (defender_as_monster()->get_ench(ENCH_POISON)).degree;
+            }
 
             // Poison monster message needs to arrive after hit message.
             emit_nodmg_hit_message();
@@ -2932,7 +3146,7 @@ bool melee_attack::apply_damage_brand()
     {
         // Vampire bat form -- why the special handling?
         if (attacker->atype() == ACT_PLAYER && you.species == SP_VAMPIRE
-            && you.attribute[ATTR_TRANSFORMATION] == TRAN_BAT)
+            && player_in_bat_form())
         {
             _player_vampire_draws_blood(defender_as_monster(), damage_done);
             break;
@@ -2941,8 +3155,10 @@ bool melee_attack::apply_damage_brand()
         if (x_chance_in_y(defender->res_negative_energy(), 3))
             break;
 
-        if (defender->holiness() != MH_NATURAL || !weapon
-            || damage_done < 1 || attacker->stat_hp() == attacker->stat_maxhp()
+        if (!weapon || defender->holiness() != MH_NATURAL || damage_done < 1
+            || attacker->stat_hp() == attacker->stat_maxhp()
+            || defender->atype() != ACT_PLAYER
+               && defender_as_monster()->is_summoned()
             || one_chance_in(5))
         {
             break;
@@ -3114,10 +3330,10 @@ bool melee_attack::chop_hydra_head( int dam,
         {
             if (defender_visible)
             {
-                mprf( "%s %s %s's last head off!",
-                      atk_name(DESC_CAP_THE).c_str(),
-                      attacker->conj_verb(verb).c_str(),
-                      def_name(DESC_NOCAP_THE).c_str() );
+                mprf("%s %s %s's last head off!",
+                     atk_name(DESC_CAP_THE).c_str(),
+                     attacker->conj_verb(verb).c_str(),
+                     def_name(DESC_NOCAP_THE).c_str());
             }
             defender_as_monster()->number--;
 
@@ -3133,10 +3349,10 @@ bool melee_attack::chop_hydra_head( int dam,
         {
             if (defender_visible)
             {
-                mprf( "%s %s one of %s's heads off!",
-                      atk_name(DESC_CAP_THE).c_str(),
-                      attacker->conj_verb(verb).c_str(),
-                      def_name(DESC_NOCAP_THE).c_str() );
+                mprf("%s %s one of %s's heads off!",
+                     atk_name(DESC_CAP_THE).c_str(),
+                     attacker->conj_verb(verb).c_str(),
+                     def_name(DESC_NOCAP_THE).c_str());
             }
             defender_as_monster()->number--;
 
@@ -3425,7 +3641,7 @@ int melee_attack::player_to_hit(bool random_factor)
         your_to_hit -= 5;
 
     const bool see_invis = player_see_invis();
-    // if you can't see yourself, you're a little less accurate.
+    // If you can't see yourself, you're a little less accurate.
     if (you.invisible() && !see_invis)
         your_to_hit -= 5;
 
@@ -3677,10 +3893,9 @@ int melee_attack::player_unarmed_speed()
     if (you.burden_state == BS_UNENCUMBERED
         && one_chance_in(heavy_armour_penalty + 1))
     {
-        const bool is_bat = (you.attribute[ATTR_TRANSFORMATION] == TRAN_BAT);
         unarmed_delay =
-            std::max(10 - you.skills[SK_UNARMED_COMBAT] / (is_bat ? 3 : 5),
-                     min_delay);
+            std::max(10 - you.skills[SK_UNARMED_COMBAT]
+                        / (player_in_bat_form() ? 3 : 5), min_delay);
     }
 
     return (unarmed_delay);
@@ -3755,7 +3970,7 @@ int melee_attack::player_calc_base_unarmed_damage()
         damage += player_mutation_level(MUT_CLAWS) * 2;
     }
 
-    if (you.attribute[ATTR_TRANSFORMATION] == TRAN_BAT)
+    if (player_in_bat_form())
     {
         // Bats really don't do a lot of damage.
         damage += you.skills[SK_UNARMED_COMBAT]/5;
@@ -3879,7 +4094,7 @@ bool melee_attack::mons_attack_warded_off()
         {
             mprf("%s tries to attack %s, but flinches away.",
                  atk_name(DESC_CAP_THE).c_str(),
-                 def_name(DESC_NOCAP_THE).c_str());
+                 mons_defender_name().c_str());
         }
         return (true);
     }
@@ -3889,7 +4104,7 @@ bool melee_attack::mons_attack_warded_off()
 
 int melee_attack::mons_attk_delay()
 {
-    return (weapon? property(*weapon, PWPN_SPEED) : 0);
+    return (weapon ? property(*weapon, PWPN_SPEED) : 0);
 }
 
 bool melee_attack::attack_shield_blocked(bool verbose)
@@ -4204,7 +4419,7 @@ void melee_attack::mons_do_poison(const mon_attack_def &attk)
             {
                 mprf("%s poisons %s!",
                      atk_name(DESC_CAP_THE).c_str(),
-                     def_name(DESC_NOCAP_THE).c_str());
+                     mons_defender_name().c_str());
             }
         }
 
@@ -4360,10 +4575,12 @@ void melee_attack::mons_apply_attack_flavour(const mon_attack_def &attk)
 
         if (needs_message && special_damage)
         {
-            mprf("%s %s %s!",
+            mprf("%s %s %s%s",
                  atk_name(DESC_CAP_THE).c_str(),
                  attacker->conj_verb("freeze").c_str(),
-                 def_name(DESC_NOCAP_THE).c_str());
+                 mons_defender_name().c_str(),
+                 special_attack_punctuation().c_str());
+
         }
         break;
 
@@ -4384,7 +4601,7 @@ void melee_attack::mons_apply_attack_flavour(const mon_attack_def &attk)
             mprf("%s %s %s%s",
                  atk_name(DESC_CAP_THE).c_str(),
                  attacker->conj_verb("shock").c_str(),
-                 def_name(DESC_NOCAP_THE).c_str(),
+                 mons_defender_name().c_str(),
                  special_attack_punctuation().c_str());
         }
 
@@ -4523,7 +4740,7 @@ void melee_attack::mons_apply_attack_flavour(const mon_attack_def &attk)
             mprf("%s %s %s!",
                  atk_name(DESC_CAP_THE).c_str(),
                  attacker->conj_verb("infuriate").c_str(),
-                 def_name(DESC_NOCAP_THE).c_str());
+                 mons_defender_name().c_str());
         }
 
         defender->go_berserk(false);
@@ -4540,10 +4757,6 @@ void melee_attack::mons_apply_attack_flavour(const mon_attack_def &attk)
     case AF_STEAL_FOOD:
         // Monsters don't carry food.
         if (defender->atype() != ACT_PLAYER)
-            break;
-
-        // Only use this attack sometimes.
-        if (!one_chance_in(3))
             break;
 
         if (expose_player_to_element(BEAM_STEAL_FOOD, 10) && needs_message)
@@ -5072,7 +5285,7 @@ static inline int player_weapon_str_weight()
 {
     const item_def* weapon = you.weapon();
 
-    // unarmed, weighted slightly towards dex -- would have been more,
+    // Unarmed, weighted slightly towards dex -- would have been more,
     // but then we'd be punishing Trolls and Ghouls who are strong and
     // get special unarmed bonuses.
     if (!weapon)
@@ -5126,7 +5339,7 @@ static inline int calc_stat_to_dam_base( void )
 
 static void stab_message(actor *defender, int stab_bonus)
 {
-    switch(stab_bonus)
+    switch (stab_bonus)
     {
     case 3:     // big melee, monster surrounded/not paying attention
         if (coinflip())

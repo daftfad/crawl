@@ -10,7 +10,7 @@
 # (New players should just ignore these lines.)
 #
 # include                 = 034_monster_glyphs.txt
-# inlcude                 = 034_command_keys.txt
+# include                 = 034_command_keys.txt
 # classic_item_colours    = true
 # classic_hud             = true
 # use_old_selection_order = true
@@ -56,8 +56,9 @@
 # name = Delilah
 # remember_name = false
 # use_old_selection_order = true
-# weapon = (random | short sword | hand axe | spear | mace | trident)
+# weapon = (short sword | hand axe | spear | mace | trident | random)
 # book = (fire | ice | summ | random)
+# wand = (enslavement | confusion | magic darts | frost | flame | striking | random)
 # chaos_knight = (Xom | Makhleb | random)
 # death_knight = (necromancy | Yredelemnul | random)
 # priest       = (Zin | Yredelemnul | Beogh | random)
@@ -165,7 +166,7 @@ trap_item_brand    = reverse
 # explore_stop     = items,greedy_items,stairs,shops,altars,gates
 # explore_improved = true
 auto_exclude = oklob plant,silver statue,orange crystal statue,ice statue
-auto_exclude = curse skull,Roxanne
+auto_exclude = curse skull,roxanne
 
 # tc_reachable      = blue
 # tc_dangerous      = cyan
@@ -213,10 +214,11 @@ stash_filter = ring of hunger, amulet of inaccuracy
 
 ##### 4-i	Command Enhancements ##################
 #
-# auto_list    = false
-# easy_open    = false
-# easy_unequip = false
-# easy_confirm = (none | safe)
+# auto_list     = false
+# easy_open     = false
+# easy_unequip  = false
+# equip_unequip = true
+# easy_confirm  = (none | safe)
 # allow_self_target      = (yes | no | prompt)
 # easy_butcher           = false
 # always_confirm_butcher = true
@@ -228,8 +230,7 @@ stash_filter = ring of hunger, amulet of inaccuracy
 # easy_quit_item_prompts = false
 # easy_exit_menu         = false
 # msg_condense_repeats   = false
-# sort_menus = pickup: true : basename, qualname, curse, qty
-
+# sort_menus = pickup: true : art, ego, basename, qualname, curse, qty
 sort_menus = inv: true : equipped, freshness
 
 
@@ -258,7 +259,7 @@ sort_menus = inv: true : equipped, freshness
 
 #####          Colours (messages and menus) #####
 #
-menu_colour_prefix_class = true
+# menu_colour_prefix_class = false
 # menu_colour_shops = false
 
 # Food is colour coded in standard_colours.txt as follows:
@@ -325,9 +326,9 @@ menu_colour = notes:white:Reached XP level
 
 ##### 4-m	Inscriptions ##########################
 #
-# autoinscribe = royal jell:=g
-# autoinscribe = distortion:!w
+autoinscribe = distortion:!w
 # autoinscribe = potion.*mutation:!q
+# autoinscribe = royal jell:=g
 # autoinscribe_randarts = false
 
 ##### 4-n	Macro related Options #################
@@ -363,9 +364,10 @@ include = tiles_options.txt
 ood_interesting = 8
 note_hp_percent = 5
 note_skill_levels = 1,5,10,15,27
-note_all_skill_levels = true
-note_skill_max  = true
-note_all_spells = true
+#note_all_skill_levels = true
+#note_skill_max  = false
+#note_all_spells = false
+#note_xom_effects = false
 note_items    = rod of, acquirement, preservation, running, of Zot
 note_messages = You pass through the gate
 note_messages = cast .* Abyss
@@ -402,4 +404,4 @@ note_monsters = orb of fire, ancient lich, Sigmund
 
 ##### 6-c   Unix ##################################
 #
-# use_fake_cursor = true
+# use_fake_cursor = false

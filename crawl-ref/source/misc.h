@@ -16,7 +16,7 @@ struct dist;
 struct activity_interrupt_data;
 
 bool go_berserk(bool intentional);
-void search_around( bool only_adjacent = false );
+void search_around(bool only_adjacent = false);
 void down_stairs(int old_level,
                  dungeon_feature_type force_stair = DNGN_UNSEEN,
                  entry_cause_type entry_cause = EC_UNKNOWN);
@@ -116,5 +116,7 @@ bool stop_attack_prompt(const monsters *mon, bool beam_attack,
 bool is_orckind(const actor *act);
 
 bool is_dragonkind(const actor *act);
+void swap_with_monster(monsters *mon_to_swap);
 
+void maybe_id_ring_TC();
 #endif

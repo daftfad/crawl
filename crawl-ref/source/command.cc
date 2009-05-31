@@ -24,8 +24,10 @@ REVISION("$Rev$");
 #include "cio.h"
 #include "database.h"
 #include "debug.h"
+#include "decks.h"
 #include "describe.h"
 #include "files.h"
+#include "ghost.h"
 #include "initfile.h"
 #include "invent.h"
 #include "itemname.h"
@@ -57,8 +59,6 @@ static void _adjust_spells(void);
 static void _adjust_ability(void);
 
 static const char *features[] = {
-    "Stash-tracking",
-
 #ifdef CLUA_BINDINGS
     "Lua user scripts",
 #endif
@@ -104,7 +104,7 @@ static std::string _get_version_information(void)
 #endif
                 result += VERSION_DETAIL ").";
 
-    result += "\n\n";
+    result += "\n";
 
     return (result);
 }
@@ -120,7 +120,6 @@ static std::string _get_version_features(void)
         result += features[i];
         result += EOL;
     }
-    result += "\n";
 
     return (result);
 }
@@ -227,7 +226,7 @@ static void _print_version(void)
     cmd_version.add_text(_get_version_features());
     cmd_version.add_text(_get_version_changes());
 
-    std::string fname = "034_changes.txt";
+    std::string fname = "key_changes.txt";
     // Read in information about changes in comparison to the latest version.
     FILE* fp = fopen(datafile_path(fname, false).c_str(), "r");
 
@@ -283,9 +282,9 @@ static void _print_version(void)
 
 void adjust(void)
 {
-    mpr( "Adjust (i)tems, (s)pells, or (a)bilities?", MSGCH_PROMPT );
+    mpr("Adjust (i)tems, (s)pells, or (a)bilities? ", MSGCH_PROMPT);
 
-    const int keyin = tolower( get_ch() );
+    const int keyin = tolower(get_ch());
 
     if (keyin == 'i')
         _adjust_item();
@@ -294,10 +293,10 @@ void adjust(void)
     else if (keyin == 'a')
         _adjust_ability();
     else if (keyin == ESCAPE)
-        canned_msg( MSG_OK );
+        canned_msg(MSG_OK);
     else
-        canned_msg( MSG_HUH );
-}                               // end adjust()
+        canned_msg(MSG_HUH);
+}
 
 void swap_inv_slots(int from_slot, int to_slot, bool verbose)
 {
@@ -349,20 +348,20 @@ static void _adjust_item(void)
         return;
     }
 
-    from_slot = prompt_invent_item( "Adjust which item?", MT_INVLIST, -1 );
+    from_slot = prompt_invent_item("Adjust which item?", MT_INVLIST, -1);
     if (prompt_failed(from_slot))
         return;
 
     mpr(you.inv[from_slot].name(DESC_INVENTORY_EQUIP).c_str());
 
-    to_slot = prompt_invent_item( "Adjust to which letter?",
-                                  MT_INVLIST,
-                                  -1,
-                                  false,
-                                  false );
+    to_slot = prompt_invent_item("Adjust to which letter? ",
+                                 MT_INVLIST,
+                                 -1,
+                                 false,
+                                 false);
     if (to_slot == PROMPT_ABORT)
     {
-        canned_msg( MSG_OK );
+        canned_msg(MSG_OK);
         return;
     }
 
@@ -378,7 +377,7 @@ static void _adjust_spells(void)
     }
 
     // Select starting slot
-    mpr("Adjust which spell?", MSGCH_PROMPT);
+    mpr("Adjust which spell? ", MSGCH_PROMPT);
 
     int keyin = 0;
     if (Options.auto_list)
@@ -392,7 +391,7 @@ static void _adjust_spells(void)
 
     if (!isalpha(keyin))
     {
-        canned_msg( MSG_OK );
+        canned_msg(MSG_OK);
         return;
     }
 
@@ -411,9 +410,9 @@ static void _adjust_spells(void)
 
     // Select target slot.
     keyin = 0;
-    while ( !isalpha(keyin) )
+    while (!isalpha(keyin))
     {
-        mpr( "Adjust to which letter?", MSGCH_PROMPT );
+        mpr("Adjust to which letter? ", MSGCH_PROMPT);
         keyin = get_ch();
         if (keyin == ESCAPE)
         {
@@ -425,7 +424,7 @@ static void _adjust_spells(void)
     }
 
     const int input_2 = keyin;
-    const int index_2 = letter_to_index( keyin );
+    const int index_2 = letter_to_index(keyin);
 
     // swap references in the letter table:
     const int tmp = you.spell_letter_table[index_2];
@@ -440,34 +439,32 @@ static void _adjust_spells(void)
 
     if (spell != SPELL_NO_SPELL)
         mprf("%c - %s", input_1, spell_title(spell) );
-}                               // end _adjust_spells()
+}
 
 static void _adjust_ability(void)
 {
     const std::vector<talent> talents = your_talents(false);
 
-    if ( talents.empty() )
+    if (talents.empty())
     {
         mpr("You don't currently have any abilities.");
         return;
     }
 
     int selected = -1;
-    while ( selected < 0 )
+    while (selected < 0)
     {
-        msg::streams(MSGCH_PROMPT) << "Adjust which ability? (? or * to list)"
+        msg::streams(MSGCH_PROMPT) << "Adjust which ability? (? or * to list) "
                                    << std::endl;
 
         const int keyin = get_ch();
 
-        if ( keyin == '?' || keyin == '*' )
-        {
+        if (keyin == '?' || keyin == '*')
             selected = choose_ability_menu(talents);
-        }
         else if (keyin == ESCAPE || keyin == ' ' ||
                  keyin == '\r' || keyin == '\n')
         {
-            canned_msg( MSG_OK );
+            canned_msg(MSG_OK);
             return;
         }
         else if (isalpha(keyin))
@@ -475,7 +472,7 @@ static void _adjust_ability(void)
             // Try to find the hotkey.
             for (unsigned int i = 0; i < talents.size(); ++i)
             {
-                if ( talents[i].hotkey == keyin )
+                if (talents[i].hotkey == keyin)
                 {
                     selected = static_cast<int>(i);
                     break;
@@ -483,7 +480,7 @@ static void _adjust_ability(void)
             }
 
             // If we can't, cancel out.
-            if ( selected < 0 )
+            if (selected < 0)
             {
                 mpr("No such ability.");
                 return;
@@ -498,18 +495,18 @@ static void _adjust_ability(void)
 
     const int index1 = letter_to_index(talents[selected].hotkey);
 
-    msg::streams(MSGCH_PROMPT) << "Adjust to which letter?" << std::endl;
+    msg::streams(MSGCH_PROMPT) << "Adjust to which letter? " << std::endl;
 
     const int keyin = get_ch();
 
-    if ( !isalpha(keyin) )
+    if (!isalpha(keyin))
     {
         canned_msg(MSG_HUH);
         return;
     }
 
     const int index2 = letter_to_index(keyin);
-    if ( index1 == index2 )
+    if (index1 == index2)
     {
         mpr("That would be singularly pointless.");
         return;
@@ -517,9 +514,9 @@ static void _adjust_ability(void)
 
     // See if we moved something out.
     bool printed_message = false;
-    for ( unsigned int i = 0; i < talents.size(); ++i )
+    for (unsigned int i = 0; i < talents.size(); ++i)
     {
-        if ( talents[i].hotkey == keyin )
+        if (talents[i].hotkey == keyin)
         {
             msg::stream << "Swapping with: "
                         << static_cast<char>(keyin) << " - "
@@ -540,7 +537,7 @@ static void _adjust_ability(void)
     ability_type tmp = you.ability_letter_table[index2];
     you.ability_letter_table[index2] = you.ability_letter_table[index1];
     you.ability_letter_table[index1] = tmp;
-}                               // end _adjust_ability()
+}
 
 void list_armour()
 {
@@ -749,13 +746,13 @@ static const char *targeting_help_1 =
     "<w>-</w> : cycle monsters backward\n"
     "<w>*</w> : cycle objects forward\n"
     "<w>/</w> : cycle objects backward (also <w>;</w>)\n"
-    "<w>^</w>   : cycle through traps\n"
-    "<w>_</w>   : cycle through altars\n"
+    "<w>^</w> : cycle through traps\n"
+    "<w>_</w> : cycle through altars\n"
     "<w><<</w>/<w>></w> : cycle through up/down stairs\n"
     "<w>Tab</w> : cycle through shops and portals\n"
     "<w>Ctrl-F</w> : change monster targeting mode\n"
 #ifndef USE_TILE
-    "<w>Ctrl-L</w> : toggle targetting via monster list\n"
+    "<w>Ctrl-L</w> : toggle targeting via monster list\n"
 #endif
     "<w>Ctrl-P</w> : repeat prompt\n"
     " \n"
@@ -780,6 +777,7 @@ static const char *targeting_help_1 =
     "<w>m</w>: move monster or player\n"
     "<w>M</w>: cause spell miscast for monster or player\n"
     "<w>w</w>: calculate shortest path to any point on the map\n"
+    "<w>D</w>: get debugging information about the monster\n"
     "<w>~</w>: polymorph monster to specific type\n"
 #endif
 ;
@@ -1108,6 +1106,34 @@ static bool _feature_filter(std::string key, std::string body)
     return (feat_by_desc(key) == DNGN_UNSEEN);
 }
 
+static bool _card_filter(std::string key, std::string body)
+{
+    key = lowercase_string(key);
+    std::string name;
+
+    // Every card description contains the keyword "card".
+    if (key.find("card") != std::string::npos)
+        return (false);
+
+    for (int i = 0; i < NUM_CARDS; ++i)
+    {
+        name = lowercase_string(card_name((card_type) i));
+
+        if (name.find(key) != std::string::npos)
+            return (false);
+    }
+    return (true);
+}
+
+static bool _ability_filter(std::string key, std::string body)
+{
+    key = lowercase_string(key);
+    if (string_matches_ability_name(key))
+        return (false);
+
+    return (true);
+}
+
 typedef void (*db_keys_recap)(std::vector<std::string>&);
 
 static void _recap_mon_keys(std::vector<std::string> &keys)
@@ -1145,20 +1171,30 @@ static void _append_non_item(std::string &desc, std::string key)
     unsigned int flags = get_spell_flags(type);
 
     if (flags & SPFLAG_DEVEL)
+    {
         desc += "$This spell is still being developed, and is only available "
                 "via the &Z wizard command.";
+    }
     else if (flags & SPFLAG_TESTING)
+    {
         desc += "$This is a testing spell, only available via the "
                 "&Z wizard command.";
+    }
     else if (flags & SPFLAG_MONSTER)
+    {
         desc += "$This is a monster-only spell, only available via the "
                 "&Z wizard command.";
+    }
     else if (flags & SPFLAG_CARD)
+    {
         desc += "$This is a card-effect spell, unavailable in ordinary "
                 "spellbooks.";
+    }
     else
+    {
         desc += "$Odd, this spell can't be found anywhere.  Please "
                 "file a bug report.";
+    }
 
 #ifdef WIZARD
     if (!you.wizard)
@@ -1167,8 +1203,10 @@ static void _append_non_item(std::string &desc, std::string key)
 #endif
     {
         if (flags & (SPFLAG_TESTING | SPFLAG_MONSTER | SPFLAG_DEVEL))
+        {
             desc += "$$You aren't in wizard mode, so you shouldn't be "
                     "seeing this entry.  Please file a bug report.";
+        }
     }
 }
 
@@ -1294,7 +1332,11 @@ static bool _do_description(std::string key, std::string type,
     else
     {
         monster_type mon_num = get_monster_by_name(key, true);
-        if (mon_num != MONS_PROGRAM_BUG)
+        // Don't attempt to get more information on ghosts or
+        // pandemonium demons as the ghost struct has not been initialized
+        // which will cause a crash.
+        if (mon_num != MONS_PROGRAM_BUG && mon_num != MONS_PLAYER_GHOST
+            && mon_num != MONS_PANDEMONIUM_DEMON)
         {
             monsters mon;
             mon.type = mon_num;
@@ -1356,10 +1398,11 @@ static bool _do_description(std::string key, std::string type,
                 }
                 else
                     _append_non_item(desc, key);
-
-                // Now we don't need the item anymore.
-                destroy_item(thing_created);
             }
+
+            // Now we don't need the item anymore.
+            if (thing_created != NON_ITEM)
+                destroy_item(thing_created);
         }
     }
 
@@ -1369,7 +1412,7 @@ static bool _do_description(std::string key, std::string type,
     linebreak_string2(footer, width - 1);
 
     inf.footer = footer;
-    inf.title = key;
+    inf.title  = key;
 
     print_description(inf);
     return (true);
@@ -1439,7 +1482,7 @@ static bool _handle_FAQ()
                 answer = "No answer found in the FAQ! Please submit a "
                          "bug report!";
             }
-            answer = "Q: " + getFAQ_Question(key) + EOL + "A: " + answer;
+            answer = "Q: " + getFAQ_Question(key) + EOL + answer;
             linebreak_string2(answer, width - 1);
             print_description(answer);
             if (getch() == 0)
@@ -1459,8 +1502,8 @@ static bool _find_description(bool &again, std::string& error_inout)
 
     if (!error_inout.empty())
         mpr(error_inout.c_str(), MSGCH_PROMPT);
-    mpr("Describe a (M)onster, (S)pell, s(K)ill, (I)tem, (F)eature, (G)od "
-        "or (B)ranch?", MSGCH_PROMPT);
+    mpr("Describe a (M)onster, (S)pell, s(K)ill, (I)tem, (F)eature, (G)od, "
+        "(A)bility, (B)ranch, or (C)ard? ", MSGCH_PROMPT);
 
     int ch = toupper(getch());
     std::string    type;
@@ -1492,6 +1535,14 @@ static bool _find_description(bool &again, std::string& error_inout)
     case 'K':
         type   = "skill";
         filter = _skill_filter;
+        break;
+    case 'A':
+        type   = "ability";
+        filter = _ability_filter;
+        break;
+    case 'C':
+        type   = "card";
+        filter = _card_filter;
         break;
     case 'I':
         type        = "item";
@@ -2066,13 +2117,13 @@ static void _add_formatted_keyhelp(column_composer &cols)
         "<magenta>!</magenta> : potions (<w>q</w>uaff)\n"
         "<blue>=</blue> : rings (<w>P</w>ut on and <w>R</w>emove)\n"
         "<red>\"</red> : amulets (<w>P</w>ut on and <w>R</w>emove)\n"
-        "<lightgrey>/</lightgrey> : wands (<w>Z</w>ap)\n"
+        "<lightgrey>/</lightgrey> : wands (e<w>V</w>oke)\n"
         "<lightcyan>";
 
     get_item_symbol(DNGN_ITEM_BOOK, &ch, &colour);
     item_types += static_cast<char>(ch);
     item_types +=
-        "</lightcyan> : books (<w>r</w>ead, <w>M</w>emorise and <w>z</w>ap)\n"
+        "</lightcyan> : books (<w>r</w>ead, <w>M</w>emorise, <w>z</w>ap, <w>Z</w>ap)\n"
         "<brown>\\</brown> : staves and rods (<w>w</w>ield and e<w>v</w>oke)\n"
         "<lightgreen>}</lightgreen> : miscellaneous items (e<w>v</w>oke)\n"
         "<yellow>$</yellow> : gold (<w>$</w> counts gold)\n"
@@ -2090,7 +2141,8 @@ static void _add_formatted_keyhelp(column_composer &cols)
             "<h>Other Gameplay Actions:\n"
             "<w>a</w> : use special Ability (<w>a!</w> for help)\n"
             "<w>p</w> : Pray (<w>^</w> and <w>^!</w> for help)\n"
-            "<w>z</w> : cast a spell\n"
+            "<w>z</w> : cast spell, abort without targets\n"
+            "<w>Z</w> : cast spell, no matter what\n"
             "<w>I</w> : list all spells\n"
             "<w>t</w> : tell allies (<w>tt</w> to shout)\n"
             "<w>`</w> : re-do previous command\n"
@@ -2116,7 +2168,7 @@ static void _add_formatted_keyhelp(column_composer &cols)
             1,
             "<h>Game Saving and Quitting:\n"
             "<w>S</w> : Save game and exit\n"
-            "<w>Ctrl-X</w> : save and eXit without query\n"
+            "<w>Ctrl-S</w> : Save and exit without query\n"
             "<w>Ctrl-Q</w> : Quit without saving\n",
             true, true, _cmdhelp_textfilter);
 
@@ -2144,7 +2196,7 @@ static void _add_formatted_keyhelp(column_composer &cols)
             "<w>;</w>   : examine occupied tile\n"
             "<w>x</w>   : eXamine surroundings/targets\n"
             "<w>X</w>   : eXamine level map (<w>X?</w> for help)\n"
-            "<w>V</w>   : list monsters and items in sight\n"
+            "<w>Ctrl-X</w> : list monsters, items, features in view\n"
             "<w>Ctrl-O</w> : show dungeon Overview\n"
             "<w>Ctrl-A</w> : toggle auto-pickup\n"
             "<w>Ctrl-T</w> : change ally pickup behaviour\n",
@@ -2165,19 +2217,19 @@ static void _add_formatted_keyhelp(column_composer &cols)
     interact +=
             " (tries floor first)\n"
             "<w>q</w> : Quaff a potion\n"
-            "<w>Z</w> : Zap a wand\n"
             "<w>r</w> : Read a scroll or book\n"
             "<w>M</w> : Memorise a spell from a book\n"
             "<w>w</w> : Wield an item ( <w>-</w> for none)\n"
             "<w>'</w> : wield item a, or switch to b \n"
             "    (use <w>=</w> to assign slots)\n"
             "<w>v</w> : eVoke power of wielded item\n"
+            "<w>V</w> : eVoke wand\n"
             "<w>W</w>/<w>T</w> : Wear or Take off armour\n"
-            "<w>P</w>/<w>R</w> : Put on or Remove jewellery\n",
+            "<w>P</w>/<w>R</w> : Put on or Remove jewellery\n";
 
-    cols.add_formatted(
-            1, interact,
-            true, true, _cmdhelp_textfilter);
+            cols.add_formatted(
+                  1, interact,
+                  true, true, _cmdhelp_textfilter);
 
     interact =
             "<h>Item Interaction (floor):\n"
@@ -2247,7 +2299,7 @@ static void _add_formatted_tutorial_help(column_composer &cols)
             "with the wielded weapon or barehanded.\n"
             "For ranged attacks use either\n"
             "<w>f</w> to launch missiles (like arrows)\n"
-            "<w>z</w> to cast spells (<w>z?</w> lists spells).\n",
+            "<w>z</w>/<w>Z</w> to cast spells (<w>z?</w> lists spells).\n",
 
     cols.add_formatted(
             0, text.str(),
@@ -2264,9 +2316,10 @@ static void _add_formatted_tutorial_help(column_composer &cols)
             "<w>i</w> : list inventory (select item to view it)\n"
             "<w>g</w> : pick up item from ground (also <w>,</w>)\n"
             "<w>d</w> : drop item\n"
-            "<w>X</w> : show map of the whole level\n"
             "<w><<</w> or <w>></w> : ascend/descend the stairs\n"
             "<w>Ctrl-P</w> : show previous messages\n"
+            "<w>X</w> : show map of the whole level\n"
+            "<w>Ctrl-X</w> : list monsters, items, features in sight\n"
             "\n"
             "<h>Targeting (for spells and missiles)\n"
             "Use <w>+</w> (or <w>=</w>) and <w>-</w> to cycle between\n"
@@ -2377,7 +2430,7 @@ int list_wizard_commands(bool do_redraw_screen)
                        "<w>F</w>      : combat stats with fsim_kit\n"
                        "<w>Ctrl-F</w> : combat stats (monster vs PC)\n"
                        "<w>Ctrl-I</w> : item generation stats\n"
-                       "\n"
+                       "<w>O</w>      : measure exploration time\n"
                        "\n"
                        "<w>?</w>      : list wizard commands\n",
                        true, true);

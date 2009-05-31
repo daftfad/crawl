@@ -29,9 +29,10 @@ enum transformation_type
     NUM_TRANSFORMATIONS                // must remain last member {dlb}
 };
 
+bool transformation_can_wield(transformation_type trans);
 bool transform_can_butcher_barehanded(transformation_type tt);
 
-void untransform(void);
+void untransform(bool skip_wielding = false);
 
 bool can_equip(equipment_type use_which, bool ignore_temporary);
 bool check_transformation_stat_loss(const std::set<equipment_type> &remove,
@@ -39,16 +40,19 @@ bool check_transformation_stat_loss(const std::set<equipment_type> &remove,
                                     int dex_loss = 0, int int_loss = 0);
 size_type transform_size(int psize = PSIZE_BODY);
 
-bool transform(int pow, transformation_type which_trans, bool quiet = false);
+bool transform(int pow, transformation_type which_trans, bool force = false,
+               bool just_check = false);
 
-void remove_one_equip(equipment_type eq, bool meld = true);
+void remove_one_equip(equipment_type eq, bool meld = true,
+                      bool mutation = false);
 void unmeld_one_equip(equipment_type eq);
 
 bool transform_changed_physiology( bool phys_scales = false );
 bool transform_allows_wearing_item(const item_def& item,
                                    transformation_type transform);
-// Check your current transform
+// Check your current transformation.
 bool transform_allows_wearing_item(const item_def& item);
 bool transform_allows_wielding(transformation_type transform);
 
+void transformation_expiration_warning();
 #endif

@@ -103,6 +103,7 @@ REVISION("$Rev$");
 #include "spl-book.h"
 #include "spl-cast.h"
 #include "spl-util.h"
+#include "stash.h"
 #include "state.h"
 #include "stuff.h"
 #include "tags.h"
@@ -125,8 +126,8 @@ REVISION("$Rev$");
 // ----------------------------------------------------------------------
 
 CLua clua(true);
-CLua dlua(false);		// Lua interpreter for the dungeon builder.
-crawl_environment env;	// Requires dlua
+CLua dlua(false);      // Lua interpreter for the dungeon builder.
+crawl_environment env; // Requires dlua.
 player you;
 system_environment SysEnv;
 game_state crawl_state;
@@ -317,7 +318,7 @@ static void _show_commandline_options_help()
 static void _wanderer_startup_message()
 {
     int skill_levels = 0;
-    for (int i = 0; i < NUM_SKILLS; i++)
+    for (int i = 0; i < NUM_SKILLS; ++i)
         skill_levels += you.skills[ i ];
 
     if (skill_levels <= 2)
@@ -331,7 +332,7 @@ static void _wanderer_startup_message()
     }
 }
 
-static void _god_greeting_message( bool game_start )
+static void _god_greeting_message(bool game_start)
 {
     switch (you.religion)
     {
@@ -544,9 +545,9 @@ static void _do_wizard_command(int wiz_command, bool silent_fail)
 
     case 'X':
         if (you.religion == GOD_XOM)
-            xom_acts(abs(you.piety - 100));
+            xom_acts(abs(you.piety - HALF_MAX_PIETY));
         else
-            xom_acts(coinflip(), random_range(0, MAX_PIETY - 100));
+            xom_acts(coinflip(), random_range(0, HALF_MAX_PIETY));
         break;
 
     case 'p':
@@ -591,10 +592,10 @@ static void _handle_wizard_command( void )
 
     if (!you.wizard)
     {
-        mpr( "WARNING: ABOUT TO ENTER WIZARD MODE!", MSGCH_WARN );
+        mpr("WARNING: ABOUT TO ENTER WIZARD MODE!", MSGCH_WARN);
 
 #ifndef SCORE_WIZARD_MODE
-        mpr( "If you continue, your game will not be scored!", MSGCH_WARN );
+        mpr("If you continue, your game will not be scored!", MSGCH_WARN);
 #endif
 
         if (!yesno( "Do you really want to enter wizard mode?", false, 'n' ))
@@ -613,7 +614,7 @@ static void _handle_wizard_command( void )
         }
     }
 
-    mpr( "Enter Wizard Command (? - help): ", MSGCH_PROMPT );
+    mpr("Enter Wizard Command (? - help): ", MSGCH_PROMPT);
     wiz_command = getch();
 
     if (crawl_state.cmd_repeat_start)
@@ -725,7 +726,7 @@ static void _recharge_rods()
 
 static bool _cmd_is_repeatable(command_type cmd, bool is_again = false)
 {
-    switch(cmd)
+    switch (cmd)
     {
     // Informational commands
     case CMD_LOOK_AROUND:
@@ -934,6 +935,14 @@ static void _input()
             {
                 learned_something_new(TUT_MAP_VIEW);
             }
+            else if (!you.running
+                     && Options.tutorial_events[TUT_AUTO_EXPLORE]
+                     && you.num_turns >= 700
+                     && you.hp == you.hp_max
+                     && you.magic_points == you.max_magic_points)
+            {
+                learned_something_new(TUT_AUTO_EXPLORE);
+            }
         }
         else
         {
@@ -968,8 +977,6 @@ static void _input()
 
     handle_delay();
 
-    _center_cursor();
-
     if (you_are_delayed() && current_delay_action() != DELAY_MACRO_PROCESS_KEY)
     {
         if (you.time_taken)
@@ -995,6 +1002,12 @@ static void _input()
     {
         flush_prev_message();
 
+        clear_macro_process_key_delay();
+
+        crawl_state.waiting_for_command = true;
+        c_input_reset(true);
+
+        _center_cursor();
         // Enable the cursor to read input. The cursor stays on while
         // the command is being processed, so subsidiary prompts
         // shouldn't need to turn it on explicitly.
@@ -1003,12 +1016,6 @@ static void _input()
 #else
         cursor_control con(true);
 #endif
-
-        clear_macro_process_key_delay();
-
-        crawl_state.waiting_for_command = true;
-        c_input_reset(true);
-
         const command_type cmd = _get_next_cmd();
 
         crawl_state.waiting_for_command = false;
@@ -1072,7 +1079,7 @@ static void _input()
         delta.turns_total++;
         delta.elapsed_total += you.time_taken;
 
-        switch(you.running)
+        switch (you.running)
         {
         case RMODE_INTERLEVEL:
             delta.turns_interlevel++;
@@ -1127,13 +1134,6 @@ static void _input()
     }
 
     crawl_state.clear_god_acting();
-}
-
-static bool _toggle_flag( bool* flag, const char* flagname )
-{
-    *flag = !(*flag);
-    mprf( "%s is now %s.", flagname, (*flag) ? "on" : "off" );
-    return *flag;
 }
 
 static bool _stairs_check_mesmerised()
@@ -1204,8 +1204,8 @@ static void _go_downstairs()
 {
     ASSERT(!crawl_state.arena && !crawl_state.arena_suspended);
 
-    bool shaft = (get_trap_type(you.pos()) == TRAP_SHAFT
-                  && grd(you.pos()) != DNGN_UNDISCOVERED_TRAP);
+    const bool shaft = (get_trap_type(you.pos()) == TRAP_SHAFT
+                        && grd(you.pos()) != DNGN_UNDISCOVERED_TRAP);
 
     if (_stairs_check_mesmerised())
         return;
@@ -1440,7 +1440,11 @@ void process_command( command_type cmd )
         break;
 
     case CMD_TOGGLE_AUTOPICKUP:
-        _toggle_flag( &Options.autopickup_on, "Autopickup");
+        if (Options.autopickup_on < 1)
+            Options.autopickup_on = 1;
+        else
+            Options.autopickup_on = 0;
+        mprf("Autopickup is now %s.", Options.autopickup_on > 0 ? "on" : "off");
         break;
 
     case CMD_TOGGLE_FRIENDLY_PICKUP:
@@ -1451,7 +1455,7 @@ void process_command( command_type cmd )
         mpr("Change to (d)efault, (n)othing, (f)riend-dropped, (p)layer, "
             "or (a)ll? ", MSGCH_PROMPT);
 
-        char type = (char) getchm(KC_DEFAULT);
+        char type = (char) getchm(KMC_DEFAULT);
         type = tolower(type);
 
         if (type == 'd')
@@ -1524,7 +1528,12 @@ void process_command( command_type cmd )
         break;
 
     case CMD_EVOKE:
-        if (!evoke_wielded())
+        if (!evoke_item())
+            flush_input_buffer( FLUSH_ON_FAILURE );
+        break;
+
+    case CMD_EVOKE_WIELDED:
+        if (!evoke_item(you.equip[EQ_WEAPON]))
             flush_input_buffer( FLUSH_ON_FAILURE );
         break;
 
@@ -1562,7 +1571,7 @@ void process_command( command_type cmd )
 
     case CMD_REMOVE_ARMOUR:
     {
-        if (you.attribute[ATTR_TRANSFORMATION] == TRAN_BAT)
+        if (player_in_bat_form())
         {
             mpr("You can't wear or remove anything in your present form.");
             break;
@@ -1579,7 +1588,7 @@ void process_command( command_type cmd )
         break;
 
     case CMD_WEAR_JEWELLERY:
-        puton_ring(-1, false);
+        puton_ring(-1);
         break;
 
     case CMD_ADJUST_INVENTORY:
@@ -1587,21 +1596,11 @@ void process_command( command_type cmd )
         break;
 
     case CMD_MEMORISE_SPELL:
-        if (you.attribute[ATTR_TRANSFORMATION] == TRAN_BAT)
-        {
-           canned_msg(MSG_PRESENT_FORM);
-           break;
-        }
         if (!learn_spell())
             flush_input_buffer( FLUSH_ON_FAILURE );
         break;
 
     case CMD_ZAP_WAND:
-        if (you.attribute[ATTR_TRANSFORMATION] == TRAN_BAT)
-        {
-           canned_msg(MSG_PRESENT_FORM);
-           break;
-        }
         zap_wand();
         break;
 
@@ -1643,11 +1642,6 @@ void process_command( command_type cmd )
         break;
 
     case CMD_READ:
-        if (you.attribute[ATTR_TRANSFORMATION] == TRAN_BAT)
-        {
-           canned_msg(MSG_PRESENT_FORM);
-           break;
-        }
         read_scroll();
         break;
 
@@ -1667,7 +1661,8 @@ void process_command( command_type cmd )
     }
 
     case CMD_CAST_SPELL:
-        if (you.attribute[ATTR_TRANSFORMATION] == TRAN_BAT
+    case CMD_FORCE_CAST_SPELL:
+        if (player_in_bat_form()
             || you.attribute[ATTR_TRANSFORMATION] == TRAN_PIG)
         {
            canned_msg(MSG_PRESENT_FORM);
@@ -1684,7 +1679,7 @@ void process_command( command_type cmd )
 
         if (Options.tutorial_left)
             Options.tut_spell_counter++;
-        if (!cast_a_spell())
+        if (!cast_a_spell(cmd == CMD_CAST_SPELL))
             flush_input_buffer( FLUSH_ON_FAILURE );
         break;
 
@@ -1775,7 +1770,7 @@ void process_command( command_type cmd )
         break;
 
     case CMD_DISPLAY_KNOWN_OBJECTS:
-        check_item_knowledge(false);
+        check_item_knowledge();
         break;
 
     case CMD_REPLAY_MESSAGES:
@@ -1965,8 +1960,9 @@ void process_command( command_type cmd )
         else // well, not examine, but...
            mpr("Unknown command.", MSGCH_EXAMINE_FILTER);
         break;
-
     }
+
+    flush_prev_message();
 }
 
 static void _prep_input()
@@ -1984,7 +1980,7 @@ static void _prep_input()
 // At midpoint (defined by get_expiration_threshold() in player.cc)
 // print midmsg and decrease duration by midloss (a randomized amount so as
 // to make it impossible to know the exact remaining duration for sure).
-// NOTE: The maximum possible midloss should be greater than midpoint,
+// NOTE: The maximum possible midloss should be smaller than midpoint,
 //       otherwise the duration may end in the same turn the warning
 //       message is printed which would be a bit late.
 static bool _decrement_a_duration(duration_type dur, const char* endmsg = NULL,
@@ -2009,7 +2005,7 @@ static bool _decrement_a_duration(duration_type dur, const char* endmsg = NULL,
         }
     }
 
-    // In case midloss caused the duration to end prematurely.
+    // No "else", in case midloss caused the duration to end prematurely.
     // (This really shouldn't happen, else the whole point of the
     //  "begins to time out" message is lost!)
     if (you.duration[dur] <= 1)
@@ -2071,10 +2067,12 @@ static void _decrement_durations()
                           coinflip(),
                           "Your deflect missiles spell is about to expire...");
 
-    _decrement_a_duration(DUR_REGENERATION,
-                          "Your skin stops crawling.",
-                          coinflip(),
-                          "Your skin is crawling a little less now.");
+    if (_decrement_a_duration(DUR_REGENERATION,
+                              NULL, coinflip(),
+                              "Your skin is crawling a little less now."))
+    {
+        remove_regen(you.attribute[ATTR_DIVINE_REGENERATION]);
+    }
 
     if (you.duration[DUR_PRAYER] > 1)
         you.duration[DUR_PRAYER]--;
@@ -2148,8 +2146,7 @@ static void _decrement_durations()
     }
 
     // Vampire bat transformations are permanent (until ended).
-    if (you.species != SP_VAMPIRE
-        || you.attribute[ATTR_TRANSFORMATION] != TRAN_BAT
+    if (you.species != SP_VAMPIRE || !player_in_bat_form()
         || you.duration[DUR_TRANSFORMATION] <= 5)
     {
         if (_decrement_a_duration(DUR_TRANSFORMATION, NULL, random2(3),
@@ -2197,7 +2194,7 @@ static void _decrement_durations()
     if (_decrement_a_duration(DUR_CONDENSATION_SHIELD))
         remove_condensation_shield();
 
-    if (you.duration[DUR_CONDENSATION_SHIELD] > 0 && player_res_cold() < 0)
+    if (you.duration[DUR_CONDENSATION_SHIELD] && player_res_cold() < 0)
     {
         mpr("You feel very cold.");
         ouch(2 + random2avg(13, 2), NON_MONSTER, KILLED_BY_FREEZING);
@@ -2316,11 +2313,8 @@ static void _decrement_durations()
             }
         }
 
-        if (you.duration[DUR_PARALYSIS] == 0
-            && you.duration[DUR_PETRIFIED] == 0)
-        {
+        if (!you.duration[DUR_PARALYSIS] && !you.duration[DUR_PETRIFIED])
             mpr("You are exhausted.", MSGCH_WARN);
-        }
 
         // This resets from an actual penalty or from NO_BERSERK_PENALTY.
         you.berserk_penalty = 0;
@@ -2342,14 +2336,14 @@ static void _decrement_durations()
         you.hunger = std::max(50, you.hunger);
 
         // 1KB: No berserk healing.
-        you.hp = (you.hp + 1) * 2 / 3;
+        you.hp = (you.hp + 1) / 2;
         calc_hp();
 
         learned_something_new(TUT_POSTBERSERK);
         Options.tutorial_events[TUT_YOU_ENCHANTED] = tut_slow;
     }
 
-    if (you.duration[DUR_BACKLIGHT] > 0 && !--you.duration[DUR_BACKLIGHT]
+    if (you.duration[DUR_BACKLIGHT] && !--you.duration[DUR_BACKLIGHT]
         && !you.backlit())
     {
         mpr("You are no longer glowing.", MSGCH_DURATION);
@@ -2477,7 +2471,7 @@ static void _check_banished()
 
 static void _check_shafts()
 {
-    for (int i = 0; i < MAX_TRAPS; i++)
+    for (int i = 0; i < MAX_TRAPS; ++i)
     {
         trap_def &trap = env.trap[i];
 
@@ -2609,13 +2603,7 @@ void world_reacts()
 
     viewwindow(true, true);
 
-    if (Options.stash_tracking && !crawl_state.arena)
-    {
-        StashTrack.update_visible_stashes(
-            Options.stash_tracking == STM_ALL ? StashTracker::ST_AGGRESSIVE
-                                              : StashTracker::ST_PASSIVE);
-    }
-
+    maybe_update_stashes();
     handle_monsters();
 
     _check_banished();
@@ -2678,7 +2666,7 @@ void world_reacts()
     if (you.cannot_act() && any_messages())
         more();
 
-#if DEBUG_TENSION || DEBUG_RELIGION
+#if defined(DEBUG_TENSION) || defined(DEBUG_RELIGION)
     if (you.religion != GOD_NO_GOD)
         mprf(MSGCH_DIAGNOSTICS, "TENSION = %d", get_tension());
 #endif
@@ -2885,7 +2873,7 @@ static command_type _keycode_to_command( keycode_type key )
     case KEY_REPEAT_KEYS:        return CMD_REPEAT_KEYS;
 
     default:
-        return key_to_command(key, KC_DEFAULT);
+        return key_to_command(key, KMC_DEFAULT);
     }
 }
 
@@ -2910,9 +2898,9 @@ static int _check_adjacent(dungeon_feature_type feat, coord_def& delta)
 {
     int num = 0;
 
-    for ( adjacent_iterator ai(you.pos(), false); ai; ++ai )
+    for (adjacent_iterator ai(you.pos(), false); ai; ++ai)
     {
-        if ( grd(*ai) == feat )
+        if (grd(*ai) == feat)
         {
             num++;
             delta = *ai - you.pos();
@@ -2929,7 +2917,7 @@ static void _open_door(coord_def move, bool check_confused)
 {
     ASSERT(!crawl_state.arena && !crawl_state.arena_suspended);
 
-    if (you.attribute[ATTR_TRANSFORMATION] == TRAN_BAT)
+    if (!player_can_open_doors())
     {
         mpr("You can't open doors in your present form.");
         return;
@@ -3007,8 +2995,8 @@ static void _open_door(coord_def move, bool check_confused)
     }
     else
     {
-        mpr("Which direction?", MSGCH_PROMPT);
-        direction( door_move, DIR_DIR );
+        mpr("Which direction? ", MSGCH_PROMPT);
+        direction(door_move, DIR_DIR);
 
         if (!door_move.isValid)
             return;
@@ -3070,6 +3058,7 @@ static void _open_door(coord_def move, bool check_confused)
         }
 
         bool seen_secret = false;
+        std::vector<coord_def> excludes;
         for (std::set<coord_def>::iterator i = all_door.begin();
              i != all_door.end(); ++i)
         {
@@ -3094,6 +3083,14 @@ static void _open_door(coord_def move, bool check_confused)
                 }
             }
             grd(dc) = DNGN_OPEN_DOOR;
+            if (is_excluded(dc))
+                excludes.push_back(dc);
+        }
+        if (!excludes.empty())
+        {
+            mark_all_excludes_non_updated();
+            for (unsigned int i = 0; i < excludes.size(); ++i)
+                update_exclusion_los(excludes[i]);
         }
         you.turn_is_over = true;
     }
@@ -3109,7 +3106,7 @@ static void _open_door(coord_def move, bool check_confused)
 
 static void _close_door(coord_def move)
 {
-    if (you.attribute[ATTR_TRANSFORMATION] == TRAN_BAT)
+    if (player_in_bat_form())
     {
         mpr("You can't close doors in your present form.");
         return;
@@ -3150,8 +3147,9 @@ static void _close_door(coord_def move)
 
     if (move.origin())
     {
-        mpr("Which direction?", MSGCH_PROMPT);
-        direction( door_move, DIR_DIR );
+        mpr("Which direction? ", MSGCH_PROMPT);
+        direction(door_move, DIR_DIR);
+
         if (!door_move.isValid)
             return;
     }
@@ -3235,6 +3233,7 @@ static void _close_door(coord_def move)
             mprf( "You %s the %s%s.", verb, adj, noun );
         }
 
+        std::vector<coord_def> excludes;
         for (std::set<coord_def>::const_iterator i = all_door.begin();
              i != all_door.end(); ++i)
         {
@@ -3250,6 +3249,14 @@ static void _close_door(coord_def move)
                 env.tile_bk_bg(dc) = TILE_DNGN_CLOSED_DOOR;
 #endif
             }
+            if (is_excluded(dc))
+                excludes.push_back(dc);
+        }
+        if (!excludes.empty())
+        {
+            mark_all_excludes_non_updated();
+            for (unsigned int i = 0; i < excludes.size(); ++i)
+                update_exclusion_los(excludes[i]);
         }
         you.turn_is_over = true;
     }
@@ -3294,13 +3301,13 @@ static bool _initialise(void)
     msg::initialise_mpr_streams();
 
     // Init item array.
-    for (int i = 0; i < MAX_ITEMS; i++)
+    for (int i = 0; i < MAX_ITEMS; ++i)
         init_item(i);
 
     // Empty messaging string.
     info[0] = 0;
 
-    for (int i = 0; i < MAX_MONSTERS; i++)
+    for (int i = 0; i < MAX_MONSTERS; ++i)
         menv[i].reset();
 
     igrd.init(NON_ITEM);
@@ -3461,13 +3468,7 @@ static bool _initialise(void)
 #endif
 
     set_cursor_enabled(false);
-
-    if (Options.stash_tracking && !crawl_state.arena)
-    {
-        StashTrack.update_visible_stashes(
-            Options.stash_tracking == STM_ALL ? StashTracker::ST_AGGRESSIVE
-                                              : StashTracker::ST_PASSIVE);
-    }
+    maybe_update_stashes();
 
     // This just puts the view up for the first turn.
     viewwindow(true, false);
@@ -3597,7 +3598,7 @@ static void _move_player(coord_def move)
     monsters *beholder = NULL;
     if (you.duration[DUR_MESMERISED] && !you.confused())
     {
-        for (unsigned int i = 0; i < you.mesmerised_by.size(); i++)
+        for (unsigned int i = 0; i < you.mesmerised_by.size(); ++i)
         {
              monsters& mon = menv[you.mesmerised_by[i]];
              int olddist = grid_distance(you.pos(), mon.pos());
@@ -3698,14 +3699,14 @@ static void _move_player(coord_def move)
 #if DEBUG_DIAGNOSTICS
         mpr( "Shifting.", MSGCH_DIAGNOSTICS );
         int j = 0;
-        for (int i = 0; i < MAX_ITEMS; i++)
+        for (int i = 0; i < MAX_ITEMS; ++i)
             if (is_valid_item( mitm[i] ))
                 ++j;
 
         mprf( MSGCH_DIAGNOSTICS, "Number of items present: %d", j );
 
         j = 0;
-        for (int i = 0; i < MAX_MONSTERS; i++)
+        for (int i = 0; i < MAX_MONSTERS; ++i)
             if (menv[i].type != -1)
                 ++j;
 
@@ -3729,7 +3730,7 @@ static int _get_num_and_char_keyfun(int &ch)
 static int _get_num_and_char(const char* prompt, char* buf, int buf_len)
 {
     if (prompt != NULL)
-        mpr(prompt);
+        mpr(prompt, MSGCH_PROMPT);
 
     line_reader reader(buf, buf_len);
 
@@ -3939,6 +3940,7 @@ static void _do_prev_cmd_again()
         mpr("No previous command to re-do.");
         crawl_state.cancel_cmd_again();
         crawl_state.cancel_cmd_repeat();
+        repeat_again_rec.clear();
         return;
     }
 
@@ -4060,6 +4062,6 @@ static void _compile_time_asserts()
 
     // Also some runtime stuff; I don't know if the order of branches[]
     // needs to match the enum, but it currently does.
-    for (int i = 0; i < NUM_BRANCHES; i++)
+    for (int i = 0; i < NUM_BRANCHES; ++i)
         ASSERT(branches[i].id == i);
 }

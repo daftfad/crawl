@@ -64,7 +64,7 @@ enum ability_type
     ABIL_KIKU_INVOKE_DEATH,
     ABIL_YRED_INJURY_MIRROR = 139,
     ABIL_YRED_ANIMATE_REMAINS,              //  140
-    ABIL_YRED_RECALL_UNDEAD,
+    ABIL_YRED_RECALL_UNDEAD_SLAVES,
     ABIL_YRED_ANIMATE_DEAD,
     ABIL_YRED_DRAIN_LIFE,
     ABIL_YRED_ENSLAVE_SOUL,
@@ -80,36 +80,38 @@ enum ability_type
     ABIL_SIF_MUNA_FORGET_SPELL,
     ABIL_TROG_BURN_SPELLBOOKS = 199,
     ABIL_TROG_BERSERK = 200,                //  200
-    ABIL_TROG_REGENERATION,
+    ABIL_TROG_REGEN_MR,
     ABIL_TROG_BROTHERS_IN_ARMS,
     ABIL_ELYVILON_DESTROY_WEAPONS = 219,
-    ABIL_ELYVILON_LESSER_HEALING = 220,     //  220
+    ABIL_ELYVILON_LESSER_HEALING_SELF = 220, //  220
+    ABIL_ELYVILON_LESSER_HEALING_OTHERS,
     ABIL_ELYVILON_PURIFICATION,
-    ABIL_ELYVILON_GREATER_HEALING,
-    ABIL_ELYVILON_RESTORATION,
+    ABIL_ELYVILON_GREATER_HEALING_SELF,
+    ABIL_ELYVILON_GREATER_HEALING_OTHERS,
+    ABIL_ELYVILON_RESTORATION,              //  225
     ABIL_ELYVILON_DIVINE_VIGOUR,
-    ABIL_LUGONU_ABYSS_EXIT,                 //  225
+    ABIL_LUGONU_ABYSS_EXIT,
     ABIL_LUGONU_BEND_SPACE,
     ABIL_LUGONU_BANISH,
-    ABIL_LUGONU_CORRUPT,
+    ABIL_LUGONU_CORRUPT,                    //  230
     ABIL_LUGONU_ABYSS_ENTER,
-    ABIL_NEMELEX_DRAW_ONE,                  //  230
+    ABIL_NEMELEX_DRAW_ONE,
     ABIL_NEMELEX_PEEK_TWO,
     ABIL_NEMELEX_TRIPLE_DRAW,
-    ABIL_NEMELEX_MARK_FOUR,
+    ABIL_NEMELEX_MARK_FOUR,                 //  235
     ABIL_NEMELEX_STACK_FIVE,
-    ABIL_BEOGH_SMITING,                     //  235
+    ABIL_BEOGH_SMITING,
     ABIL_BEOGH_RECALL_ORCISH_FOLLOWERS,
 
-    ABIL_TRAN_BAT,
+    ABIL_TRAN_BAT = 240,
     ABIL_HARM_PROTECTION,
-    ABIL_HARM_PROTECTION_II,                //  239
+    ABIL_HARM_PROTECTION_II,                //  242
     ABIL_RENOUNCE_RELIGION = 250            //  250
 };
 
 enum activity_interrupt_type
 {
-    AI_FORCE_INTERRUPT  = 0,        // Forcibly kills any activity that can be
+    AI_FORCE_INTERRUPT = 0,         // Forcibly kills any activity that can be
                                     // interrupted.
     AI_KEYPRESS,
     AI_FULL_HP,                     // Player is fully healed
@@ -139,7 +141,8 @@ enum actor_type
 
 enum attribute_type
 {
-    ATTR_DIVINE_LIGHTNING_PROTECTION,  //    0
+    ATTR_DIVINE_LIGHTNING_PROTECTION,
+    ATTR_DIVINE_REGENERATION,
     ATTR_DIVINE_DEATH_CHANNEL,
     ATTR_TRANSFORMATION,
     ATTR_CARD_COUNTDOWN,
@@ -350,11 +353,8 @@ enum branch_type                // you.where_are_you
     BRANCH_GEHENNA,
     BRANCH_COCYTUS,
     BRANCH_TARTARUS,
-    BRANCH_INFERNO,             // unimplemented
-    BRANCH_THE_PIT,             // unimplemented
-    BRANCH_LAST_HELL = BRANCH_THE_PIT,
+    BRANCH_LAST_HELL = BRANCH_TARTARUS,
     BRANCH_HALL_OF_ZOT,
-    BRANCH_CAVERNS,             // unimplemented
     NUM_BRANCHES
 };
 
@@ -467,6 +467,7 @@ enum command_type
     CMD_FULL_VIEW,
     CMD_EXAMINE_OBJECT,
     CMD_EVOKE,
+    CMD_EVOKE_WIELDED,
     CMD_WIELD_WEAPON,
     CMD_WEAPON_SWAP,
     CMD_FIRE,
@@ -485,6 +486,7 @@ enum command_type
     CMD_LIST_GOLD,
     CMD_ZAP_WAND,
     CMD_CAST_SPELL,
+    CMD_FORCE_CAST_SPELL,
     CMD_MEMORISE_SPELL,
     CMD_USE_ABILITY,
     CMD_PRAY,
@@ -616,7 +618,6 @@ enum command_type
     CMD_TARGET_DIR_UP_RIGHT,
 
     CMD_TARGET_DESCRIBE,
-    CMD_TARGET_ALL_DESCRIBE,
     CMD_TARGET_CYCLE_TARGET_MODE,
     CMD_TARGET_PREV_TARGET,
     CMD_TARGET_MAYBE_PREV_TARGET,
@@ -653,6 +654,7 @@ enum command_type
     CMD_TARGET_WIZARD_MISCAST,
     CMD_TARGET_WIZARD_MAKE_SUMMONED,
     CMD_TARGET_WIZARD_POLYMORPH,
+    CMD_TARGET_WIZARD_DEBUG_MONSTER,
     CMD_TARGET_MOUSE_MOVE,
     CMD_TARGET_MOUSE_SELECT,
     CMD_TARGET_HELP,
@@ -696,8 +698,8 @@ enum conduct_type
     DID_KILL_LIVING,
     DID_KILL_UNDEAD,
     DID_KILL_DEMON,
-    DID_KILL_NATURAL_EVIL,    // TSO
-    DID_KILL_CHAOTIC,         // Zin
+    DID_KILL_NATURAL_EVIL,              // TSO
+    DID_KILL_CHAOTIC,                   // Zin
     DID_KILL_WIZARD,
     DID_KILL_PRIEST,
     DID_KILL_HOLY,
@@ -719,11 +721,12 @@ enum conduct_type
     DID_DRINK_BLOOD,
     DID_CANNIBALISM,
     DID_EAT_MEAT,                       // unused
-    DID_EAT_SOULED_BEING,     // Zin
-    DID_DELIBERATE_MUTATING,  // Zin
-    DID_CAUSE_GLOWING,        // Zin
-    DID_CHAOS,                // Zin (used weapon/magic of chaos)
-    DID_DESTROY_ORCISH_IDOL,  // Beogh
+    DID_EAT_SOULED_BEING,               // Zin
+    DID_DELIBERATE_MUTATING,            // Zin
+    DID_CAUSE_GLOWING,                  // Zin
+    DID_CHAOS,                          // Zin (used weapon/magic of chaos)
+    DID_DESECRATE_ORCISH_REMAINS,       // Beogh
+    DID_DESTROY_ORCISH_IDOL,            // Beogh
     DID_CREATE_LIFE,                    // unused
 
     NUM_CONDUCTS
@@ -858,7 +861,7 @@ enum feature_property_type
     FPROP_SANCTUARY_2 = (1 << 2),
     FPROP_BLOODY      = (1 << 3),
     FPROP_VAULT       = (1 << 4),
-    FPROP_HIGHLIGHT   = (1 << 5)
+    FPROP_HIGHLIGHT   = (1 << 5)  // Highlight grids on the X map for debugging.
     // NOTE: Bloody floor and sanctuary are exclusive.
 };
 
@@ -1046,10 +1049,7 @@ enum dungeon_feature_type
     DNGN_ENTER_TOMB,
     DNGN_ENTER_SWAMP,                  //  122
     DNGN_ENTER_SHOALS,
-    DNGN_ENTER_RESERVED_2,
-    DNGN_ENTER_RESERVED_3,
-    DNGN_ENTER_RESERVED_4,             // 126
-    DNGN_ENTER_LAST_BRANCH = DNGN_ENTER_RESERVED_4,
+    DNGN_ENTER_LAST_BRANCH = DNGN_ENTER_SHOALS,
 
     // Exits from various branches
     // Order must be the same as above
@@ -1066,12 +1066,9 @@ enum dungeon_feature_type
     DNGN_RETURN_FROM_SNAKE_PIT,
     DNGN_RETURN_FROM_ELVEN_HALLS,      //  140
     DNGN_RETURN_FROM_TOMB,
-    DNGN_RETURN_FROM_SWAMP,               //  142
+    DNGN_RETURN_FROM_SWAMP,            //  142
     DNGN_RETURN_FROM_SHOALS,
-    DNGN_RETURN_RESERVED_2,
-    DNGN_RETURN_RESERVED_3,
-    DNGN_RETURN_RESERVED_4,             // 146
-    DNGN_RETURN_FROM_LAST_BRANCH = DNGN_RETURN_RESERVED_4,
+    DNGN_RETURN_FROM_LAST_BRANCH = DNGN_RETURN_FROM_SHOALS,
 
     // Portals to various places unknown.
     DNGN_ENTER_PORTAL_VAULT = 160,
@@ -1456,20 +1453,21 @@ enum job_type
     JOB_UNKNOWN = 100
 };
 
-enum KeymapContext {
-    KC_DEFAULT,         // For no-arg getchm(), must be zero.
-    KC_LEVELMAP,        // When in the 'X' level map
-    KC_TARGETING,       // Only during 'x' and other targeting modes
-    KC_CONFIRM,         // When being asked y/n/q questions
-    KC_MENU,            // For menus
+enum KeymapContext
+{
+    KMC_DEFAULT,         // For no-arg getchm(), must be zero.
+    KMC_LEVELMAP,        // When in the 'X' level map
+    KMC_TARGETING,       // Only during 'x' and other targeting modes
+    KMC_CONFIRM,         // When being asked y/n/q questions
+    KMC_MENU,            // For menus
 
 #ifdef USE_TILE
-    KC_TILE,            // For context_for_command()
+    KMC_TILE,            // For context_for_command()
 #endif
 
-    KC_CONTEXT_COUNT,   // Must always be the last real context
+    KMC_CONTEXT_COUNT,   // Must always be the last real context
 
-    KC_NONE
+    KMC_NONE
 };
 
 // This order is *critical*. Don't mess with it (see mon_enchant)
@@ -1542,30 +1540,30 @@ enum map_marker_type
 
 enum map_feature
 {
-    MF_UNSEEN,
+    MF_UNSEEN,          //  0
     MF_FLOOR,
     MF_WALL,
     MF_MAP_FLOOR,
     MF_MAP_WALL,
-    MF_DOOR,
+    MF_DOOR,            //  5
     MF_ITEM,
     MF_MONS_HOSTILE,
     MF_MONS_FRIENDLY,
     MF_MONS_NEUTRAL,
-    MF_MONS_NO_EXP,
+    MF_MONS_NO_EXP,     // 10
     MF_STAIR_UP,
     MF_STAIR_DOWN,
     MF_STAIR_BRANCH,
     MF_FEATURE,
-    MF_WATER,
+    MF_WATER,           // 15
     MF_LAVA,
     MF_TRAP,
     MF_EXCL_ROOT,
     MF_EXCL,
-    MF_PLAYER,
+    MF_PLAYER,          // 20
     MF_MAX,
 
-    MF_SKIP
+    MF_SKIP             // 22
 };
 
 enum menu_type
@@ -1591,8 +1589,9 @@ enum mon_holy_type
 enum targ_mode_type
 {
     TARG_ANY,
-    TARG_ENEMY,
+    TARG_ENEMY,  // hostile + neutral
     TARG_FRIEND,
+    TARG_HOSTILE,
     TARG_NUM_MODES
 };
 
@@ -2439,7 +2438,8 @@ enum pronoun_type
     PRONOUN_NOCAP,                      // 1
     PRONOUN_CAP_POSSESSIVE,             // 2
     PRONOUN_NOCAP_POSSESSIVE,           // 3
-    PRONOUN_REFLEXIVE                   // 4 (reflexive is always lowercase)
+    PRONOUN_REFLEXIVE,                  // 4 (reflexive is always lowercase)
+    PRONOUN_OBJECTIVE                   // 5 (objective is always lowercase)
 };
 
 enum randart_prop_type
@@ -2896,66 +2896,76 @@ enum tutorial_event_type
     TUT_SEEN_STAIRS,          // 15
     TUT_SEEN_ESCAPE_HATCH,
     TUT_SEEN_BRANCH,
+    TUT_SEEN_PORTAL,
     TUT_SEEN_TRAP,
-    TUT_SEEN_ALTAR,
-    TUT_SEEN_SHOP,            // 20
+    TUT_SEEN_ALTAR,           // 20
+    TUT_SEEN_SHOP,
     TUT_SEEN_DOOR,
     TUT_SEEN_SECRET_DOOR,
     // other 'first events'
     TUT_SEEN_MONSTER,
-    TUT_MONSTER_BRAND,
-    TUT_MONSTER_FRIENDLY,     // 25
+    TUT_MONSTER_BRAND,        // 25
+    TUT_MONSTER_FRIENDLY,
+    TUT_MONSTER_SHOUT,
+    TUT_MONSTER_LEFT_LOS,
     TUT_KILLED_MONSTER,
-    TUT_NEW_LEVEL,
+    TUT_NEW_LEVEL,            // 30
     TUT_SKILL_RAISE,
     TUT_GAINED_MAGICAL_SKILL,
-    TUT_GAINED_MELEE_SKILL,   // 30
+    TUT_GAINED_MELEE_SKILL,
     TUT_GAINED_RANGED_SKILL,
-    TUT_CHOOSE_STAT,
+    TUT_CHOOSE_STAT,          // 35
     TUT_MAKE_CHUNKS,
     TUT_OFFER_CORPSE,
-    TUT_NEW_ABILITY,          // 35
+    TUT_NEW_ABILITY_GOD,
+    TUT_NEW_ABILITY_MUT,
+    TUT_NEW_ABILITY_ITEM,     // 40
     TUT_FLEEING_MONSTER,
     TUT_ROTTEN_FOOD,
+    TUT_ROTTEN_GONE,
     TUT_CONVERT,
-    TUT_GOD_DISPLEASED,
-    TUT_EXCOMMUNICATE,        // 40
+    TUT_GOD_DISPLEASED,       // 45
+    TUT_EXCOMMUNICATE,
     TUT_SPELL_MISCAST,
     TUT_SPELL_HUNGER,
     TUT_GLOWING,
-    TUT_YOU_RESIST,
+    TUT_YOU_RESIST,           // 50
     // status changes
-    TUT_YOU_ENCHANTED,        // 45
+    TUT_YOU_ENCHANTED,
     TUT_YOU_SICK,
     TUT_YOU_POISON,
     TUT_YOU_ROTTING,
-    TUT_YOU_CURSED,
-    TUT_YOU_HUNGRY,           // 50
+    TUT_YOU_CURSED,           // 55
+    TUT_YOU_HUNGRY,
     TUT_YOU_STARVING,
     TUT_YOU_MUTATED,
     TUT_CAN_BERSERK,
-    TUT_POSTBERSERK,
-    TUT_CAUGHT_IN_NET,        // 55
+    TUT_POSTBERSERK,          // 60
+    TUT_CAUGHT_IN_NET,
     // warning
     TUT_RUN_AWAY,
     TUT_RETREAT_CASTER,
     TUT_WIELD_WEAPON,
-    TUT_NEED_HEALING,
-    TUT_NEED_POISON_HEALING,  // 60
+    TUT_NEED_HEALING,         // 65
+    TUT_NEED_POISON_HEALING,
     TUT_INVISIBLE_DANGER,
     TUT_NEED_HEALING_INVIS,
     TUT_ABYSS,
     // interface
-    TUT_MULTI_PICKUP,
-    TUT_HEAVY_LOAD,           // 65
+    TUT_MULTI_PICKUP,         // 70
+    TUT_HEAVY_LOAD,
     TUT_SHIFT_RUN,
     TUT_MAP_VIEW,
-    TUT_DONE_EXPLORE,
+    TUT_AUTO_EXPLORE,
+    TUT_DONE_EXPLORE,         // 75
+    TUT_AUTO_EXCLUSION,
     TUT_STAIR_BRAND,
-    TUT_LOAD_SAVED_GAME,     // 70
-    TUT_EVENTS_NUM           // 71
+    TUT_HEAP_BRAND,
+    TUT_TRAP_BRAND,
+    TUT_LOAD_SAVED_GAME,      // 80
+    TUT_EVENTS_NUM            // 81
 };
-// NOTE: For numbers higher than 75 change size of tutorial_events in externs.h.
+// NOTE: For numbers higher than 85 change size of tutorial_events in externs.h.
 
 enum tutorial_types
 {
@@ -3063,7 +3073,7 @@ enum montravel_target_type
     MTRAV_PLAYER,      // Travelling to reach the player.
     MTRAV_PATROL,      // Travelling to reach the patrol point.
     MTRAV_SIREN,       // Sirens travelling towards deep water.
-    MTRAV_WALL,        // Earthworms travelling towards a wall.
+    MTRAV_WALL,        // Rock worms travelling towards a wall.
     MTRAV_UNREACHABLE, // Not travelling because target is unreachable.
     MTRAV_KNOWN_UNREACHABLE // As above, and the player knows this.
 };

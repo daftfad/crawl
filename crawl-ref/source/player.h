@@ -28,8 +28,8 @@ bool move_player_to_grid( const coord_def& p, bool stepped, bool allow_shift,
                           bool force, bool swapping = false );
 
 bool player_in_mappable_area(void);
-bool player_in_branch( int branch );
-bool player_in_hell( void );
+bool player_in_branch(int branch);
+bool player_in_hell(void);
 
 int get_player_wielded_weapon(void);
 bool berserk_check_wielded_weapon(void);
@@ -144,7 +144,7 @@ int calc_hunger(int food_cost);
  * called from: debug - it_use3 - spells0
  * *********************************************************************** */
 int player_mag_abil(bool is_weighted);
-int player_magical_power( void );
+int player_magical_power(void);
 
 /* ***********************************************************************
  * called from: fight - misc - ouch - spells
@@ -326,6 +326,8 @@ void modify_stat(stat_type which_stat, char amount, bool suppress_msg,
 void modify_stat(stat_type which_stat, char amount, bool suppress_msg,
                  const item_def &cause, bool removed = false);
 
+bool player_in_bat_form();
+bool player_can_open_doors();
 
 // last updated 19may2000 {dlb}
 /* ***********************************************************************
@@ -412,9 +414,7 @@ bool is_grid_dangerous(int grid);
 
 void run_macro(const char *macroname = NULL);
 
-int player_ghost_base_movement_speed();
-
-int count_worn_ego( int which_ego );
-int stat_modifier( stat_type stat );
+int count_worn_ego(int which_ego);
+int stat_modifier(stat_type stat);
 
 #endif

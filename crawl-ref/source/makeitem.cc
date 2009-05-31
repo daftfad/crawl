@@ -811,6 +811,36 @@ void item_colour(item_def &item)
     }
 }
 
+// Does Xom consider an item boring?
+static bool _is_boring_item(int type, int sub_type)
+{
+    switch (type)
+    {
+    case OBJ_POTIONS:
+        return (sub_type == POT_CURE_MUTATION);
+    case OBJ_SCROLLS:
+        // The corresponding spells are considered "boring", so Xom
+        // shouldn't gift these scrolls either.
+        switch (sub_type)
+        {
+        case SCR_DETECT_CURSE:
+        case SCR_REMOVE_CURSE:
+        case SCR_IDENTIFY:
+        case SCR_MAGIC_MAPPING:
+            return (true);
+        default:
+            break;
+        }
+        break;
+    case OBJ_JEWELLERY:
+        return (sub_type == RING_TELEPORT_CONTROL
+                || sub_type == AMU_RESIST_MUTATION);
+    default:
+        break;
+    }
+    return (false);
+}
+
 static weapon_type _determine_weapon_subtype(int item_level)
 {
     weapon_type rc = WPN_UNKNOWN;
@@ -1754,8 +1784,8 @@ static void _generate_missile_item(item_def& item, int force_type,
         return;
     }
 
-
     set_equip_race(item, _determine_missile_race(item, item_race));
+
     if (!no_brand)
     {
         set_item_ego_type( item, OBJ_MISSILES,
@@ -2301,7 +2331,7 @@ static void _generate_food_item(item_def& item, int force_quant, int force_type)
 }
 
 static void _generate_potion_item(item_def& item, int force_type,
-                                  int item_level)
+                                  int item_level, int agent)
 {
     item.quantity = 1;
 
@@ -2345,15 +2375,17 @@ static void _generate_potion_item(item_def& item, int force_type,
                                             10, POT_DECAY,
                                             0);
         }
-        while ( stype == POT_POISON && item_level < 1
-                || stype == POT_STRONG_POISON && item_level < 11 );
+        while (stype == POT_POISON && item_level < 1
+               || stype == POT_STRONG_POISON && item_level < 11
+               || agent == GOD_XOM && _is_boring_item(OBJ_POTIONS, stype));
 
-        if ( stype == POT_GAIN_STRENGTH || stype == POT_GAIN_DEXTERITY
-             || stype == POT_GAIN_INTELLIGENCE || stype == POT_EXPERIENCE
-             || stype == POT_MAGIC || stype == POT_RESTORE_ABILITIES )
+        if (stype == POT_GAIN_STRENGTH || stype == POT_GAIN_DEXTERITY
+            || stype == POT_GAIN_INTELLIGENCE || stype == POT_EXPERIENCE
+            || stype == POT_MAGIC || stype == POT_RESTORE_ABILITIES)
         {
             item.quantity = 1;
         }
+
         item.sub_type = stype;
     }
 
@@ -2362,7 +2394,7 @@ static void _generate_potion_item(item_def& item, int force_type,
 }
 
 static void _generate_scroll_item(item_def& item, int force_type,
-                                  int item_level)
+                                  int item_level, int agent)
 {
     // determine sub_type:
     if (force_type != OBJ_RANDOM)
@@ -2371,40 +2403,44 @@ static void _generate_scroll_item(item_def& item, int force_type,
     {
         const int depth_mod = random2(1 + item_level);
 
-        // total weight: 10000
-        item.sub_type = random_choose_weighted(
-            1797, SCR_IDENTIFY,
-            1305, SCR_REMOVE_CURSE,
-            802, SCR_TELEPORTATION,
-            642, SCR_DETECT_CURSE,
-            321, SCR_FEAR,
-            321, SCR_NOISE,
-            321, SCR_MAGIC_MAPPING,
-            321, SCR_FOG,
-            321, SCR_RANDOM_USELESSNESS,
-            321, SCR_CURSE_WEAPON,
-            321, SCR_CURSE_ARMOUR,
-            321, SCR_RECHARGING,
-            321, SCR_BLINKING,
-            161, SCR_PAPER,
-            321, SCR_ENCHANT_ARMOUR,
-            321, SCR_ENCHANT_WEAPON_I,
-            321, SCR_ENCHANT_WEAPON_II,
+        do
+        {
+            // total weight: 10000
+            item.sub_type = random_choose_weighted(
+                1797, SCR_IDENTIFY,
+                1305, SCR_REMOVE_CURSE,
+                802, SCR_TELEPORTATION,
+                642, SCR_DETECT_CURSE,
+                321, SCR_FEAR,
+                321, SCR_NOISE,
+                321, SCR_MAGIC_MAPPING,
+                321, SCR_FOG,
+                321, SCR_RANDOM_USELESSNESS,
+                321, SCR_CURSE_WEAPON,
+                321, SCR_CURSE_ARMOUR,
+                321, SCR_RECHARGING,
+                321, SCR_BLINKING,
+                161, SCR_PAPER,
+                321, SCR_ENCHANT_ARMOUR,
+                321, SCR_ENCHANT_WEAPON_I,
+                321, SCR_ENCHANT_WEAPON_II,
 
-            // Don't create ?oImmolation at low levels (encourage read-ID)
-            321, (item_level < 4 ? SCR_TELEPORTATION : SCR_IMMOLATION),
+                // Don't create ?oImmolation at low levels (encourage read-ID)
+                321, (item_level < 4 ? SCR_TELEPORTATION : SCR_IMMOLATION),
 
-            // Medium-level scrolls
-            160, (depth_mod < 4 ? SCR_TELEPORTATION : SCR_ACQUIREMENT),
-            160, (depth_mod < 4 ? SCR_TELEPORTATION : SCR_ENCHANT_WEAPON_III),
-            160, (depth_mod < 4 ? SCR_DETECT_CURSE  : SCR_SUMMONING),
-            160, (depth_mod < 4 ? SCR_PAPER :         SCR_VULNERABILITY),
+                // Medium-level scrolls
+                160, (depth_mod < 4 ? SCR_TELEPORTATION : SCR_ACQUIREMENT),
+                160, (depth_mod < 4 ? SCR_TELEPORTATION : SCR_ENCHANT_WEAPON_III),
+                160, (depth_mod < 4 ? SCR_DETECT_CURSE  : SCR_SUMMONING),
+                160, (depth_mod < 4 ? SCR_PAPER :         SCR_VULNERABILITY),
 
-            // High-level scrolls
-            160, (depth_mod < 7 ? SCR_TELEPORTATION : SCR_VORPALISE_WEAPON),
-            160, (depth_mod < 7 ? SCR_DETECT_CURSE  : SCR_TORMENT),
-            160, (depth_mod < 7 ? SCR_DETECT_CURSE  : SCR_HOLY_WORD),
-            0);
+                // High-level scrolls
+                160, (depth_mod < 7 ? SCR_TELEPORTATION : SCR_VORPALISE_WEAPON),
+                160, (depth_mod < 7 ? SCR_DETECT_CURSE  : SCR_TORMENT),
+                160, (depth_mod < 7 ? SCR_DETECT_CURSE  : SCR_HOLY_WORD),
+                0);
+        }
+        while (agent == GOD_XOM && _is_boring_item(OBJ_SCROLLS, item.sub_type));
     }
 
     // determine quantity
@@ -2593,7 +2629,7 @@ static int _determine_ring_plus(int subtype)
 }
 
 static void _generate_jewellery_item(item_def& item, bool allow_uniques,
-                                     int force_type, int item_level)
+                                     int force_type, int item_level, int agent)
 {
     if (allow_uniques
         && _try_make_jewellery_unrandart(item, force_type, item_level))
@@ -2607,8 +2643,13 @@ static void _generate_jewellery_item(item_def& item, bool allow_uniques,
         item.sub_type = force_type;
     else
     {
-        item.sub_type = (one_chance_in(4) ? get_random_amulet_type()
-                                          : get_random_ring_type());
+        do
+        {
+            item.sub_type = (one_chance_in(4) ? get_random_amulet_type()
+                                              : get_random_ring_type());
+        }
+        while (agent == GOD_XOM
+               && _is_boring_item(OBJ_JEWELLERY, item.sub_type));
     }
 
     // Everything begins as uncursed, unenchanted jewellery {dlb}:
@@ -2694,17 +2735,17 @@ static void _generate_misc_item(item_def& item, int force_type, int item_race)
 }
 
 // Returns item slot or NON_ITEM if it fails.
-int items( int allow_uniques,       // not just true-false,
-                                    // because of BCR acquirement hack
-           object_class_type force_class, // desired OBJECTS class {dlb}
-           int force_type,          // desired SUBTYPE - enum varies by OBJ
-           bool dont_place,         // don't randomly place item on level
-           int item_level,          // level of the item, can differ from global
-           int item_race,           // weapon / armour racial categories
-                                    // item_race also gives type of rune!
-           unsigned mapmask,
-           int force_ego,           // desired ego/brand
-           int agent)               // acquirement agent, if not -1
+int items(int allow_uniques,       // not just true-false,
+                                   // because of BCR acquirement hack
+          object_class_type force_class, // desired OBJECTS class {dlb}
+          int force_type,          // desired SUBTYPE - enum varies by OBJ
+          bool dont_place,         // don't randomly place item on level
+          int item_level,          // level of the item, can differ from global
+          int item_race,           // weapon / armour racial categories
+                                   // item_race also gives type of rune!
+          unsigned mapmask,
+          int force_ego,           // desired ego/brand
+          int agent)               // acquirement agent, if not -1
 {
     // TODO: Allow a combination of force_ego > 0 and
     // force_type == OBJ_RANDOM, so that (for example) you could have
@@ -2778,7 +2819,7 @@ int items( int allow_uniques,       // not just true-false,
         if (get_unique_item_status(OBJ_WEAPONS, force_ego) == UNIQ_NOT_EXISTS)
         {
             make_item_fixed_artefact(mitm[p], false, force_ego);
-            return p;
+            return (p);
         }
         // the base item otherwise
         item.special = SPWPN_NORMAL;
@@ -2811,15 +2852,16 @@ int items( int allow_uniques,       // not just true-false,
         break;
 
     case OBJ_POTIONS:
-        _generate_potion_item(item, force_type, item_level);
+        _generate_potion_item(item, force_type, item_level, agent);
         break;
 
     case OBJ_SCROLLS:
-        _generate_scroll_item(item, force_type, item_level);
+        _generate_scroll_item(item, force_type, item_level, agent);
         break;
 
     case OBJ_JEWELLERY:
-        _generate_jewellery_item(item, allow_uniques, force_type,  item_level);
+        _generate_jewellery_item(item, allow_uniques, force_type, item_level,
+                                 agent);
         break;
 
     case OBJ_BOOKS:
@@ -2832,7 +2874,7 @@ int items( int allow_uniques,       // not just true-false,
 
     case OBJ_ORBS:              // always forced in current setup {dlb}
         item.sub_type = force_type;
-        set_unique_item_status( OBJ_ORBS, item.sub_type, UNIQ_EXISTS );
+        set_unique_item_status(OBJ_ORBS, item.sub_type, UNIQ_EXISTS);
         break;
 
     case OBJ_MISCELLANY:
@@ -2981,13 +3023,14 @@ static void _give_monster_item(monsters *mon, int thing,
     {
 #ifdef DEBUG_DIAGNOSTICS
         mprf(MSGCH_DIAGNOSTICS, "Destroying %s because %s doesn't want it!",
-             mthing.name(DESC_PLAIN).c_str(), mon->name(DESC_PLAIN).c_str());
+             mthing.name(DESC_PLAIN, false, true).c_str(),
+             mon->name(DESC_PLAIN, true).c_str());
 #endif
         destroy_item(thing, true);
         return;
     }
     ASSERT(is_valid_item(mthing));
-    ASSERT(holding_monster(mthing) == mon);
+    ASSERT(mthing.holding_monster() == mon);
 
     if (!force_item || mthing.colour == BLACK)
         item_colour(mthing);
@@ -3720,8 +3763,8 @@ static item_make_species_type _give_weapon(monsters *mon, int level,
     // force_item is set... otherwise we're just going to take the
     // base and subtypes and create a new item. -- bwr
     const int thing_created =
-        ((force_item) ? get_item_slot() : items( 0, xitc, xitt, true,
-                                                 level, item_race) );
+        ((force_item) ? get_item_slot() : items(0, xitc, xitt, true,
+                                                level, item_race));
 
     if (thing_created == NON_ITEM)
         return (item_race);
@@ -3765,6 +3808,7 @@ static void _give_ammo(monsters *mon, int level,
             xitt = MI_SLING_BULLET;
 
         const int thing_created = items(0, xitc, xitt, true, level, item_race);
+
         if (thing_created == NON_ITEM)
             return;
 
@@ -3773,6 +3817,9 @@ static void _give_ammo(monsters *mon, int level,
             set_item_ego_type(mitm[thing_created], OBJ_MISSILES,
                               _got_curare_roll(level) ? SPMSL_CURARE
                                                       : SPMSL_POISONED);
+
+            if (get_ammo_brand( mitm[thing_created] ) == SPMSL_CURARE)
+                mitm[thing_created].quantity = random_range(2, 8);
         }
         else
         {
@@ -3927,7 +3974,7 @@ static bool make_item_for_monster(
         return (false);
 
     const int thing_created =
-        items( allow_uniques, base, subtype, true, level, race );
+        items(allow_uniques, base, subtype, true, level, race);
 
     if (thing_created == NON_ITEM)
         return (false);
@@ -4014,9 +4061,9 @@ void give_armour(monsters *mon, int level)
 {
     item_make_species_type item_race = MAKE_ITEM_RANDOM_RACE;
 
-    int force_colour = 0; //mv: important !!! Items with force_colour = 0
-                         //are colored defaultly after following
-                         //switch. Others will get force_colour.
+    int force_colour = 0; // mv: Important!!! Items with force_colour = 0
+                          // are colored by default after following
+                          // switch. Others will get force_colour.
 
     item_def item;
 
@@ -4257,14 +4304,14 @@ void give_armour(monsters *mon, int level)
             level = level * 2 + 5;
     }
 
-    const int thing_created = items( 0, xitc, xitt, true, level, item_race );
+    const int thing_created = items(0, xitc, xitt, true, level, item_race);
 
     if (thing_created == NON_ITEM)
         return;
 
     _give_monster_item(mon, thing_created);
 
-    //mv: all items with force_colour = 0 are colored via items().
+    //mv: All items with force_colour = 0 are colored via items().
     if (force_colour)
         mitm[thing_created].colour = force_colour;
 }

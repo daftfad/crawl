@@ -252,6 +252,11 @@ static bool _find_butchering_implement(int &butcher_tool)
     if (!potential_candidate)
     {
         mpr("You don't carry any weapon that could be used for butchering.");
+        if (Options.tutorial_left)
+            mpr("You should pick up the first knife, dagger, sword or axe "
+                "you find so you can use it to butcher corpses.",
+                MSGCH_TUTORIAL);
+
         return (false);
     }
 
@@ -624,7 +629,7 @@ bool butchery(int which_corpse)
                      corpse_name.c_str());
                 repeat_prompt = false;
 
-                keyin = tolower(getchm(KC_CONFIRM));
+                keyin = tolower(getchm(KMC_CONFIRM));
                 switch (keyin)
                 {
                 case 'b':
@@ -689,9 +694,6 @@ bool butchery(int which_corpse)
                 success = true;
                 first_corpse = false;
             }
-
-//            if (!butcher_all && !bottle_all)
-//                break;
         }
     }
 
@@ -842,9 +844,7 @@ bool eat_food(int slot)
     return (prompt_eat_inventory_item(slot));
 }
 
-/*
- *     END PUBLIC FUNCTIONS
- */
+//     END PUBLIC FUNCTIONS
 
 static bool _player_has_enough_food()
 {
@@ -973,7 +973,7 @@ bool food_change(bool suppress_message)
                     you.duration[DUR_TRANSFORMATION] = 2;
                 }
             }
-            else if (you.attribute[ATTR_TRANSFORMATION] == TRAN_BAT
+            else if (player_in_bat_form()
                      && you.duration[DUR_TRANSFORMATION] > 5)
             {
                 print_stats();
@@ -1115,7 +1115,7 @@ void eat_inventory_item(int which_inventory_slot)
                    intel);
     }
     else
-        _eating( food.base_type, food.sub_type );
+        _eating(food.base_type, food.sub_type);
 
     you.turn_is_over = true;
     dec_inv_item_quantity( which_inventory_slot, 1 );
@@ -1293,7 +1293,7 @@ int eat_from_floor(bool skip_chunks)
                  ((item->quantity > 1) ? "one of " : ""),
                  item_name.c_str());
 
-            int keyin = tolower(getchm(KC_CONFIRM));
+            int keyin = tolower(getchm(KMC_CONFIRM));
             switch (keyin)
             {
             case ESCAPE:
@@ -1445,7 +1445,7 @@ bool eat_from_inventory()
                  ((item->quantity > 1) ? "one of " : ""),
                  item_name.c_str());
 
-            int keyin = tolower(getchm(KC_CONFIRM));
+            int keyin = tolower(getchm(KMC_CONFIRM));
             switch (keyin)
             {
             case ESCAPE:
@@ -1587,11 +1587,12 @@ int prompt_eat_chunks()
 
             const bool contam = is_contaminated(*item);
             const bool bad    = _is_bad_food(*item);
-            // Excempt undead from auto-eating since:
+            // Exempt undead from auto-eating since:
             //  * Mummies don't eat.
             //  * Vampire feeding takes a lot more time than eating a chunk
             //    and may have unintended consequences.
-            //  * Ghouls may want to wait until chunks become rotten.
+            //  * Ghouls may want to wait until chunks become rotten
+            //    or until they have some hp rot to heal.
             if (easy_eat && !bad && !contam)
             {
                 // If this chunk is safe to eat, just do so without prompting.
@@ -1607,7 +1608,7 @@ int prompt_eat_chunks()
                      item_name.c_str());
             }
 
-            int keyin = autoeat ? 'y' : tolower(getchm(KC_CONFIRM));
+            int keyin = autoeat ? 'y' : tolower(getchm(KMC_CONFIRM));
             switch (keyin)
             {
             case ESCAPE:
@@ -1661,10 +1662,28 @@ int prompt_eat_chunks()
 
 static const char *_chunk_flavour_phrase(bool likes_chunks)
 {
-    const char *phrase =
-        likes_chunks ? "tastes great." : "tastes terrible.";
+    const char *phrase;
+    const int level = player_mutation_level(MUT_SAPROVOROUS);
 
-    if (!likes_chunks)
+    switch (level)
+    {
+    case 1:
+    case 2:
+        phrase = "tastes unpleasant.";
+        break;
+
+    case 3:
+        phrase = "tastes good.";
+        break;
+
+    default:
+        phrase = "tastes terrible.";
+        break;
+    }
+
+    if (likes_chunks)
+        phrase = "tastes great.";
+    else
     {
         const int gourmand = you.duration[DUR_GOURMAND];
         if (gourmand >= GOURMAND_MAX)

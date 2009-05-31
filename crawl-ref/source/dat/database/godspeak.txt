@@ -209,7 +209,7 @@ Xom medium miscast effect
 # miscast strength random2(4), up to really nasty
 Xom major miscast effect
 
-"Try this!"
+"Try this."
 
 Xom's attention turns to you.
 
@@ -233,16 +233,28 @@ You hear Xom's maniacal laughter.
 Xom rearrange the pieces
 
 Xom decides to rearrange the pieces.
+
+"First here, now there."
+
+"This might be better!"
 %%%%
 Xom teleportation journey
 
-Whee!
+"Whee!"
 
-Let's go for a ride!
+"Let's go for a ride!"
+
+"Where it stops, nobody knows!"
+
+Xom twists space around you.
 %%%%
 Xom confusion
 
-Heh heh heh...
+"Heh heh heh..."
+
+Xom's power touches on your mind for a moment.
+
+Xom titters.
 %%%%
 # 25% chance of draining, else torment
 Xom draining or torment
@@ -277,7 +289,11 @@ The world seems to spin as Xom's maniacal laughter rings in your ears.
 # Xom upgrades a nearby hostile monster's weapon to a chaos brand
 Xom chaos upgrade
 
+Xom's power touches on a nearby weapon.
+
 "Have a taste of chaos, mortal."
+
+Xom chortles.
 %%%%
 #####################
 # other effects
@@ -308,7 +324,7 @@ You feel watched.
 
 Everything around seems to assume a strange transparency.
 
-All the walls suddenly lose part of their structure.
+The walls suddenly lose part of their structure.
 
 Xom alters the dungeon around you.
 %%%%
@@ -358,7 +374,69 @@ Xom weird death
 %%%%
 Xom resurrection
 
+"Let me repair your body."
+
+Xom tricks Death into leaving you alone.
+
+Xom's maniacal laughter scares Death away.
+
+Xom's power revives you.
+
 Xom brings you back to life.
+
+Xom smiles on you.
+%%%%
+Xom repel stairs
+
+Xom changes the scenery.
+
+Xom pokes at a nearby @staircase@.
+
+"Tag, you're it!"
+
+Xom alters the dungeon around you.
+%%%%
+Xom boring death
+
+Xom yawns loudly!
+
+"Boring in life, boring in death..."
+
+"What!? That's it?"
+
+Xom sighs, "I guess I need a new plaything now."
+
+"Hmm? Did I miss something?"
+%%%%
+# Xom laughing
+# (Currently only used post-game in response to "You die...")
+Xom laughter
+
+Xom guffaws!
+
+Xom roars with laughter!
+
+Xom thinks this is hilarious!
+
+Xom is highly amused!
+
+Xom cackles wildly!
+
+Xom snickers!
+
+Xom laughs nastily!
+
+Xom howls with laughter!
+
+Xom bursts into laughter!
+
+Xom giggles madly!
+
+Xom titters!
+
+Xom chuckles heartily!
+
+Xom chortles!
 %%%%
 ############################################
 # Beogh rants on destroying an orcish idol #

@@ -58,13 +58,13 @@ KFEAT:   Q = shallow_water
 SHUFFLE: M/N/O/P/Q
 SUBST:   P = MNO
 #
-# Player monsters (no vampire or ogre-mages because they can get out of their 
-# cells or create threats outside; no merfolk, alive or undead, because they 
-# insist on having deep water in their cells, which annoys me; other player 
+# Player monsters (no vampire or ogre-mages because they can get out of their
+# cells or create threats outside; no merfolk, alive or undead, because they
+# insist on having deep water in their cells, which annoys me; other player
 # species don't exist as monsters):
 KMONS: M = human / elf / orc; nothing / naga; nothing / centaur; nothing / \
            draconian; nothing / ogre; nothing / minotaur / troll / kobold / \
-           mummy / ghoul 
+           mummy / ghoul
 # Player monsters, zombie versions (ghouls drop out because they need sustenance
 # and can't be reanimated once starved):
 KMONS: N = human zombie / elf zombie / orc zombie / naga zombie / ogre zombie / \
@@ -74,7 +74,7 @@ KMONS: N = human zombie / elf zombie / orc zombie / naga zombie / ogre zombie / 
 KMONS: O = human skeleton / elf skeleton / orc skeleton / naga skeleton / \
            centaur skeleton / draconian skeleton / ogre skeleton / \
            minotaur skeleton /troll skeleton / kobold skeleton / mummy
-# And now for something completely different (if any of these turn out to be 
+# And now for something completely different (if any of these turn out to be
 # able to escape or project spells out of their cells, they should be removed):
 KMONS: Q = orb of fire / ice dragon / shadow dragon / iron dragon / \
            w:1 golden dragon / large abomination / tentacled monstrosity / \
@@ -180,7 +180,7 @@ ENDMAP
 # Players can safely watch at the clouds. Autoexplore will not run into
 # the chambers, players have to search for the secret door. Likewise,
 # all exits are secret except for the safe one.
-# This vault is great. If need be, we may delegate it to another branch, 
+# This vault is great. If need be, we may delegate it to another branch,
 # where we less caution measures are demanded (dp).
 NAME:   elemental_entry
 TAGS:   entry no_monster_gen
@@ -281,7 +281,7 @@ ENDMAP
 # Matthew's entry vaults
 ##############################################################################
 
-############################################################################ 
+############################################################################
 # A spiral sometimes made entirely of glass
 NAME:    zelgadis_glass_entry_001
 TAGS:    entry
@@ -301,7 +301,7 @@ MAP
 ...mmmmmmm....
 ENDMAP
 
-############################################################################ 
+############################################################################
 # A spiral made of rock, with lots of "windows".
 NAME:    zelgadis_glass_entry_002
 TAGS:    entry
@@ -392,7 +392,7 @@ MAP
      ..!!!??????...??????!!!..
       ...!!!???..?..???!!!...
         ..!!!!???.???!!!!..
-         ...!!!!!+!!!!!... 
+         ...!!!!!+!!!!!...
            ......@......
 ENDMAP
 
@@ -543,26 +543,26 @@ SHUFFLE: {}, XYZ
 SUBST:   X=W, Y=w, Z=w
 MAP
 xxxxxxxxxxxxxxxxxxx
-xxxxx{.......}xxxxx  
-xxxxx.........xxxxx  
-xwxxx.........xxxxx  
-xwwxx.........xxxxx  
-xwwwx.........xxxxx  
-xxwwx.........xxxxx  
-xxwwXw........xxxxx  
-xxxXwwwwwww...xxxxx  
-xxxxXwwwwYYwwZxxxxx  
-xxxxxXwwYwwwwwZwxxx  
-xxxxx...wwwwwZwwwxx  
+xxxxx{.......}xxxxx
+xxxxx.........xxxxx
+xwxxx.........xxxxx
+xwwxx.........xxxxx
+xwwwx.........xxxxx
+xxwwx.........xxxxx
+xxwwXw........xxxxx
+xxxXwwwwwww...xxxxx
+xxxxXwwwwYYwwZxxxxx
+xxxxxXwwYwwwwwZwxxx
+xxxxx...wwwwwZwwwxx
 xxxxx........wwwwxx
-xxxxx.........xwwwx  
-xxxxx.........xxwwx  
-xxxxx.........xxxwx  
-xxxxx.........xxxxx  
-xxxxx....@....xxxxx  
+xxxxx.........xwwwx
+xxxxx.........xxwwx
+xxxxx.........xxxwx
+xxxxx.........xxxxx
+xxxxx....@....xxxxx
 ENDMAP
 
-# Notes: chances are high that there is a shallow water path. Even if 
+# Notes: chances are high that there is a shallow water path. Even if
 # there is none, you can always see the door on the other side.
 NAME: lemuel_005_c
 TAGS:    entry no_monster_gen
@@ -570,33 +570,33 @@ ORIENT:  float
 SHUFFLE: {}, ABC
 SUBST:   A:=, B:x, C:x
 WEIGHT:  1
-MAP  
-xxxxxxxxxxxxxxxxxxx  
-xxxWA{.......}xxxxx  
-xxwWx.........xxxxx  
-xwwWB.........xxxxx  
-xwwWx.........xxxxx  
-xwwWC.........xxxxx  
-xxWwx.........xxxxx  
+MAP
+xxxxxxxxxxxxxxxxxxx
+xxxWA{.......}xxxxx
+xxwWx.........xxxxx
+xwwWB.........xxxxx
+xwwWx.........xxxxx
+xwwWC.........xxxxx
+xxWwx.........xxxxx
 xxWwww........xxxxx
-xWxwwwwwwww...xxxxx  
-xWxxwwwwwwwwwwxxxxx  
-xxWxxwwwwwwwwwwwxxx  
-xxWxx...wwwwwwwwwxx  
-xxwWx........wwwwxx  
-xwxw+.........xwwwx  
-xwxxx.........xxwwx  
-xxxxx.........xxxwx  
-xxxxx.........xxxxx  
-xxxxx.........xxxxx  
+xWxwwwwwwww...xxxxx
+xWxxwwwwwwwwwwxxxxx
+xxWxxwwwwwwwwwwwxxx
+xxWxx...wwwwwwwwwxx
+xxwWx........wwwwxx
+xwxw+.........xwwwx
+xwxxx.........xxwwx
+xxxxx.........xxxwx
+xxxxx.........xxxxx
+xxxxx.........xxxxx
 ENDMAP
 
 ##############################################################################
 # lemuel_entrance_tunnels
-NAME: lemuel_entry_006_tunnels
-TAGS: entry no_monster_gen
-ORIENT: float
-SUBST: ? = x.
+NAME:    lemuel_entry_006_tunnels
+TAGS:    entry no_monster_gen
+ORIENT:  float
+SUBST:   ? = x.
 SHUFFLE: {[(
 MAP
 xxx
@@ -1283,6 +1283,7 @@ ORIENT:  float
 MONS:    fungus
 SHUFFLE: {[(, b:xxxbcv, UVW, XYZ
 SUBST:   '=.x, U==, V=x, W=x, X==, Y=x, Z=x
+RTILE:   x = wall_vines
 MAP
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 xxxxxxxxx''xxxxxxxxxxxxxxxxx%xxxxxxxxxxxxx
@@ -1317,11 +1318,11 @@ ENDMAP
 
 # This is another series of entry levels, ten total. Leave the template intact
 # (but commented out). All water is deep.
-# NAME: water_fire_template
-# TAGS: entry no_monster_gen no_pool_fixup no_rotate
+# NAME:   water_fire_template
+# TAGS:   entry no_monster_gen no_pool_fixup no_rotate
 # WEIGHT: 1
 # ORIENT: float
-# MONS: plant
+# MONS:   plant
 # MAP
 #             xxxxxxxx@xxxxxxxx
 #        xxxxxx...............xxxxxx
@@ -1347,10 +1348,10 @@ ENDMAP
 #             xxxxxxxxxxxxxxxxx
 # ENDMAP
 
-NAME: david_entry_015_a_water_fire
-TAGS: entry no_monster_gen no_pool_fixup no_rotate
+NAME:   david_entry_015_a_water_fire
+TAGS:   entry no_monster_gen no_pool_fixup no_rotate
 WEIGHT: 1
-MONS: plant
+MONS:   plant
 ORIENT: float
 MAP
             xxxxxxxx@xxxxxxxx
@@ -1377,12 +1378,12 @@ xx......xx+xxx+xx...x...xx+xxx+xx......xx
             xxxxxxxxxxxxxxxxx
 ENDMAP
 
-NAME: david_entry_015_b_water_fire
-TAGS: entry no_monster_gen no_pool_fixup no_rotate
+NAME:   david_entry_015_b_water_fire
+TAGS:   entry no_monster_gen no_pool_fixup no_rotate
 WEIGHT: 1
 NSUBST: . = 1:d / *:.
-ITEM: stone/dart
-MONS: plant
+ITEM:   stone/dart
+MONS:   plant
 ORIENT: float
 MAP
             xxxxxxxx@xxxxxxxx
@@ -1409,12 +1410,12 @@ xx......xx+xxx+xx...x...xx+xxx+xx......xx
             xxxxxxxxxxxxxxxxx
 ENDMAP
 
-NAME: david_entry_015_c_water_fire
-TAGS: entry no_monster_gen no_pool_fixup no_rotate
+NAME:   david_entry_015_c_water_fire
+TAGS:   entry no_monster_gen no_pool_fixup no_rotate
 WEIGHT: 1
 NSUBST: . = 1:d / *:.
-ITEM: stone/dart
-MONS: plant
+ITEM:   stone/dart
+MONS:   plant
 ORIENT: float
 MAP
             xxxxxxxx@xxxxxxxx
@@ -1441,12 +1442,12 @@ xx......xx+xxx+xx...x...xx+xxx+xx......xx
             xxxxxxxxxxxxxxxxx
 ENDMAP
 
-NAME: david_entry_015_d_water_fire
-TAGS: entry no_monster_gen no_pool_fixup no_rotate
+NAME:   david_entry_015_d_water_fire
+TAGS:   entry no_monster_gen no_pool_fixup no_rotate
 WEIGHT: 1
 NSUBST: . = 1:d / *:.
-ITEM: stone/dart
-MONS: plant
+ITEM:   stone/dart
+MONS:   plant
 ORIENT: float
 MAP
             xxxxxxxx@xxxxxxxx
@@ -1473,12 +1474,12 @@ xx......xx+xxx+xx...x...xx+xxx+xx......xx
             xxxxxxxxxxxxxxxxx
 ENDMAP
 
-NAME: david_entry_015_e_water_fire
-TAGS: entry no_monster_gen no_pool_fixup no_rotate
+NAME:   david_entry_015_e_water_fire
+TAGS:   entry no_monster_gen no_pool_fixup no_rotate
 WEIGHT: 1
 NSUBST: . = 1:d / *:.
-ITEM: stone/dart
-MONS: plant
+ITEM:   stone/dart
+MONS:   plant
 ORIENT: float
 MAP
             xxxxxxxx@xxxxxxxx
@@ -1505,12 +1506,12 @@ xx......xx+xxx+xx...x...xx+xxx+xx......xx
             xxxxxxxxxxxxxxxxx
 ENDMAP
 
-NAME: david_entry_015_f_water_fire
-TAGS: entry no_monster_gen no_pool_fixup no_rotate
+NAME:   david_entry_015_f_water_fire
+TAGS:   entry no_monster_gen no_pool_fixup no_rotate
 WEIGHT: 1
 NSUBST: . = 1:d / *:.
-ITEM: stone/dart
-MONS: plant
+ITEM:   stone/dart
+MONS:   plant
 ORIENT: float
 MAP
             xxxxxxxx@xxxxxxxx
@@ -1537,12 +1538,12 @@ xx......xx+xxx+xx...x...xx+xxx+xx......xx
             xxxxxxxxxxxxxxxxx
 ENDMAP
 
-NAME: david_entry_015_g_water_fire
-TAGS: entry no_monster_gen no_pool_fixup no_rotate
+NAME:   david_entry_015_g_water_fire
+TAGS:   entry no_monster_gen no_pool_fixup no_rotate
 WEIGHT: 1
 NSUBST: . = 1:d / *:.
-ITEM: stone/dart
-MONS: plant
+ITEM:   stone/dart
+MONS:   plant
 ORIENT: float
 MAP
             xxxxxxxx@xxxxxxxx
@@ -1569,12 +1570,12 @@ xx......xx+xxx+xx...x...xx+xxx+xx......xx
             xxxxxxxxxxxxxxxxx
 ENDMAP
 
-NAME: david_entry_015_h_water_fire
-TAGS: entry no_monster_gen no_pool_fixup no_rotate
+NAME:   david_entry_015_h_water_fire
+TAGS:   entry no_monster_gen no_pool_fixup no_rotate
 WEIGHT: 1
 NSUBST: . = 1:d / *:.
-ITEM: stone/dart
-MONS: plant
+ITEM:   stone/dart
+MONS:   plant
 ORIENT: float
 MAP
             xxxxxxxx@xxxxxxxx
@@ -1601,12 +1602,12 @@ xx......xx+xxx+xx...x...xx+xxx+xx......xx
             xxxxxxxxxxxxxxxxx
 ENDMAP
 
-NAME: david_entry_015_i_water_fire
-TAGS: entry no_monster_gen no_pool_fixup no_rotate
+NAME:   david_entry_015_i_water_fire
+TAGS:   entry no_monster_gen no_pool_fixup no_rotate
 WEIGHT: 1
 NSUBST: . = 1:d / *:.
-ITEM: stone/dart
-MONS: plant
+ITEM:   stone/dart
+MONS:   plant
 ORIENT: float
 MAP
             xxxxxxxx@xxxxxxxx
@@ -1633,12 +1634,12 @@ xx......xx+xxx+xx...x...xx+xxx+xx......xx
             xxxxxxxxxxxxxxxxx
 ENDMAP
 
-NAME: david_entry_015_j_water_fire
-TAGS: entry no_monster_gen no_pool_fixup no_rotate
+NAME:   david_entry_015_j_water_fire
+TAGS:   entry no_monster_gen no_pool_fixup no_rotate
 WEIGHT: 1
 NSUBST: . = 1:d / *:.
-ITEM: stone/dart
-MONS: plant
+ITEM:   stone/dart
+MONS:   plant
 ORIENT: float
 MAP
             xxxxxxxx@xxxxxxxx
@@ -1973,10 +1974,10 @@ ENDMAP
 
 ##############################################################################
 # Sounds of Crawl: the Slurp
-NAME: david_027_sounds_slurp
-TAGS: entry no_monster_gen
-MONS: generate_awake jelly / kobold
-ITEM: dart
+NAME:    david_027_sounds_slurp
+TAGS:    entry no_monster_gen
+MONS:    generate_awake jelly / kobold
+ITEM:    dart
 ORIENT:  float
 SHUFFLE: {[(
 SUBST:   v:vxx
@@ -2000,9 +2001,9 @@ ENDMAP
 
 ##############################################################################
 # Sounds of Crawl: the Drone
-NAME: david_028_sounds_drone
-TAGS: entry no_monster_gen no_rotate
-MONS: generate_awake boring beetle / boring beetle
+NAME:    david_028_sounds_drone
+TAGS:    entry no_monster_gen no_rotate
+MONS:    generate_awake boring beetle / boring beetle
 ORIENT:  float
 SHUFFLE: {<
 MAP
@@ -2905,9 +2906,9 @@ WEIGHT:  3
 ITEM:    nothing, nothing, nothing
 SHUFFLE: cccbvxxx, def}
 MAP
-   ........................   
-   ............cc..........   
-  d......cc....cc....cc....e  
+   ........................
+   ............cc..........
+  d......cc....cc....cc....e
 .........cc..........cc.......
 ....cc........................
 ....cc...................cc...
@@ -2921,9 +2922,9 @@ MAP
 ...cc...................cc....
 ........................cc....
 .......cc..........cc.........
-  f....cc....cc....cc......}  
-   ..........cc............   
-   ........................   
+  f....cc....cc....cc......}
+   ..........cc............
+   ........................
 ENDMAP
 
 NAME:    david_entry_056_b
@@ -2932,9 +2933,9 @@ ORIENT:  float
 WEIGHT:  7
 SHUFFLE: cccbvxxx
 MAP
-   ....................   
-   .........cc.........   
-   .........cc.........   
+   ....................
+   .........cc.........
+   .........cc.........
 .....cc............cc.....
 .....cc............cc.....
 ..........................
@@ -2945,9 +2946,9 @@ MAP
 ..........................
 .....cc............cc.....
 .....cc............cc.....
-   .........cc.........   
-   .........cc.........   
-   ....................   
+   .........cc.........
+   .........cc.........
+   ....................
 ENDMAP
 
 ##############################################################################
@@ -3126,18 +3127,18 @@ xxxxxxxxxxxxxxxxxxxxxx
 xxxxxxxxxxxxxxxxxxxxxx
 xxxxxxxxxxxxxxxxxxxxxx
 xxxxxxxxxxxxxxxxxxxxxx
-xxxxxx>lllllllllll..  
-xxxxxxlClllllllll?..  
-xxxxxxlllllllll??...  
-xxxxxxllllllllll....  
-xxxxxxllllllllll....  
-xxxxxxllllllllll....  
-xxxxxxlllllllll?....  
-xxxxxxlllllllll.....  
-xxxxxxllllllll?.....  
-xxxxxxl?ll?ll?.....{  
-xxxxxxll.??....       
-xxxxxxl.........      
+xxxxxx>lllllllllll..
+xxxxxxlClllllllll?..
+xxxxxxlllllllll??...
+xxxxxxllllllllll....
+xxxxxxllllllllll....
+xxxxxxllllllllll....
+xxxxxxlllllllll?....
+xxxxxxlllllllll.....
+xxxxxxllllllll?.....
+xxxxxxl?ll?ll?.....{
+xxxxxxll.??....
+xxxxxxl.........
 ENDMAP
 
 NAME:    david_entry_061_b_altar
@@ -3155,16 +3156,16 @@ xxxxxxxxxxxxxxxxxxxxxx
 xxxxxxxxxxxxxxxxxxxxxx
 xxxxxx>wwwwwwwwwwwwww.
 xxxxxxwCwwwwwwwwwww...
-xxxxxxwwwwwwwwwwww..  
-xxxxxxwwwwwwwwwwww..  
-xxxxxxwwwwwwwwwww...  
-xxxxxxwwwwwwwwwww...  
-xxxxxxwwwwwwwwww....  
-xxxxxxwwwwwwwwww....  
-xxxxxxwwwwwwwww.....  
-xxxxxxwwwwwwww.....{  
-xxxxxxwwwwww.....     
-xxxxxxw..........     
+xxxxxxwwwwwwwwwwww..
+xxxxxxwwwwwwwwwwww..
+xxxxxxwwwwwwwwwww...
+xxxxxxwwwwwwwwwww...
+xxxxxxwwwwwwwwww....
+xxxxxxwwwwwwwwww....
+xxxxxxwwwwwwwww.....
+xxxxxxwwwwwwww.....{
+xxxxxxwwwwww.....
+xxxxxxw..........
 ENDMAP
 
 ##############################################################################
@@ -3328,10 +3329,10 @@ ENDMAP
 
 ##############################################################################
 # Just another castle
-NAME: david_entry_067
-TAGS: entry no_monster_gen no_rotate
-ITEM: any, nothing, nothing
-ORIENT: float
+NAME:    david_entry_067
+TAGS:    entry no_monster_gen no_rotate
+ITEM:    any, nothing, nothing
+ORIENT:  float
 SHUFFLE: ]def
 SUBST:   c : cx
 # A test run with 50 tries had precisely one level without shallow water
@@ -3426,10 +3427,10 @@ MAP
        ......
 ENDMAP
 
-NAME: david_entry_069_c
-TAGS: entry no_monster_gen no_rotate
-ORIENT: float
-WEIGHT: 3
+NAME:    david_entry_069_c
+TAGS:    entry no_monster_gen no_rotate
+ORIENT:  float
+WEIGHT:  3
 SHUFFLE: bxxxx
 MAP
  .......    .......
@@ -3457,7 +3458,7 @@ MAP
 .wwwwww......llllll.
 .wwwwww......llllll.
 ..wwww..bbbb..llll..
- ......bbbbbb..... 
+ ......bbbbbb.....
       .bbbbbb.
       .bbbbbb.
       ..bbbb..
@@ -3466,14 +3467,14 @@ ENDMAP
 
 ##############################################################################
 # Caged fury
-NAME: david_entry_070
-TAGS: entry no_rotate
-MONS: w:30 nothing / giant cockroach / w:2 worm
-MONS: w:30 nothing / ooze 
-MONS: w:20 nothing / jackal / rat
-MONS: w:30 nothing / ooze / w:2 jelly / giant cockroach / w:2 worm / \
-      w:5 jackal / w:5 rat
-# There is a very slight chance that a jelly or an intelligent monster 
+NAME:    david_entry_070
+TAGS:    entry no_rotate
+MONS:    w:30 nothing / giant cockroach / w:2 worm
+MONS:    w:30 nothing / ooze
+MONS:    w:20 nothing / jackal / rat
+MONS:    w:30 nothing / ooze / w:2 jelly / giant cockroach / w:2 worm / \
+         w:5 jackal / w:5 rat
+# There is a very slight chance that a jelly or an intelligent monster
 # (hobgoblin) might spawn inside near the door. This is okay; added an exit.
 ORIENT:  float
 FTILE:   1=floor_dirt, 2=floor_dirt, 3=floor_dirt, 4=floor_dirt, +=floor_dirt
@@ -3502,9 +3503,9 @@ ENDMAP
 
 ##############################################################################
 # Morbid curiosity
-# Monsters are easier. Made it harder for them to get out. The single orc 
-# can pack a punch, though. His window is secret, so autoexploring won't 
-# notice, except for characters with starting Traps and Doors skill, who 
+# Monsters are easier. Made it harder for them to get out. The single orc
+# can pack a punch, though. His window is secret, so autoexploring won't
+# notice, except for characters with starting Traps and Doors skill, who
 # will then bring Stealth and Evasion as well.
 #
 NAME:    david_entry_071
@@ -3518,11 +3519,11 @@ NSUBST:  X = 1:= / *:x
 NSUBST:  Y = 1:+ / *:x
 SUBST:   A=@, B=@xx, C=@xxxx, D=x
 MAP
-     xxxxxxxxxBxxxxxxxxx     
-    xxxxx...........xxxxx    
-   xxx...xxxxx=xxxxx...xxx   
-  xx..xxxxxlllllllxxxxx..xx  
- xx.xxxxxlll.....lllxxxxx.xx 
+     xxxxxxxxxBxxxxxxxxx
+    xxxxx...........xxxxx
+   xxx...xxxxx=xxxxx...xxx
+  xx..xxxxxlllllllxxxxx..xx
+ xx.xxxxxlll.....lllxxxxx.xx
 xx.xxxxxx3..........xxxxxx.xx
 xx.xxxxxxxxxxx=xxxxxxxxxxx.xx
 xx.xxxxxxxxxGXGXGxxxxxxxxx.xx
@@ -3536,11 +3537,11 @@ x.xx...xxx.........xxx..lxx.x
 xx.xxxxxxxxxxG=Gxxxxxxxxxxx.x
 xx.xxxxxxxxxxx=xxxxxxxxxxx.xx
 xx.xxxxxx...........xxxxxx.xx
-xxx.xxxxxlll2..2.lllxxxxx.xx 
- xxx..xxxxxlllllllxxxxx..xx  
-   xxx...xxxxx+xxxxx...xxx   
-    xxxxx...........xxxxx    
-     xxxxxxxxxDxxxxxxxxx     
+xxx.xxxxxlll2..2.lllxxxxx.xx
+ xxx..xxxxxlllllllxxxxx..xx
+   xxx...xxxxx+xxxxx...xxx
+    xxxxx...........xxxxx
+     xxxxxxxxxDxxxxxxxxx
 ENDMAP
 
 ##############################################################################
@@ -3743,8 +3744,8 @@ ITEM:    q:1 stone
 MONS:    rat
 SHUFFLE: {[(>
 MAP
-  ........@........  
-  ........>........  
+  ........@........
+  ........>........
 ...xcXXXXXXXXXXXcx...
 ...xXXX...1...XXXx...
 ...xXX..1...1..XXx...
@@ -3754,8 +3755,8 @@ MAP
 ...xXX..1...1..XXx...
 ...xXXX...1...XXXx...
 ...xcXXXXXXXXXXXcx...
-  ........{........  
-  ........@........  
+  ........{........
+  ........@........
 ENDMAP
 
 ##############################################################################
@@ -4011,8 +4012,8 @@ x.........x
 xxx@xxx@xxx
 ENDMAP
 
-NAME: matt_entry_007_b
-TAGS: entry no_monster_gen
+NAME:    matt_entry_007_b
+TAGS:    entry no_monster_gen
 ORIENT:  float
 WEIGHT:  3
 SHUFFLE: {[(<
@@ -4030,8 +4031,8 @@ x.........x
 xxx@xxx@xxx
 ENDMAP
 
-NAME: matt_entry_007_c
-TAGS: entry no_monster_gen
+NAME:    matt_entry_007_c
+TAGS:    entry no_monster_gen
 ORIENT:  float
 WEIGHT:  6
 SHUFFLE: {[(<
@@ -4055,8 +4056,8 @@ ENDMAP
 
 ##############################################################
 # Infinity Welcomes Careful Drivers
-NAME: entry_elethiomel_001
-TAGS: entry no_rotate
+NAME:    entry_elethiomel_001
+TAGS:    entry no_rotate
 ORIENT:  northwest
 SHUFFLE: [{
 SUBST:   ' : . x ':40, '=x.
@@ -4080,8 +4081,8 @@ ENDMAP
 
 ##############################################################
 # The Diamond Age, or A Young Lady's Illustrated Primer
-NAME: entry_elethiomel_002
-TAGS: entry no_monster_gen no_rotate
+NAME:    entry_elethiomel_002
+TAGS:    entry no_monster_gen no_rotate
 ORIENT:  west
 WEIGHT:  2
 MONS:    rat, goblin, giant bat, kobold
@@ -4099,9 +4100,9 @@ xxxxx+xx.......xxxxx.......xxxx
 xxxxx.xxx.....xxx.xxx.....xxx.xx
 xxxx...xxx...xxx...xxx...xxx...xx
 xxx.....xxx.xxx.....xxxexxx.....xx
-xx.......xx+xx..1.1..xx+xx.......xx 
+xx.......xx+xx..1.1..xx+xx.......xx
 x....[....+.+...1d....+.+~...3....+@
-xx.......xx+xx...1...xx+xx.......xx 
+xx.......xx+xx...1...xx+xx.......xx
 xxx.....xxx.xxx.....xxxfxxx.....xx
 xxxx...xxx...xxx...xxx...xxx...xx
 xxxxx.xxx.....xxx.xxx.....xxx.xx
@@ -4117,9 +4118,9 @@ ENDMAP
 
 ##############################################################
 # Ruined Dwarven Fortress Basement
-NAME: entry_elethiomel_003
-TAGS: entry no_monster_gen no_rotate
-ITEM: any armour / any weapon / nothing
+NAME:    entry_elethiomel_003
+TAGS:    entry no_monster_gen no_rotate
+ITEM:    any armour / any weapon / nothing
 ORIENT:  float
 WEIGHT:  2
 SHUFFLE: {[(
@@ -4148,8 +4149,8 @@ ENDMAP
 
 ##############################################################
 # A Maze of Twisty Passages, All Alike
-NAME: entry_elethiomel_004
-TAGS: entry no_monster_gen
+NAME:    entry_elethiomel_004
+TAGS:    entry no_monster_gen
 ORIENT:  float
 SHUFFLE: {[(, WXYZ
 SUBST:   W=., X=X., X=x=., Y=Y., Y=x=., Z=Z., Z=x=.
@@ -4174,8 +4175,8 @@ ENDMAP
 ##############################################################
 # It's quiet. Too quiet....
 #
-NAME: entry_elethiomel_005_a
-TAGS: entry no_monster_gen
+NAME:    entry_elethiomel_005_a
+TAGS:    entry no_monster_gen
 ORIENT:  float
 MONS:    rat / nothing, hobgoblin / goblin / nothing
 SHUFFLE: '"XY/ABVW, !?/CD
@@ -4199,8 +4200,8 @@ xxcccccc.....ccccccxx
       ccccccccc
 ENDMAP
 
-NAME: entry_elethiomel_005_b
-TAGS: entry no_monster_gen
+NAME:    entry_elethiomel_005_b
+TAGS:    entry no_monster_gen
 ORIENT:  float
 MONS:    rat / nothing, hobgoblin / goblin / nothing
 SHUFFLE: '"/AB, !?XY/CDVW
@@ -4227,19 +4228,19 @@ ENDMAP
 ##############################################################
 # Shortcut
 
-NAME: entry_elethiomel_006
-TAGS: entry
+NAME:    entry_elethiomel_006
+TAGS:    entry
 ORIENT:  float
 SHUFFLE: {[(, XY/AB
 KFEAT:   X = teleport trap
 SUBST:   Y=x, A=., B==, (=(., [=[.
 MAP
-   xxxx@xxxxxxx.@.x   
-   xxxx.xxxxxx...xx   
-   xxxx.xxxxx...xxx   
-   xx....xxx...xxxx   
-   xx{....x...xxxxx   
-xxxxx........xxxxxx   
+   xxxx@xxxxxxx.@.x
+   xxxx.xxxxxx...xx
+   xxxx.xxxxx...xxx
+   xx....xxx...xxxx
+   xx{....x...xxxxx
+xxxxx........xxxxxx
 x].XY........xxxxxxxxx
 xxxxx.[..............@
 xxxxx.......(.xxxxxxxx
@@ -4249,8 +4250,8 @@ ENDMAP
 ##############################################################
 # Indiana Jones and the Raiders of the Lost Ark
 
-NAME: entry_elethiomel_007
-TAGS: entry
+NAME:   entry_elethiomel_007
+TAGS:   entry
 ORIENT: float
 SUBST:  ~ = ~ .:5
 # Too bad there isn't a "rolling boulder" trap.
@@ -4281,7 +4282,7 @@ NAME:    onia_ninara_001_pentagram
 TAGS:    entry no_monster_gen no_pool_fixup no_rotate
 ORIENT:  float
 SHUFFLE: ({[, x+/x+/x+/x+/cC/vV/lL/wW
-SUBST:   C=+, V=+ 
+SUBST:   C=+, V=+
 NSUBST:  L = 1:. / *:l
 MAP
        .............
@@ -4307,8 +4308,8 @@ ENDMAP
 
 ##############################################################
 # Pyramid
-NAME: onia_ninara_002_pyramid
-TAGS: entry no_rotate
+NAME:    onia_ninara_002_pyramid
+TAGS:    entry no_rotate
 ORIENT:  float
 SHUFFLE: ({[
 MAP
@@ -4330,8 +4331,8 @@ ENDMAP
 
 ##############################################################
 # Mini spirals
-NAME: onia_ninara_003_mini_spirals
-TAGS: entry
+NAME:    onia_ninara_003_mini_spirals
+TAGS:    entry
 ORIENT:  float
 SHUFFLE: ({[<,GT, vcxxxx
 MAP
@@ -4379,7 +4380,7 @@ ORIENT:  float
 ITEM:    apple / sausage / nothing / stone / potion of water / w:30 nothing
 SHUFFLE: ({[ , AB
 SUBST:   A : x , B = +., X = x=
-MONS:    w:30 nothing / w:10 plant / w:3 fungus / w:1 worm 
+MONS:    w:30 nothing / w:10 plant / w:3 fungus / w:1 worm
 MAP
 xxxxxxxxx@xxxxxxx
 x.......A.B.....x
@@ -4403,15 +4404,15 @@ NAME:    onia_ninara_005_the_zoo_common
 WEIGHT:  9
 ORIENT:  float
 SHUFFLE: 1234567
-MONS: giant gecko /giant iguana / giant lizard / giant newt / gila monster /\
-      komodo dragon
-MONS: hog / jackal / wolf / hound / war dog
-MONS: giant cockroach / giant ant / butterfly / killer bee / bumblebee /\
-      redback / giant mite
-MONS: swamp worm / lindwurm / worm / spiny worm
-MONS: swamp drake / hydra / wyvern / firedrake
-MONS: bear / polar bear / grizzly bear / black bear
-MONS: black snake / brown snake / grey snake / salamander / yellow snake
+MONS:    giant gecko /giant iguana / giant lizard / giant newt /\
+         gila monster / komodo dragon
+MONS:    hog / jackal / wolf / hound / war dog
+MONS:    giant cockroach / giant ant / butterfly / killer bee / bumblebee /\
+         redback / giant mite
+MONS:    swamp worm / lindwurm / worm / spiny worm
+MONS:    swamp drake / hydra / wyvern / firedrake
+MONS:    bear / polar bear / grizzly bear / black bear
+MONS:    black snake / brown snake / grey snake / salamander / yellow snake
 MAP
 xxxxxxxx@xxxxxxxx
 xxxxxx.G.G.xxxxxx
@@ -4749,8 +4750,8 @@ ENDMAP
 
 ##############################################################
 # Rooms in the neighbourhood.
-NAME: misc_entry_001
-TAGS: entry no_monster_gen
+NAME:   misc_entry_001
+TAGS:   entry no_monster_gen
 RTILE:  x = wall_hall
 FTILE:  . = floor_hall, ( = floor_hall, [ = floor_hall, { = floor_hall
 ORIENT: float

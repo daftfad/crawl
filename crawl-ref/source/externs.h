@@ -325,6 +325,7 @@ public:
     virtual bool visible_to(const actor *looker) const = 0;
     virtual bool can_see(const actor *target) const = 0;
     virtual bool is_icy() const = 0;
+    virtual bool is_fiery() const = 0;
     virtual void go_berserk(bool intentional) = 0;
     virtual bool can_mutate() const = 0;
     virtual bool can_safely_mutate() const = 0;
@@ -619,6 +620,16 @@ public:
     {
         *this = item_def();
     }
+
+    // Sets this item as being held by a given monster.
+    void set_holding_monster(int midx);
+
+    // Returns monster holding this item.  NULL if none.
+    monsters* holding_monster() const;
+
+    // Returns true if a monster is holding this item.
+    bool held_by_monster() const;
+
 private:
     std::string name_aux(description_level_type desc,
                          bool terse, bool ident,
@@ -991,6 +1002,7 @@ public:
     bool visible_to(const actor *looker) const;
     bool can_see(const actor *target) const;
     bool is_icy() const;
+    bool is_fiery() const;
 
     bool light_flight() const;
     bool travelling_light() const;
@@ -1275,9 +1287,7 @@ public:
     int shield_blocks;                 // Count of shield blocks this round.
 
     god_type god;                      // What god the monster worships, if
-                                       // any.  This is currently only used for
-                                       // monsters that are god gifts, to
-                                       // indicate which god sent them.
+                                       // any.
 
     std::auto_ptr<ghost_demon> ghost;  // Ghost information.
 
@@ -1482,6 +1492,7 @@ public:
     bool mon_see_grid(const coord_def& pos, bool reach = false) const;
     bool can_see(const actor *target) const;
     bool is_icy() const;
+    bool is_fiery() const;
     bool paralysed() const;
     bool cannot_move() const;
     bool cannot_act() const;
@@ -1539,6 +1550,7 @@ public:
     int action_energy(energy_use_type et) const;
 
     bool do_shaft();
+    bool has_spell_of_type(unsigned) const;
 
 private:
     void init_with(const monsters &mons);
@@ -1561,7 +1573,6 @@ private:
     bool check_set_valid_home(const coord_def &place,
                               coord_def &chosen,
                               int &nvalid) const;
-    bool has_spell_of_type(unsigned) const;
 };
 
 struct cloud_struct
@@ -1941,7 +1952,7 @@ public:
 
     bool        verbose_monster_pane;
 
-    bool        autopickup_on;
+    int         autopickup_on;
     int         default_friendly_pickup;
     bool        show_more_prompt;
 
@@ -1955,6 +1966,7 @@ public:
     bool        show_uncursed;   // label known uncursed items as "uncursed"
     bool        easy_open;       // open doors with movement
     bool        easy_unequip;    // allow auto-removing of armour / jewellery
+    bool        equip_unequip;   // Make 'W' = 'T', and 'P' = 'R'.
     bool        easy_butcher;    // autoswap to butchering tool
     bool        always_confirm_butcher; // even if only one corpse
     bool        chunks_autopickup; // Autopickup chunks after butchering
@@ -1976,6 +1988,7 @@ public:
     bool        note_all_spells;  // take note when learning any spell
     std::string user_note_prefix; // Prefix for user notes
     int         note_hp_percent;  // percentage hp for notetaking
+    bool        note_xom_effects; // take note of all Xom effects
     int         ood_interesting;  // how many levels OOD is noteworthy?
     int         rare_interesting; // what monster rarity is noteworthy?
     confirm_level_type easy_confirm;    // make yesno() confirming easier
@@ -1985,6 +1998,7 @@ public:
     int         colour[16];      // macro fg colours to other colours
     int         background;      // select default background colour
     int         channels[NUM_MESSAGE_CHANNELS];  // msg channel colouring
+    int         target_range; // for whether targeting is out of range
 
     bool        use_old_selection_order; // use old order of species/classes in
                                          // selection screen
@@ -2179,6 +2193,7 @@ public:
 #ifdef USE_TILE
     char        tile_show_items[20]; // show which item types in tile inventory
     bool        tile_title_screen;   // display title screen?
+    bool        tile_menu_icons;     // display icons in menus?
     // minimap colours
     char        tile_player_col;
     char        tile_monster_col;
@@ -2239,7 +2254,7 @@ public:
 
     ///////////////////////////////////////////////////////////////////////
     // tutorial
-    FixedVector<bool, 75> tutorial_events;
+    FixedVector<bool, 85> tutorial_events;
     bool tut_explored;
     bool tut_stashes;
     bool tut_travel;
@@ -2259,7 +2274,7 @@ private:
     string_map               aliases;
     string_map               variables;
     std::set<std::string>    constants; // Variables that can't be changed
-    std::set<std::string>    included; // Files we've included already.
+    std::set<std::string>    included;  // Files we've included already.
 
 public:
     // Convenience accessors for the second-class options in named_options.

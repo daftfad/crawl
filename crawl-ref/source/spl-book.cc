@@ -33,6 +33,7 @@ REVISION("$Rev$");
 #include "items.h"
 #include "it_use3.h"
 #include "Kills.h"
+#include "macro.h"
 #include "message.h"
 #include "player.h"
 #include "randart.h"
@@ -891,15 +892,16 @@ int spellbook_contents( item_def &book, read_book_action_type action,
         *fs = out;
 
     int keyn = 0;
-    if (update_screen)
+    if (update_screen && !crawl_state.is_replaying_keys())
     {
         cursor_control coff(false);
         clrscr();
 
         out.display();
-
-        keyn = c_getch();
     }
+
+    if (update_screen)
+        keyn = tolower(getchm(KMC_MENU));
 
     return (keyn);     // try to figure out that for which this is used {dlb}
 }
@@ -1199,7 +1201,8 @@ int read_book( item_def &book, read_book_action_type action )
     if (book.base_type == OBJ_BOOKS)
         mark_had_book(book);
 
-    redraw_screen();
+    if (!crawl_state.is_replaying_keys())
+        redraw_screen();
 
     // Put special book effects in another function which can be called
     // from memorise as well.
@@ -1332,6 +1335,12 @@ bool player_can_memorise(const item_def &book)
 
 bool learn_spell(int book)
 {
+    if (player_in_bat_form())
+    {
+        canned_msg(MSG_PRESENT_FORM);
+        return (false);
+    }
+
     int chance = 0;
     int levels_needed = 0;
     int index;
@@ -1368,10 +1377,13 @@ bool learn_spell(int book)
         return (false);
 
     int spell = read_book( you.inv[book], RBOOK_MEMORISE );
-    clrscr();
 
-    mesclr(true);
-    redraw_screen();
+    if (!crawl_state.is_replaying_keys())
+    {
+        clrscr();
+        mesclr(true);
+        redraw_screen();
+    }
 
     if ( !isalpha(spell) )
     {
@@ -1525,7 +1537,7 @@ int count_staff_spells(const item_def &item, bool need_id)
         return (0);
 
     const int type = item.book_number();
-    if ( !item_is_rod(item) || type == -1)
+    if (!item_is_rod(item) || type == -1)
         return (0);
 
     int nspel = 0;
@@ -2042,60 +2054,68 @@ bool make_book_level_randart(item_def &book, int level, int num_spells,
     // None of these books need a definite article prepended.
     book.props["is_named"].get_bool() = true;
 
-    std::string lookup;
-    if (level == 1)
-        lookup = "starting";
-    else if (level <= 3 || level == 4 && coinflip())
-        lookup = "easy";
-    else if (level <= 6)
-        lookup = "moderate";
-    else
-        lookup = "difficult";
-
-    lookup += " level book";
-
     std::string bookname;
-    // First try for names respecting the book's previous owner/author
-    // (if one exists), then check for general difficulty.
-    if (has_owner)
-        bookname = getRandNameString(lookup + " owner");
-
-    if (!has_owner || bookname.empty())
-        bookname = getRandNameString(lookup);
-
-    bookname = uppercase_first(bookname);
-    if (has_owner)
+    if (god == GOD_XOM && coinflip())
     {
-        if (bookname.substr(0, 4) == "The ")
-            bookname = bookname.substr(4);
-        else if (bookname.substr(0, 2) == "A ")
-            bookname = bookname.substr(2);
-        else if (bookname.substr(0, 3) == "An ")
-            bookname = bookname.substr(3);
+        bookname = getRandNameString("book_noun") + " of "
+                   + getRandNameString("Xom_book_title");
+    }
+    else
+    {
+        std::string lookup;
+        if (level == 1)
+            lookup = "starting";
+        else if (level <= 3 || level == 4 && coinflip())
+            lookup = "easy";
+        else if (level <= 6)
+            lookup = "moderate";
+        else
+            lookup = "difficult";
+
+        lookup += " level book";
+
+        // First try for names respecting the book's previous owner/author
+        // (if one exists), then check for general difficulty.
+        if (has_owner)
+            bookname = getRandNameString(lookup + " owner");
+
+        if (!has_owner || bookname.empty())
+            bookname = getRandNameString(lookup);
+
+        bookname = uppercase_first(bookname);
+        if (has_owner)
+        {
+            if (bookname.substr(0, 4) == "The ")
+                bookname = bookname.substr(4);
+            else if (bookname.substr(0, 2) == "A ")
+                bookname = bookname.substr(2);
+            else if (bookname.substr(0, 3) == "An ")
+                bookname = bookname.substr(3);
+        }
+
+        if (bookname.find("@level@", 0) != std::string::npos)
+        {
+            std::string number;
+            switch (level)
+            {
+            case 1: number = "One"; break;
+            case 2: number = "Two"; break;
+            case 3: number = "Three"; break;
+            case 4: number = "Four"; break;
+            case 5: number = "Five"; break;
+            case 6: number = "Six"; break;
+            case 7: number = "Seven"; break;
+            case 8: number = "Eight"; break;
+            case 9: number = "Nine"; break;
+            default:
+                number = ""; break;
+            }
+            bookname = replace_all(bookname, "@level@", number);
+        }
     }
 
     if (bookname.empty())
         bookname = getRandNameString("book");
-
-    if (bookname.find("@level@", 0) != std::string::npos)
-    {
-        std::string number;
-        switch (level)
-        {
-        case 1: number = "One"; break;
-        case 2: number = "Two"; break;
-        case 3: number = "Three"; break;
-        case 4: number = "Four"; break;
-        case 5: number = "Five"; break;
-        case 6: number = "Six"; break;
-        case 7: number = "Seven"; break;
-        case 8: number = "Eight"; break;
-        case 9: number = "Nine"; break;
-        default:
-            number = ""; break;
-        }
-        bookname = replace_all(bookname, "@level@", number);
-    }
 
     name += bookname;
 
@@ -2117,8 +2137,8 @@ static bool _get_weighted_discs(bool completely_random, god_type god,
         int disc = 1 << i;
         if (god_dislikes_spell_discipline(disc, god))
             continue;
-        int junk1 = 0, junk2 = 0;
 
+        int junk1 = 0, junk2 = 0;
         std::vector<spell_type> spell_list;
         _get_spell_list(spell_list, disc, disc, god, !completely_random,
                         junk1, junk2, !completely_random);
@@ -2136,7 +2156,7 @@ static bool _get_weighted_discs(bool completely_random, god_type god,
     if (num_discs == 0)
     {
 #ifdef DEBUG
-        mpr("No valid disciplines with which to make a themed ranadart "
+        mpr("No valid disciplines with which to make a themed randart "
             "spellbook.", MSGCH_ERROR);
 #endif
         // Only happens if !completely_random and the player already knows
@@ -2353,7 +2373,16 @@ bool make_book_theme_randart(item_def &book, int disc1, int disc2,
         if (disc1 == 0 && disc2 == 0)
         {
             if (!_get_weighted_discs(completely_random, god, disc1, disc2))
-                return (false);
+            {
+                if (completely_random)
+                    return (false);
+
+                // Rather than give up at this point, choose schools randomly.
+                // This way, an acquirement won't fail once the player has
+                // seen all spells.
+                if (!_get_weighted_discs(true, god, disc1, disc2))
+                    return (false);
+            }
         }
         else if (disc2 == 0)
             disc2 = disc1;
@@ -2625,7 +2654,9 @@ bool make_book_theme_randart(item_def &book, int disc1, int disc2,
 
     // Sometimes use a completely random title.
     std::string bookname = "";
-    if (one_chance_in(20) && (owner.empty() || one_chance_in(3)))
+    if (owner == "Xom" && !one_chance_in(20))
+        bookname = getRandNameString("Xom_book_title");
+    else if (one_chance_in(20) && (owner.empty() || one_chance_in(3)))
         bookname = getRandNameString("random_book_title");
 
     if (!bookname.empty())

@@ -38,8 +38,8 @@ void TileNewLevel(bool first_time)
 {
     tiles.clear_minimap();
 
-    for (int y = 0; y < GYM; y++)
-        for (int x = 0; x < GXM; x++)
+    for (unsigned int x = 0; x < GXM; x++)
+        for (unsigned int y = 0; y < GYM; y++)
             tiles.update_minimap(x, y);
 
     if (first_time)
@@ -121,7 +121,7 @@ int tileidx_monster_base(const monsters *mon, bool detected)
 
     int type = mon->type;
 
-    // show only base class for detected monsters
+    // Show only base class for detected monsters.
     if (detected)
         type = mons_genus(type);
 
@@ -143,7 +143,7 @@ int tileidx_monster_base(const monsters *mon, bool detected)
     case MONS_GIANT_BAT:
         return TILEP_MONS_GIANT_BAT;
     case MONS_BUTTERFLY:
-        return TILEP_MONS_BUTTERFLY + ((mon->colour)%7);
+        return TILEP_MONS_BUTTERFLY + ((mon->colour) % 7);
 
     // centaurs ('c')
     case MONS_CENTAUR:
@@ -154,6 +154,10 @@ int tileidx_monster_base(const monsters *mon, bool detected)
         return TILEP_MONS_YAKTAUR + _bow_offset(mon);
     case MONS_YAKTAUR_CAPTAIN:
         return TILEP_MONS_YAKTAUR_CAPTAIN + _bow_offset(mon);
+
+    // draconians ('d'):
+    case MONS_DRACONIAN:
+        return TILEP_DRACO_BASE;
 
     // elves ('e')
     case MONS_ELF:
@@ -740,15 +744,15 @@ int tileidx_monster_base(const monsters *mon, bool detected)
     case MONS_SCROLL_MIMIC:
     case MONS_POTION_MIMIC:
     {
-      // Use item tile
-      item_def  item;
-      get_mimic_item( mon, item );
-      return tileidx_item(item);
+        // Use item tile.
+        item_def  item;
+        get_mimic_item( mon, item );
+        return tileidx_item(item);
     }
 
     case MONS_DANCING_WEAPON:
     {
-        // Use item tile
+        // Use item tile.
         item_def item = mitm[mon->inv[MSLOT_WEAPON]];
         return tileidx_item(item) | TILE_FLAG_ANIM_WEP;
     }
@@ -1077,7 +1081,7 @@ static int _tileidx_monster(int mon_idx, bool detected)
 
 static int _tileidx_fixed_artefact(int special)
 {
-    switch(special)
+    switch (special)
     {
     case SPWPN_SINGING_SWORD:       return TILE_SPWPN_SINGING_SWORD;
     case SPWPN_WRATH_OF_TROG:       return TILE_SPWPN_WRATH_OF_TROG;
@@ -1388,7 +1392,7 @@ static int _tileidx_weapon(const item_def &item)
 static int _tileidx_missile(const item_def &item)
 {
     int brand = item.special;
-    switch(item.sub_type)
+    switch (item.sub_type)
     {
     case MI_STONE:        return TILE_MI_STONE;
     case MI_ARROW:        return TILE_MI_ARROW;
@@ -1399,12 +1403,12 @@ static int _tileidx_missile(const item_def &item)
     case MI_THROWING_NET: return TILE_MI_THROWING_NET;
 
     case MI_DART:
-        if (brand == SPMSL_POISONED || brand == SPMSL_POISONED_II)
+        if (brand == SPMSL_POISONED)
             return TILE_MI_DART_P;
         return TILE_MI_DART;
 
     case MI_NEEDLE:
-        if (brand == SPMSL_POISONED || brand == SPMSL_POISONED_II)
+        if (brand == SPMSL_POISONED)
             return TILE_MI_NEEDLE_P;
         return TILE_MI_NEEDLE;
   }
@@ -1416,7 +1420,7 @@ static int _tileidx_armour_base(const item_def &item)
 {
     int race  = item.flags & ISFLAG_RACIAL_MASK;
     int type  = item.sub_type;
-    switch(type)
+    switch (type)
     {
     case ARM_ROBE:
         return TILE_ARM_ROBE;
@@ -1943,7 +1947,7 @@ static int _tileidx_rune(const item_def &item)
 
 static int _tileidx_misc(const item_def &item)
 {
-    switch(item.sub_type)
+    switch (item.sub_type)
     {
     case MISC_BOTTLED_EFREET:
         return TILE_MISC_BOTTLED_EFREET;
@@ -2755,7 +2759,7 @@ static int _draconian_colour(int race, int level)
 {
     if (level < 0) // hack:monster
     {
-        switch(race)
+        switch (race)
         {
         case MONS_DRACONIAN:        return 0;
         case MONS_BLACK_DRACONIAN:  return 1;
@@ -2770,7 +2774,7 @@ static int _draconian_colour(int race, int level)
     }
     if (level < 7)
         return 0;
-    switch(race)
+    switch (race)
     {
     case SP_BLACK_DRACONIAN:   return 1;
     case SP_YELLOW_DRACONIAN:  return 2;
@@ -2796,7 +2800,7 @@ void tilep_race_default(int race, int gender, int level, int *parts)
     else
         hair = TILEP_HAIR_LONG_BLACK;
 
-    switch(race)
+    switch (race)
     {
         case SP_HUMAN:
             result = TILEP_BASE_HUMAN;
@@ -2943,7 +2947,7 @@ void tilep_job_default(int job, int gender, int *parts)
     parts[TILEP_PART_HAND2] = 0;
     parts[TILEP_PART_HELM]  = 0;
 
-    switch(job)
+    switch (job)
     {
         case JOB_FIGHTER:
             parts[TILEP_PART_BODY]  = TILEP_SHOW_EQUIP;
@@ -3322,7 +3326,7 @@ int tilep_equ_weapon(const item_def &item)
 
     if (item.base_type == OBJ_MISCELLANY)
     {
-        switch(item.sub_type)
+        switch (item.sub_type)
         {
         case MISC_BOTTLED_EFREET:             return TILEP_HAND1_BOTTLE;
         case MISC_AIR_ELEMENTAL_FAN:          return TILEP_HAND1_FAN;
@@ -3357,7 +3361,7 @@ int tilep_equ_weapon(const item_def &item)
 
     if (is_fixed_artefact( item ))
     {
-        switch(item.special)
+        switch (item.special)
         {
             case SPWPN_SINGING_SWORD:       return TILEP_HAND1_SINGING_SWORD;
             case SPWPN_WRATH_OF_TROG:       return TILEP_HAND1_AXE_TROG;
@@ -3546,7 +3550,7 @@ int tilep_equ_armour(const item_def &item)
     {
 
     case ARM_ROBE:
-        switch(item.colour)
+        switch (item.colour)
         {
             // We've got a zillion robes; let's use 'em!
             case BLACK:       return TILEP_BODY_ROBE_BLACK_RED;
@@ -3787,7 +3791,7 @@ int tilep_equ_helm(const item_def &item)
                     return TILEP_HELM_FHELM_EVIL;
                 case THELM_DESC_VISORED:
                     return TILEP_HELM_FHELM_GRAY3;
-                case THELM_DESC_JEWELLED:
+                case THELM_DESC_GOLDEN:
                     return TILEP_HELM_FULL_GOLD;
             }
     }
@@ -3987,13 +3991,13 @@ void tile_clear_flavour()
 // set them to a random instance of the default floor and wall tileset.
 void tile_init_flavour()
 {
-    for (rectangle_iterator ri(1); ri; ++ri)
+    for (rectangle_iterator ri(0); ri; ++ri)
         tile_init_flavour(*ri);
 }
 
 void tile_init_flavour(const coord_def &gc)
 {
-    if (!in_bounds(gc))
+    if (!map_bounds(gc))
         return;
 
     if (!env.tile_flv(gc).floor)
@@ -4301,21 +4305,18 @@ void tile_draw_floor()
             int bg = TILE_DNGN_UNSEEN | tile_unseen_flag(gc);
 
             int object = show_appearance(ep);
-            if (in_bounds(gc) && object != 0)
+            if (object != 0 && map_bounds(gc))
             {
                 bg = tileidx_feature(object, gc.x, gc.y);
 
-                if (is_travelable_stair((dungeon_feature_type)object)
+                if (in_bounds(gc)
+                    && is_travelable_stair((dungeon_feature_type)object)
                     && !travel_cache.know_stair(gc))
                 {
                     bg |= TILE_FLAG_NEW_STAIR;
                 }
             }
-            else if (map_bounds(gc) && object != 0)
-            {
-                // outside border
-                bg = tileidx_feature(object, gc.x, gc.y);
-            }
+
             // init tiles
             env.tile_bg[ep.x-1][ep.y-1] = bg;
             env.tile_fg[ep.x-1][ep.y-1] = 0;
@@ -4418,7 +4419,7 @@ void tile_place_monster(int gx, int gy, int idx, bool foreground, bool detected)
         else if (pref == TAGPREF_TUTORIAL)
         {
             const long kills = you.kills->num_kills(mon);
-            const int limit = 3;
+            const int limit = 0;
 
             if (!mon->is_named() && kills > limit)
                 return;

@@ -26,6 +26,7 @@ REVISION("$Rev$");
 
 #include "externs.h"
 
+#include "abl-show.h"
 #include "cio.h"
 #include "defines.h"
 #include "effects.h"
@@ -1461,7 +1462,7 @@ formatted_string describe_mutations()
     }
 
     // a bit more stuff
-    if (you.species == SP_OGRE || you.species == SP_TROLL
+    if (player_genus(GENPC_OGRE) || you.species == SP_TROLL
         || player_genus(GENPC_DRACONIAN) || you.species == SP_SPRIGGAN)
     {
         result += "Your body does not fit into most forms of armour." EOL;
@@ -1530,6 +1531,8 @@ formatted_string describe_mutations()
 
 static void _display_vampire_attributes()
 {
+    ASSERT(you.species == SP_VAMPIRE);
+
     clrscr();
     cgotoxy(1,1);
 
@@ -1623,13 +1626,10 @@ static void _display_vampire_attributes()
     const formatted_string vp_props = formatted_string::parse_string(result);
     vp_props.display();
 
-    if (you.species == SP_VAMPIRE)
-    {
-        mouse_control mc(MOUSE_MODE_MORE);
-        const int keyin = getch();
-        if (keyin == '!' || keyin == CK_MOUSE_CMD)
-            display_mutations();
-    }
+    mouse_control mc(MOUSE_MODE_MORE);
+    const int keyin = getch();
+    if (keyin == '!' || keyin == CK_MOUSE_CMD)
+        display_mutations();
 }
 
 void display_mutations()
@@ -1773,7 +1773,7 @@ static bool _is_deadly(mutation_type mutat, bool delete_mut)
     char  amnt     = 1;
     char  mod      = 0;
 
-    switch(mutat)
+    switch (mutat)
     {
     case MUT_GREY2_SCALES:
         if (cur_level == 0 || cur_level == 2)
@@ -2215,6 +2215,8 @@ bool mutate(mutation_type which_mutation, bool failMsg,
         return (false);
     ASSERT(rc == 0);
 
+    const unsigned int old_talents = your_talents(false).size();
+
     bool gain_msg = true;
     bool stat_msg = false;
 
@@ -2242,7 +2244,7 @@ bool mutate(mutation_type which_mutation, bool failMsg,
 
         // Hooves and talons force boots off.
         if (you_tran_can_wear(EQ_BOOTS))
-            remove_one_equip(EQ_BOOTS, false);
+            remove_one_equip(EQ_BOOTS, false, true);
         break;
 
     case MUT_CLAWS:
@@ -2253,7 +2255,7 @@ bool mutate(mutation_type which_mutation, bool failMsg,
         // mutation yet, so we have to check for level 2 or higher claws
         // here.
         if (you.mutation[mutat] >= 2 && you_tran_can_wear(EQ_GLOVES))
-            remove_one_equip(EQ_GLOVES, false);
+            remove_one_equip(EQ_GLOVES, false, true);
         break;
 
     case MUT_HORNS:
@@ -2266,7 +2268,7 @@ bool mutate(mutation_type which_mutation, bool failMsg,
             && is_hard_helmet(you.inv[you.equip[EQ_HELMET]])
             && you_tran_can_wear(EQ_HELMET))
         {
-            remove_one_equip(EQ_HELMET, false);
+            remove_one_equip(EQ_HELMET, false, true);
         }
         break;
 
@@ -2302,6 +2304,10 @@ bool mutate(mutation_type which_mutation, bool failMsg,
     xom_is_stimulated(_calc_mutation_amusement_value(mutat));
 
     take_note(Note(NOTE_GET_MUTATION, mutat, you.mutation[mutat]));
+
+    if (Options.tutorial_left && your_talents(false).size() > old_talents)
+        learned_something_new(TUT_NEW_ABILITY_MUT);
+
     return (true);
 }
 
